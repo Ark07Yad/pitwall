@@ -50,6 +50,25 @@ F1's feed reliably drops after about two hours — roughly the length of a Grand
 uv run python scripts/record.py data/raw/2026-hungary-race.txt
 ```
 
+It is safe to start early: a connection made outside a session returns one state snapshot and then
+nothing, and the supervisor detects that and backs off to five-minute retries rather than
+reconnecting in a loop.
+
+### Record unattended
+
+Races happen at awkward times. This waits for the session, holds off system sleep, records, and
+stops on its own:
+
+```bash
+nohup ./scripts/scheduled_record.sh "2026-07-26 13:30" data/raw/2026-hungary-race.txt 210 &
+```
+
+Arguments are start time (local), output file, and minutes to record. Progress goes to
+`data/raw/<name>-runner.log`.
+
+**Leave the machine plugged in, on wi-fi, and with the lid open.** macOS sleeps on lid close
+regardless of `caffeinate`, and a sleeping Mac records nothing.
+
 ### Replay one
 
 ```bash

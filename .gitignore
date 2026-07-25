@@ -1,0 +1,24 @@
+# Recordings are large and are F1's data, not ours - keep them local.
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/.gitignore
+cache/
+*.ff1pkl
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

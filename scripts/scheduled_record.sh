@@ -56,7 +56,14 @@ log "output   : $OUTPUT"
 log "duration : ${MINUTES} min"
 log "sleep is held off until this script exits"
 
-sleep "$wait_seconds"
+# Poll against the wall clock rather than one long sleep. A single `sleep` is
+# suspended if the machine ever does sleep, so it would fire late by however
+# long the nap lasted; re-reading the clock each minute fires on time regardless
+# (or immediately, if we woke up already past due).
+while (( $(date +%s) < target_epoch )); do
+    remaining=$(( target_epoch - $(date +%s) ))
+    if (( remaining > 60 )); then sleep 60; else sleep "$remaining"; fi
+done
 
 log "starting recorder"
 "${REPO}/.venv/bin/python" "${REPO}/scripts/record.py" "$OUTPUT" >>"$LOG" 2>&1 &

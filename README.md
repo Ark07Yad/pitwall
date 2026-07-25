@@ -1,5 +1,9 @@
 # Pitwall
 
+[![CI](https://github.com/Ark07Yad/pitwall/actions/workflows/ci.yml/badge.svg)](https://github.com/Ark07Yad/pitwall/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 **A live Formula 1 race strategy engine.**
 
 Pitwall consumes Formula 1's live timing stream, fits tyre degradation and safety-car models

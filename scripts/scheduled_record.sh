@@ -38,8 +38,10 @@ if (( wait_seconds < 0 )); then
 fi
 
 # Hold the system awake for as long as this script lives. Without this the Mac
-# sleeps after a minute idle and the recording simply stops.
-caffeinate -dimsu -w $$ &
+# sleeps after a minute idle and the recording simply stops. The display is
+# deliberately allowed to sleep - this may be started the night before, and
+# there is no reason to burn the screen until the session starts.
+caffeinate -ims -w $$ &
 CAFFEINATE_PID=$!
 
 cleanup() {

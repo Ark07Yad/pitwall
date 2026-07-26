@@ -23,7 +23,12 @@ def _format_gap(car: object, attr: str) -> str:
     return str(value) if value else "-"
 
 
-def render(state: RaceState, *, limit: int = 20) -> str:
+def render(state: RaceState, *, limit: int | None = None) -> str:
+    """Render the timing screen. `limit` defaults to the whole field.
+
+    Do not hardcode a grid size here - 2026 runs 22 cars, and a fixed 20 silently
+    truncated the last two.
+    """
     lines = [
         f"{state.session_name or 'Session'} @ {state.circuit or '?'}"
         f"   lap {state.lap}/{state.total_laps or '?'}"
@@ -37,7 +42,8 @@ def render(state: RaceState, *, limit: int = 20) -> str:
     lines.append(header)
     lines.append("-" * len(header))
 
-    for car in state.running_order()[:limit]:
+    order = state.running_order()
+    for car in order[:limit] if limit else order:
         if car.position is None and not car.tla:
             continue
         last = f"{car.last_lap_time:.3f}" if car.last_lap_time else "-"

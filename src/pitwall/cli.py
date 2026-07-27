@@ -14,6 +14,7 @@ from collections import Counter
 from pathlib import Path
 
 from pitwall.feed.replay import ReplayFeed, read_events
+from pitwall.laps import CleanLapConfig, LapCollector, filter_laps
 from pitwall.state.models import RaceState
 from pitwall.state.reducer import RaceStateReducer
 
@@ -94,6 +95,42 @@ def _topics(args: argparse.Namespace) -> int:
     return 0
 
 
+def _laps(args: argparse.Namespace) -> int:
+    if not args.file.exists():
+        print(f"no such recording: {args.file}", file=sys.stderr)
+        return 1
+
+    collector = LapCollector()
+    for event in read_events(args.file):
+        collector.apply(event)
+
+    config = CleanLapConfig(
+        traffic_threshold=args.traffic,
+        outlier_ratio=args.outlier,
+    )
+    clean, report = filter_laps(collector.laps, config)
+    print(report)
+
+    if not clean:
+        return 0
+
+    by_compound: dict[str, list[tuple[int, float]]] = {}
+    for lap in clean:
+        if lap.lap_time is not None:
+            by_compound.setdefault(lap.compound.short, []).append((lap.tyre_age, lap.lap_time))
+
+    print("\nclean laps by compound:")
+    for compound, points in sorted(by_compound.items(), key=lambda kv: -len(kv[1])):
+        ages = [a for a, _ in points]
+        times = [t for _, t in points]
+        print(
+            f"  {compound}  n={len(points):>4}   "
+            f"age {min(ages):>2}-{max(ages):<2}   "
+            f"fastest {min(times):.3f}s"
+        )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pitwall")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -112,11 +149,33 @@ def main(argv: list[str] | None = None) -> int:
     topics = sub.add_parser("topics", help="count events by topic in a recording")
     topics.add_argument("file", type=Path)
 
+    # Read defaults off an instance, not the class: `slots=True` replaces class
+    # attributes with descriptors, so `CleanLapConfig.traffic_threshold` is a
+    # member_descriptor rather than 2.0.
+    defaults = CleanLapConfig()
+
+    laps = sub.add_parser("laps", help="extract laps and report clean-lap filtering")
+    laps.add_argument("file", type=Path)
+    laps.add_argument(
+        "--traffic",
+        type=float,
+        default=defaults.traffic_threshold,
+        help="seconds behind the car ahead below which a lap counts as dirty air",
+    )
+    laps.add_argument(
+        "--outlier",
+        type=float,
+        default=defaults.outlier_ratio,
+        help="reject laps slower than this multiple of the session best",
+    )
+
     args = parser.parse_args(argv)
     if args.command == "replay":
         return asyncio.run(_replay(args))
     if args.command == "topics":
         return _topics(args)
+    if args.command == "laps":
+        return _laps(args)
     return 1
 
 

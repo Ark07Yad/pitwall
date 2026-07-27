@@ -59,10 +59,10 @@ def test_driver_identity_is_populated(recording: Path):
 
 
 def test_partial_timing_update_keeps_earlier_fields(recording: Path):
-    """Lap 2 sent only `NumberOfLaps` for car 1; its lap time must survive."""
+    """The last update sent only `NumberOfLaps` for car 1; its lap time must survive."""
     state = fold(recording).state
     ver = state.cars["1"]
-    assert ver.laps_completed == 2
+    assert ver.laps_completed == 3
     assert ver.last_lap_time == pytest.approx(78.4)
     assert ver.position == 1
     assert ver.sectors[0] == pytest.approx(24.1)

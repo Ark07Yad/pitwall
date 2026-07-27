@@ -57,30 +57,40 @@ def recording(tmp_path: Path) -> Path:
             },
             ts.format(0),
         ],
+        # Cars take the start. No lap time exists yet.
+        [
+            "TimingData",
+            {
+                "Lines": {
+                    "1": {"Position": "1", "NumberOfLaps": 1, "GapToLeader": ""},
+                    "4": {"Position": "2", "NumberOfLaps": 1, "GapToLeader": "+1.200"},
+                }
+            },
+            ts.format(1),
+        ],
+        # Lap 1 completed. `NumberOfLaps` is the lap now being *started*, so the
+        # accompanying time belongs to the lap before it - matching how the real
+        # feed behaved in the 2026 Hungarian GP recording.
         [
             "TimingData",
             {
                 "Lines": {
                     "1": {
-                        "Position": "1",
-                        "NumberOfLaps": 1,
-                        "GapToLeader": "",
+                        "NumberOfLaps": 2,
                         "LastLapTime": {"Value": "1:18.400"},
                         "Sectors": {"0": {"Value": "24.100"}},
                     },
                     "4": {
-                        "Position": "2",
-                        "NumberOfLaps": 1,
-                        "GapToLeader": "+1.200",
-                        "IntervalToPositionAhead": {"Value": "+1.200"},
+                        "NumberOfLaps": 2,
                         "LastLapTime": {"Value": "1:19.600"},
+                        "IntervalToPositionAhead": {"Value": "+1.200"},
                     },
                 }
             },
             ts.format(1),
         ],
         # Delta: only the changed field is sent.
-        ["TimingData", {"Lines": {"1": {"NumberOfLaps": 2}}}, ts.format(2)],
+        ["TimingData", {"Lines": {"1": {"NumberOfLaps": 3}}}, ts.format(2)],
         ["LapCount", {"CurrentLap": 2}, ts.format(2)],
         ["TimingAppData", {"Lines": {"1": {"Stints": {"0": {"TotalLaps": 2}}}}}, ts.format(2)],
         # Pit stop: new stint appended, pit flags toggled.

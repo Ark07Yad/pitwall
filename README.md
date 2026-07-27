@@ -75,9 +75,30 @@ regardless of `caffeinate`, and a sleeping Mac records nothing.
 uv run pitwall topics data/raw/2026-hungary-race.txt      # what's in the recording
 uv run pitwall replay data/raw/2026-hungary-race.txt      # fold it into race state
 uv run pitwall replay data/raw/2026-hungary-race.txt --speed 60 --follow
+uv run pitwall laps   data/raw/2026-hungary-race.txt      # extract and filter laps
 ```
 
 `--speed 60` replays a two-hour race in about two minutes with a live timing screen.
+
+### Clean-lap filtering
+
+Degradation is a tenths-per-lap effect buried under much larger ones — an in-lap is ~20 s slow, a
+safety-car lap ~30 s. `pitwall laps` extracts completed laps and reports what it excluded and why:
+
+```
+881 clean of 1,405 laps (62.7% kept, 524 excluded)
+
+  following within the dirty-air threshold    429
+  entered the pits                             92
+  left the pits                                45
+  safety car, VSC or red flag                  34
+  lap 1 (standing start)                       22
+  lap time implausible for a racing lap         2
+```
+
+Rejections are reported as counted *reasons* rather than a boolean, because the breakdown is what
+shows the filter is behaving — on the 2026 Hungarian GP the 22 first-lap exclusions match the grid
+exactly, and the in/out-lap counts match the 47 recorded pit stops.
 
 ---
 

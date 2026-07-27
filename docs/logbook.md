@@ -4,6 +4,56 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-07-26 (later still) — Fuel correction, and an identification problem
+
+Fuel and degradation cannot be estimated one after the other: within a stint the car gets a lap
+lighter at exactly the rate the tyre gets a lap older, so they are perfectly collinear. What breaks
+the tie is the stint structure — fuel tracks the *race lap* and falls all afternoon, tyre age
+*resets* at every stop. So both go in one model:
+
+    lap_time = pace(driver) + β·race_lap + Σ_c δ_c + Σ_c α_c·tyre_age + ε
+
+Two artefacts, deliberately: `models/fuel.py` is physics from published constants and works from
+lap 1 with no data, which is the situation the live engine is in when a call actually matters.
+`models/pace.py` estimates the same thing from a finished race, more accurately, and can calibrate
+the first. That is the offline/online split the plan asked for.
+
+**The fuel result holds up.** Fitted trend −0.0503 s/lap against a physics prior of −0.0350
+(70 kg / 70 laps at 0.035 s/kg). Implied 0.050 s/kg vs a published 0.030–0.040 — above the range,
+and it should be: the coefficient absorbs everything trending with race lap, which is fuel burn
+*plus* track evolution as rubber goes down. R² 0.826, residual σ 0.70 s.
+
+**Bug: no per-compound intercept.** The first version had driver intercepts and per-compound
+*slopes* but no per-compound *offset*, so the model predicted identical times for every compound at
+age zero. A hard tyre is genuinely slower than a soft at equal age, and the only way the fit could
+express that was to inflate `α_hard`. It duly reported the hard degrading fastest — a completely
+plausible number that was pure misspecification. Fixed with offsets against a reference compound.
+
+**But the compound ordering is still not trustworthy, and this one is not a bug.** After the fix:
+MED +0.090, HAR +0.086, SOF +0.071 s/lap. Soft degrading slowest is not believable. The cause is in
+the usage pattern:
+
+| Compound | median race lap | n |
+|---|---|---|
+| MED | 15 | 222 |
+| HAR | 42 | 479 |
+| SOF | 55 | 180 |
+
+Teams ran medium early, hard through the middle, soft to the end. Compound is therefore almost a
+proxy for race phase, and "degradation on the soft" and "whatever happens late in a race" are
+effectively the same column of the design matrix. No estimator separates them from one race.
+
+The estimator itself is fine — on synthetic data with staggered compound usage it recovers β and
+every `α_c` to 1e-6 and reproduces the correct SOFT > MEDIUM > HARD ordering. So this is a data
+identification problem, not a code problem, and `fit_pace` now detects the phase separation and
+says so in its output rather than reporting confident nonsense.
+
+This is exactly the argument for hierarchical priors across races that the plan already made.
+Different circuits force different stint patterns, so pooling breaks the confound that a single
+race cannot. Zandvoort will be the second data point.
+
+---
+
 ## 2026-07-26 (later) — Clean-lap filter
 
 Phase 2 begins. Built lap extraction (`laps/records.py`) and the clean-lap filter

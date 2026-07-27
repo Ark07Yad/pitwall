@@ -15,6 +15,7 @@ from pathlib import Path
 
 from pitwall.feed.replay import ReplayFeed, read_events
 from pitwall.laps import CleanLapConfig, LapCollector, filter_laps
+from pitwall.models import FuelModel, fit_pace
 from pitwall.state.models import RaceState
 from pitwall.state.reducer import RaceStateReducer
 
@@ -128,6 +129,29 @@ def _laps(args: argparse.Namespace) -> int:
             f"age {min(ages):>2}-{max(ages):<2}   "
             f"fastest {min(times):.3f}s"
         )
+
+    if args.no_fit:
+        return 0
+
+    fit = fit_pace(clean)
+    if fit is None:
+        print("\nnot enough clean laps to fit the pace decomposition")
+        return 0
+
+    print()
+    print(fit)
+
+    total_laps = collector.state.total_laps
+    if total_laps > 0:
+        fuel = FuelModel(total_laps=total_laps)
+        print(
+            f"\n  physics prior    -{fuel.seconds_per_lap:.4f} s/lap "
+            f"({fuel.start_fuel_kg:.0f}kg / {total_laps} laps @ {fuel.seconds_per_kg} s/kg)"
+        )
+        print(
+            f"  implied          {fit.implied_seconds_per_kg(fuel.burn_per_lap_kg):.4f} s/kg "
+            f"(published 0.030-0.040, plus track evolution)"
+        )
     return 0
 
 
@@ -167,6 +191,11 @@ def main(argv: list[str] | None = None) -> int:
         type=float,
         default=defaults.outlier_ratio,
         help="reject laps slower than this multiple of the session best",
+    )
+    laps.add_argument(
+        "--no-fit",
+        action="store_true",
+        help="report filtering only, without fitting the pace decomposition",
     )
 
     args = parser.parse_args(argv)

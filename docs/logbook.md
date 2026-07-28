@@ -4,6 +4,57 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-07-28 — Per-circuit safety-car hazard
+
+No public dataset gives per-circuit safety-car rates, so this builds one:
+`scripts/fetch_history.py` collects which laps ran under SC/VSC/red for every race 2022–2026, and
+`models/safety_car.py` fits a discrete-time hazard over it. 94 races, 26 circuits, 68 safety cars
+and 56 VSCs.
+
+**Lap 1 is a different sport.** The headline result, and it is not close:
+
+| phase | SC | VSC | either |
+|---|---|---|---|
+| lap 1 | 0.181 | 0.043 | **0.223** |
+| early | 0.011 | 0.012 | 0.021 |
+| mid | 0.011 | 0.012 | 0.020 |
+| late | 0.011 | 0.008 | 0.017 |
+| final | 0.006 | 0.007 | 0.012 |
+
+A better than one-in-five chance of a neutralisation on lap 1, against about one in fifty for any
+other lap — a full order of magnitude. Bucketing lap 1 separately was a guess when I wrote it; it
+is now the single most important feature in the model. Risk then decays gently, and the closing
+quarter is the calmest part of a race.
+
+**Circuit factors rank the way a fan would expect**, which is reassuring for a number that came out
+of shrinkage rather than intuition. Melbourne 2.33x, then Montréal, Zandvoort, Jeddah, Baku, Las
+Vegas, Marina Bay — walls and no run-off. At the other end Barcelona 0.48x, Yas Island 0.51x,
+Budapest 0.59x, Monza 0.68x — wide, forgiving, acres of asphalt.
+
+**Two things keep the estimate honest.** Laps already under a safety car are excluded from exposure
+entirely: the question is "given none is out, does one get deployed", and counting neutralised laps
+would make circuits with *long* safety car periods look *safer* by inflating their denominators.
+And circuit factors are shrunk Gamma-Poisson toward the field average, because four races per
+circuit with one or two events is not enough to justify a raw ratio.
+
+**Rate limit: the F1 API allows 500 calls an hour**, and a race costs several. A five-season fetch
+cannot finish in one run. The fetcher is now resumable — it reloads what it has, skips those races,
+saves after every success, and exits cleanly with a message when limited. First run got 39 races;
+re-running took it to 94 without re-spending a single cached call.
+
+**Bug: `Location` is not a stable circuit identity.** FastF1 recorded Miami as "Miami" through 2024
+and "Miami Gardens" from 2025, silently splitting four seasons into two under-sampled entries that
+shrinkage then flattened toward the mean. Nothing errored; the circuit just quietly lost its
+history. Normalised via an alias map in the model rather than the fetcher, so existing data files
+are fixed without re-spending API calls.
+
+**Known gap:** red flags are collected but excluded from the `any` hazard. They are a genuinely
+different strategic situation — the race stops and everyone gets a free tyre change — so folding
+them in with safety cars would model the wrong thing. Monaco's modest 0.80x factor is partly this:
+its 2024 incident was a red flag, not a safety car.
+
+---
+
 ## 2026-07-26 (later still) — Fuel correction, and an identification problem
 
 Fuel and degradation cannot be estimated one after the other: within a stint the car gets a lap

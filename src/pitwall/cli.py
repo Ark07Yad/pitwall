@@ -15,7 +15,7 @@ from pathlib import Path
 
 from pitwall.feed.replay import ReplayFeed, read_events
 from pitwall.laps import CleanLapConfig, LapCollector, filter_laps
-from pitwall.models import FuelModel, fit_pace
+from pitwall.models import EventKind, FuelModel, fit_hazard, fit_pace, load_history
 from pitwall.state.models import RaceState
 from pitwall.state.reducer import RaceStateReducer
 
@@ -155,6 +155,34 @@ def _laps(args: argparse.Namespace) -> int:
     return 0
 
 
+def _hazard(args: argparse.Namespace) -> int:
+    if not args.file.exists():
+        print(f"no history file: {args.file}", file=sys.stderr)
+        print(
+            "build one first:  python scripts/fetch_history.py --from 2022 --to 2026",
+            file=sys.stderr,
+        )
+        return 1
+
+    races = load_history(args.file)
+    fit = fit_hazard(races, kind=EventKind(args.kind), shrinkage=args.shrinkage)
+    if fit is None:
+        print("not enough history to fit a hazard model", file=sys.stderr)
+        return 1
+
+    print(fit)
+
+    if args.circuit:
+        total = args.laps
+        print(f"\n  {args.circuit} over {total} laps:")
+        print(f"    expected events   {fit.expected_events(args.circuit, total):.2f}")
+        for window in (5, 10, 15):
+            start = max(1, total // 2)
+            p = fit.probability_within(args.circuit, start, start + window - 1, total)
+            print(f"    P(event in laps {start}-{start + window - 1})  {p:.1%}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pitwall")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -198,6 +226,20 @@ def main(argv: list[str] | None = None) -> int:
         help="report filtering only, without fitting the pace decomposition",
     )
 
+    hazard = sub.add_parser("hazard", help="fit the per-circuit safety-car hazard")
+    hazard.add_argument("file", type=Path, nargs="?", default=Path("data/history/safety_car.json"))
+    hazard.add_argument(
+        "--kind", choices=[k.value for k in EventKind], default=EventKind.SAFETY_CAR.value
+    )
+    hazard.add_argument(
+        "--shrinkage",
+        type=float,
+        default=3.0,
+        help="prior weight in expected events; higher pulls sparse circuits harder",
+    )
+    hazard.add_argument("--circuit", help="report window probabilities for one circuit")
+    hazard.add_argument("--laps", type=int, default=60, help="race length for --circuit")
+
     args = parser.parse_args(argv)
     if args.command == "replay":
         return asyncio.run(_replay(args))
@@ -205,6 +247,8 @@ def main(argv: list[str] | None = None) -> int:
         return _topics(args)
     if args.command == "laps":
         return _laps(args)
+    if args.command == "hazard":
+        return _hazard(args)
     return 1
 
 

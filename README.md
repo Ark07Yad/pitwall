@@ -76,6 +76,7 @@ uv run pitwall topics data/raw/2026-hungary-race.txt      # what's in the record
 uv run pitwall replay data/raw/2026-hungary-race.txt      # fold it into race state
 uv run pitwall replay data/raw/2026-hungary-race.txt --speed 60 --follow
 uv run pitwall laps   data/raw/2026-hungary-race.txt      # extract and filter laps
+uv run pitwall hazard                                    # per-circuit safety-car risk
 ```
 
 `--speed 60` replays a two-hour race in about two minutes with a live timing screen.
@@ -157,6 +158,36 @@ Everything used here is free.
 | Backtest telemetry, 2023+ | [OpenF1](https://openf1.org/) free tier |
 | Laps and telemetry, 2018+ | [FastF1](https://docs.fastf1.dev/) |
 | Results and standings, 1950+ | [Jolpica-F1](https://github.com/jolpica/jolpica-f1) |
+
+### Safety-car hazard
+
+No public dataset publishes per-circuit safety-car rates, so `scripts/fetch_history.py` builds one
+from 2022–2026 race control data and `pitwall hazard` fits a discrete-time hazard over it.
+
+The strongest signal is that lap 1 is a different regime entirely — a 22% chance of a safety car or
+VSC, against about 2% for any other lap:
+
+```
+  baseline per-lap hazard by race phase:
+    lap1   0.2234
+    early  0.0207
+    mid    0.0195
+    late   0.0168
+    final  0.0119
+
+  circuit factor (shrunk, prior weight 3):
+    Melbourne                 2.33x  (5 races)
+    Zandvoort                 1.33x  (4 races)
+    ...
+    Barcelona                 0.48x  (4 races)
+```
+
+Laps already running under a safety car are excluded from exposure — the question is "given none is
+out, does one get deployed" — and circuit factors are shrunk toward the field average, since four
+races per circuit cannot justify a raw ratio.
+
+Note the F1 API allows 500 calls an hour, so a full fetch takes a couple of runs. The script is
+resumable: re-run the same command and it picks up where it stopped.
 
 ---
 

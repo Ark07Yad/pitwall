@@ -12,9 +12,9 @@ in-session, and simulates the remainder of the race to answer one question: **sh
 Every recommendation is committed to this repository with a timestamp *before* the lap it refers
 to. The accuracy log is public and includes the calls it got wrong.
 
-> **Status: Phase 2 of 5.** Ingest, replay and race state are done and validated against a full
-> Grand Prix. Clean-lap filtering, fuel correction and the safety-car hazard are fitted. Monte Carlo
-> simulation and the live parser are next — see [the plan](docs/PLAN.md).
+> **Status: Phase 3 of 5.** Ingest, replay, race state, clean-lap filtering, fuel correction,
+> degradation and the safety-car hazard all feed a Monte Carlo simulation that produces pit calls.
+> The live SignalR parser and the dashboard are next — see [the plan](docs/PLAN.md).
 
 ---
 
@@ -78,6 +78,7 @@ uv run pitwall replay data/raw/2026-hungary-race.txt      # fold it into race st
 uv run pitwall replay data/raw/2026-hungary-race.txt --speed 60 --follow
 uv run pitwall laps   data/raw/2026-hungary-race.txt      # extract and filter laps
 uv run pitwall hazard                                    # per-circuit safety-car risk
+uv run pitwall strategy data/raw/2026-hungary-race.txt --lap 30 --driver LEC
 ```
 
 `--speed 60` replays a two-hour race in about two minutes with a live timing screen.
@@ -101,6 +102,43 @@ safety-car lap ~30 s. `pitwall laps` extracts completed laps and reports what it
 Rejections are reported as counted *reasons* rather than a boolean, because the breakdown is what
 shows the filter is behaving — on the 2026 Hungarian GP the 22 first-lap exclusions match the grid
 exactly, and the in/out-lap counts match the 47 recorded pit stops.
+
+### Pit calls
+
+`pitwall strategy` replays a recording to any lap and asks what the engine would have said there.
+2,000 full race simulations take 0.14 s, so a twelve-option decision lands in under two seconds:
+
+```
+Race @ Hungaroring  lap 30/70
+
+LEC P3, lap 30 (3,000 sims)
+  → PIT now on SOF
+     expected P2.41, margin +0.19 to next option
+
+  option              exp. pos    top3  points    gain
+  now on SOF              2.41  81.9%   98.7%   64.4%
+  now on MED              2.60  79.2%   98.8%   61.0%
+  lap +3 on SOF           2.64  78.1%   98.9%   59.3%
+  ...
+
+  undercut threats:
+    HAM  +0.7s behind   P(jumps us) 45.9%
+```
+
+Three things carry the realism. **Track position is enforced** — cars cannot pass through each
+other, so a quick car stuck in a train stays stuck, which is what makes an undercut work.
+**Safety cars compress the field**, collapsing a twenty-second lead and discounting a stop taken
+under one. **Rivals are not static** — their stops are sampled from a policy distribution, so the
+answer accounts for them covering or attacking.
+
+The suite asserts textbook dynamics rather than just unit behaviour: starting ahead is worth
+something, a faster car is held up behind a slower one, safety cars erase a large lead, and the
+undercut works. If those break the model is wrong whatever the unit tests say.
+
+⚠️ The *timing* of a stop is on much firmer ground than the *compound*. Compound choice inherits the
+single-race degradation confounding documented in [the logbook](docs/logbook.md) — at Hungary the
+compounds were used in separate phases of the race, so their degradation rates are not separately
+identified. More races break that; one cannot.
 
 ---
 

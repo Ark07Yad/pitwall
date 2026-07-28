@@ -4,6 +4,48 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-07-28 (later) — Monte Carlo simulation and the first pit call
+
+Phase 3. Pace, fuel, degradation and safety-car hazard now feed one engine that rolls the remaining
+race forward thousands of times and ranks candidate stops. `pitwall strategy` replays a recording to
+any lap and asks what the engine would have said there.
+
+**Speed: 22.6M car-laps/second.** 2,000 full 70-lap races over 22 cars in 0.14 s; a twelve-option
+decision with 3,000 simulations each in 1.8 s. Vectorising over simulations rather than looping was
+the right call — a pure-Python version would be minutes, which is useless inside a live race.
+
+**The bug that mattered.** The track-position rule re-derived the running order *after* adding each
+lap's times. That let any car which gained more than the following distance in a single lap swap
+position for free, no overtake required — quietly deleting the entire cost of being stuck in
+traffic, which is the thing pit strategy exists to exploit. Symptom: later stops were *monotonically*
+better, with no interior optimum, because being released into traffic cost nothing. Enforcing the
+rule against the order from the *start* of the lap fixed it, and the recommendation immediately grew
+a real pit window — lap +8 beating both +4 and +14.
+
+Two related details fell out of the same fix. Cars that pit must be exempt from defending, or a car
+that has just stopped still blocks the field it was nominally ahead of. And `undercut_threats` was
+giving our own car no pit plan, so it compared "they stop" against "we never stop" — not an
+undercut, just the inevitable result of staying out on dead tyres. It reported an 80% threat where
+the honest number was 45%.
+
+**A test that was wrong rather than a bug.** I asserted that pitting always costs time. It does not:
+at 0.08 s/lap over 30 laps, fresh rubber is worth more than the twenty seconds it costs, so the
+simulator was right and the assertion was wrong. Now tested from both sides — a stop loses when
+degradation is flat and pays when it is steep — which is a better test than the one I meant to write.
+
+**Sanity checks, not just unit tests.** The suite asserts textbook dynamics: the faster car usually
+wins, starting ahead is worth something, a quicker car is held up behind a slower one, safety cars
+compress a 25-second lead, stopping under one is cheaper, and the undercut works. If any of those
+break the model is wrong regardless of what the unit tests say.
+
+**Known limitation, and it is inherited.** The engine currently prefers the soft compound in almost
+every scenario, because the fitted degradation says soft degrades slowest. That is the single-race
+confounding already logged — compound usage was separated by race phase at Hungary, so those
+estimates are not trustworthy, and the simulation propagates them faithfully. The *timing* of the
+stop is on much firmer ground than the *compound*. More races break the confound; one cannot.
+
+---
+
 ## 2026-07-28 — Per-circuit safety-car hazard
 
 No public dataset gives per-circuit safety-car rates, so this builds one:

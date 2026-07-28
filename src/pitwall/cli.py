@@ -16,6 +16,7 @@ from pathlib import Path
 from pitwall.feed.replay import ReplayFeed, read_events
 from pitwall.laps import CleanLapConfig, LapCollector, filter_laps
 from pitwall.models import EventKind, FuelModel, fit_hazard, fit_pace, load_history
+from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
 from pitwall.state.models import RaceState
 from pitwall.state.reducer import RaceStateReducer
 
@@ -183,6 +184,82 @@ def _hazard(args: argparse.Namespace) -> int:
     return 0
 
 
+def _strategy(args: argparse.Namespace) -> int:
+    """Replay a recording to a given lap and ask what the engine would have said."""
+    if not args.file.exists():
+        print(f"no such recording: {args.file}", file=sys.stderr)
+        return 1
+
+    collector = LapCollector()
+    snapshot = None
+    for event in read_events(args.file):
+        collector.apply(event)
+        if snapshot is None and collector.state.lap >= args.lap:
+            snapshot = collector.state.running_order()
+    if snapshot is None:
+        print(f"recording never reached lap {args.lap}", file=sys.stderr)
+        return 1
+
+    state = collector.state
+    clean, _ = filter_laps(collector.laps)
+    pace = fit_pace(clean)
+    if pace is None:
+        print("not enough clean laps to fit a pace model", file=sys.stderr)
+        return 1
+
+    hazard = None
+    if args.history.exists():
+        hazard = fit_hazard(load_history(args.history), kind=EventKind.ANY)
+
+    entries = entries_from_state(state, pace)
+    target = next(
+        (e for e in entries if e.tla.upper() == args.driver.upper() or e.driver == args.driver),
+        None,
+    )
+    if target is None:
+        print(f"{args.driver} not found; have: {' '.join(e.tla for e in entries)}", file=sys.stderr)
+        return 1
+
+    total = state.total_laps or args.lap + 20
+    cfg = SimConfig(n_sims=args.sims)
+    print(f"{state.session_name} @ {state.circuit}  lap {args.lap}/{total}")
+    if hazard is None:
+        print("  (no safety-car history loaded - risk is not modelled)")
+    print()
+
+    rec = evaluate_actions(
+        entries,
+        our_driver=target.driver,
+        from_lap=args.lap,
+        total_laps=total,
+        circuit=state.circuit,
+        pace=pace,
+        hazard=hazard,
+        config=cfg,
+    )
+    print(rec)
+
+    threats = undercut_threats(
+        entries,
+        our_driver=target.driver,
+        from_lap=args.lap,
+        total_laps=total,
+        circuit=state.circuit,
+        pace=pace,
+        hazard=hazard,
+        our_pit_lap=rec.best.pit_lap,
+        config=cfg,
+    )
+    if threats:
+        print("\n  undercut threats:")
+        for threat in threats:
+            print(
+                f"    {threat.tla}  {threat.gap:+.1f}s behind   "
+                f"P(jumps us) {threat.probability:.1%}"
+            )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pitwall")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -240,6 +317,13 @@ def main(argv: list[str] | None = None) -> int:
     hazard.add_argument("--circuit", help="report window probabilities for one circuit")
     hazard.add_argument("--laps", type=int, default=60, help="race length for --circuit")
 
+    strategy = sub.add_parser("strategy", help="ask for a pit call at a given lap")
+    strategy.add_argument("file", type=Path)
+    strategy.add_argument("--lap", type=int, required=True)
+    strategy.add_argument("--driver", required=True, help="TLA or car number")
+    strategy.add_argument("--sims", type=int, default=3000)
+    strategy.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
+
     args = parser.parse_args(argv)
     if args.command == "replay":
         return asyncio.run(_replay(args))
@@ -249,6 +333,8 @@ def main(argv: list[str] | None = None) -> int:
         return _laps(args)
     if args.command == "hazard":
         return _hazard(args)
+    if args.command == "strategy":
+        return _strategy(args)
     return 1
 
 

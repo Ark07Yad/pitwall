@@ -12,8 +12,9 @@ in-session, and simulates the remainder of the race to answer one question: **sh
 Every recommendation is committed to this repository with a timestamp *before* the lap it refers
 to. The accuracy log is public and includes the calls it got wrong.
 
-> **Status: Phase 1 of 5.** The feed abstraction, replay harness and race-state reducer are built
-> and tested. Models, simulation and the live parser are next — see [the plan](docs/PLAN.md).
+> **Status: Phase 2 of 5.** Ingest, replay and race state are done and validated against a full
+> Grand Prix. Clean-lap filtering, fuel correction and the safety-car hazard are fitted. Monte Carlo
+> simulation and the live parser are next — see [the plan](docs/PLAN.md).
 
 ---
 
@@ -125,12 +126,21 @@ src/pitwall/
 ├── feed/
 │   ├── base.py       RaceFeed ABC, FeedEvent, .z inflation
 │   └── replay.py     ReplayFeed — the development workhorse
-└── state/
-    ├── merge.py      delta merging (the most safety-critical code here)
-    ├── models.py     typed projections: RaceState, CarState, Stint
-    └── reducer.py    folds events into state
+├── state/
+│   ├── merge.py      delta merging (the most safety-critical code here)
+│   ├── models.py     typed projections: RaceState, CarState, Stint
+│   └── reducer.py    folds events into state
+├── laps/
+│   ├── records.py    completed laps with the context to judge them
+│   └── clean.py      clean-lap filtering, with counted reject reasons
+└── models/
+    ├── fuel.py       physics fuel correction, usable from lap 1
+    ├── pace.py       joint fit: pace, fuel trend, per-compound degradation
+    └── safety_car.py per-circuit hazard with empirical-Bayes shrinkage
 scripts/record.py     supervised live recorder
+scripts/fetch_history.py  resumable safety-car history fetch
 docs/PLAN.md          the full five-phase plan
+docs/logbook.md       what broke and what the data taught me
 ```
 
 ### Two details worth knowing

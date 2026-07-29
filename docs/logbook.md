@@ -4,6 +4,58 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-07-28 (evening) — Live SignalR parser
+
+Phase 4, and the piece the whole project was pointed at. FastF1's client connects to this same
+endpoint and writes frames to disk, its docs stating plainly that it "is *not* possible to do
+real-time processing of the data". That is a scope decision, not a property of the feed. This
+parses the frames as they arrive, so the reducer, models and simulation built over the last two
+days now run against a live race rather than a recording.
+
+**The protocol had to be established by probing, because there is no documentation.** Two findings
+matter:
+
+*The classic SignalR endpoint is dead.* Nearly every public client and gist uses
+`GET /signalr/negotiate?clientProtocol=1.5`. It now answers **401**. Anything written against that
+path has stopped working, which is presumably why FastF1 moved.
+
+*`/signalrcore` still accepts unauthenticated connections.* FastF1 wires in an F1 TV
+`access_token_factory`, so it looked like login was mandatory. It is not — the negotiate returns
+200 with no credentials at all. The working sequence:
+
+1. `OPTIONS /signalrcore/negotiate` → answers 405, but sets the `AWSALBCORS` load-balancer cookie
+   that every later request must carry. Without it the websocket upgrade is refused.
+2. `POST /signalrcore/negotiate?negotiateVersion=1` → `connectionToken`.
+3. `wss://livetiming.formula1.com/signalrcore?id=<token>`.
+4. Handshake `{"protocol":"json","version":1}`, server replies `{}`.
+5. Invoke `Subscribe` with the topic list.
+
+Frames are JSON delimited by an ASCII record separator (0x1E), several per read. Type **3** is the
+completion carrying the state snapshot, type **1** a feed update, type **6** a keepalive ping.
+
+**A pleasing symmetry:** a type-1 message's `arguments` are `[topic, data, timestamp]` — exactly the
+triple the recorder writes to disk. Live and recorded data therefore parse through the same code
+path, which is why `SignalRFeed` and `ReplayFeed` are genuinely interchangeable rather than
+approximately so.
+
+**Verified live, with no race running.** The endpoint replies with the previous session's snapshot
+and then pings, which is enough for a real end-to-end test today: 17 events in 0.32 s, folded into
+the correct final Hungarian GP classification, all 22 cars. **Decode p50 0.05 ms, p99 4.6 ms.**
+Feed lag is not yet measurable — snapshot events carry no timestamp, so that number only becomes
+real at Zandvoort.
+
+**The same trap twice.** Between sessions the feed sends *only* pings, which correctly produce no
+events — so any deadline check written inside the `async for` body never executes and the consumer
+hangs forever. It caught my first probe and then, embarrassingly, the `--duration` flag on the CLI.
+The fix is to wrap the iteration in `asyncio.timeout`, not to check inside it. Worth remembering:
+"no events" and "no connection" look identical from inside a for loop, and only one of them is a
+problem.
+
+**What is not done.** Reconnection logic exists and backs off exponentially, but has only been
+exercised against forced local failures, not a real two-hour session drop. Zandvoort is the test.
+
+---
+
 ## 2026-07-28 (later) — Monte Carlo simulation and the first pit call
 
 Phase 3. Pace, fuel, degradation and safety-car hazard now feed one engine that rolls the remaining

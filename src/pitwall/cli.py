@@ -10,10 +10,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+import time
 from collections import Counter
 from pathlib import Path
 
 from pitwall.feed.replay import ReplayFeed, read_events
+from pitwall.feed.signalr import SignalRFeed
 from pitwall.laps import CleanLapConfig, LapCollector, filter_laps
 from pitwall.models import EventKind, FuelModel, fit_hazard, fit_pace, load_history
 from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
@@ -260,6 +262,49 @@ def _strategy(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _live(args: argparse.Namespace) -> int:
+    """Connect to F1's live timing stream and fold it in real time."""
+    feed = SignalRFeed(record_to=str(args.record) if args.record else None)
+    collector = LapCollector()
+    last_draw = 0.0
+
+    if args.record:
+        args.record.parent.mkdir(parents=True, exist_ok=True)
+        print(f"recording raw frames to {args.record}", file=sys.stderr)
+    print("connecting to F1 live timing...", file=sys.stderr)
+
+    async def consume() -> None:
+        nonlocal last_draw
+        async with feed:
+            async for event in feed:
+                collector.apply(event)
+                now = time.monotonic()
+                if now - last_draw >= args.every:
+                    last_draw = now
+                    print("\033[2J\033[H" + render(collector.state), flush=True)
+                    print(f"\n  {feed.latency}", flush=True)
+
+    try:
+        # The deadline has to wrap the iteration, not sit inside it. Between
+        # sessions the feed sends only keepalive pings, which correctly produce
+        # no events, so a check in the loop body would never run and --duration
+        # would hang forever.
+        if args.duration:
+            async with asyncio.timeout(args.duration):
+                await consume()
+        else:
+            await consume()
+    except (KeyboardInterrupt, TimeoutError):
+        pass
+    finally:
+        await feed.aclose()
+
+    print("\n" + render(collector.state))
+    print(f"\n  {feed.latency}")
+    print(f"  {len(collector.laps)} laps extracted")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pitwall")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -324,6 +369,17 @@ def main(argv: list[str] | None = None) -> int:
     strategy.add_argument("--sims", type=int, default=3000)
     strategy.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
 
+    live = sub.add_parser("live", help="connect to F1 live timing and fold it in real time")
+    live.add_argument(
+        "--record",
+        type=Path,
+        help="also write raw frames here; live data cannot be recovered later",
+    )
+    live.add_argument("--every", type=float, default=2.0, help="seconds between screen redraws")
+    live.add_argument(
+        "--duration", type=float, default=0.0, help="stop after N seconds (0 = forever)"
+    )
+
     args = parser.parse_args(argv)
     if args.command == "replay":
         return asyncio.run(_replay(args))
@@ -335,6 +391,8 @@ def main(argv: list[str] | None = None) -> int:
         return _hazard(args)
     if args.command == "strategy":
         return _strategy(args)
+    if args.command == "live":
+        return asyncio.run(_live(args))
     return 1
 
 

@@ -12,9 +12,10 @@ in-session, and simulates the remainder of the race to answer one question: **sh
 Every recommendation is committed to this repository with a timestamp *before* the lap it refers
 to. The accuracy log is public and includes the calls it got wrong.
 
-> **Status: Phase 3 of 5.** Ingest, replay, race state, clean-lap filtering, fuel correction,
-> degradation and the safety-car hazard all feed a Monte Carlo simulation that produces pit calls.
-> The live SignalR parser and the dashboard are next — see [the plan](docs/PLAN.md).
+> **Status: Phase 4 of 5.** The live SignalR parser is built and verified against F1's endpoint.
+> Ingest, race state, clean-lap filtering, fuel correction, degradation and the safety-car hazard
+> feed a Monte Carlo simulation that produces pit calls — now from a live stream as well as a
+> recording. The dashboard is next — see [the plan](docs/PLAN.md).
 
 ---
 
@@ -41,6 +42,27 @@ Requires Python 3.11+. [`uv`](https://docs.astral.sh/uv/) handles the interprete
 uv sync --extra dev
 uv run pytest
 ```
+
+### Run it live
+
+```bash
+uv run pitwall live --record data/raw/2026-netherlands-race.txt
+```
+
+Connects to F1's live timing stream, folds it in real time, and redraws a timing screen. It works
+between sessions too — the endpoint replies with the last session's snapshot, then keepalive pings.
+
+This is the part FastF1 does not do. Its client connects to the same endpoint and writes frames to
+disk; its documentation states that it "is *not* possible to do real-time processing of the data".
+`SignalRFeed` parses them as they arrive, and is a drop-in `RaceFeed` alongside `ReplayFeed`, so
+everything downstream is identical whether the race is happening now or happened in July.
+
+Measured against the live endpoint: **17 events in 0.32 s, decode p50 0.05 ms, p99 4.6 ms.**
+
+Two protocol notes, established by probing since none of this is documented. The classic
+`/signalr/negotiate` path that most public clients use now answers **401**. And `/signalrcore`
+accepts an **unauthenticated** connection despite FastF1 wiring in an F1 TV token — no login is
+required.
 
 ### Record a live session
 

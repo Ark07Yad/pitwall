@@ -12,10 +12,10 @@ in-session, and simulates the remainder of the race to answer one question: **sh
 Every recommendation is committed to this repository with a timestamp *before* the lap it refers
 to. The accuracy log is public and includes the calls it got wrong.
 
-> **Status: Phase 4 of 5.** The live SignalR parser is built and verified against F1's endpoint.
-> Ingest, race state, clean-lap filtering, fuel correction, degradation and the safety-car hazard
-> feed a Monte Carlo simulation that produces pit calls — now from a live stream as well as a
-> recording. The dashboard is next — see [the plan](docs/PLAN.md).
+> **Status: all five phases built.** Live ingest, race state, clean-lap filtering, fuel
+> correction, degradation and a per-circuit safety-car hazard feed a Monte Carlo simulation that
+> produces pit calls, and every call is logged, committed before the lap it refers to, and scored
+> against what happened. What remains is races — see [the plan](docs/PLAN.md).
 
 ---
 
@@ -161,6 +161,38 @@ undercut works. If those break the model is wrong whatever the unit tests say.
 single-race degradation confounding documented in [the logbook](docs/logbook.md) — at Hungary the
 compounds were used in separate phases of the race, so their degradation rates are not separately
 identified. More races break that; one cannot.
+
+### The track record
+
+Every call is written to an append-only log and **committed before the lap it refers to**. The
+commit timestamp is the evidence: `git log predictions/` shows when each was made. Predictions
+stage only the log file, never source, so no commit can be argued to have tuned the model to fit.
+
+```bash
+uv run pitwall backtest data/raw/2026-hungary-race.txt --laps 16,24,32,40,48 --drivers NOR,VER,LEC
+uv run pitwall report   data/raw/2026-hungary-race.txt --log predictions/2026-hungarian-gp.jsonl
+```
+
+`backtest` re-folds the recording from scratch for every lap, so a decision at lap 24 sees only
+laps 1–24 — no leak from the finish into a forecast of it. The report grades the log against the
+actual classification, and is generated rather than written so the bad weekends cannot be quietly
+skipped.
+
+The first scorecard, 35 leak-free predictions from the 2026 Hungarian GP:
+
+| metric | model | baseline | skill |
+|---|---|---|---|
+| Brier (top 3) | 0.2481 | 0.3714 | **+33.2%** |
+| Brier (points) | 0.1366 | 0.1429 | +4.4% |
+| Mean position error | 3.46 | 3.17 | — |
+
+The baseline assumes every car finishes where it currently runs. In F1 that is a strong benchmark,
+not a straw man. So: better than it at probabilistic podium calls, **worse than it** at point
+estimates of finishing position. A mixed result, reported as one.
+
+Calibration is the more useful output. In the 0–20% band the model said 3.3% and it happened 30.8%
+of the time — it is badly underconfident about cars reaching the podium from further back, which
+points at the simulation under-modelling safety-car chaos. See [the logbook](docs/logbook.md).
 
 ---
 

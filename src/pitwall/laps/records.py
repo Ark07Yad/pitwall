@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import timedelta
+from pathlib import Path
 
 from pitwall.feed.base import FeedEvent
 from pitwall.state.models import Compound, RaceState, TrackStatus
@@ -172,3 +173,22 @@ class LapCollector:
             retired=car.retired or car.stopped,
             session_time=session_time,
         )
+
+
+def fold_to_lap(path: Path | str, lap: int) -> LapCollector:
+    """Fold a recording up to the end of `lap`, then stop.
+
+    Stopping is the whole point. Folding the entire race and then claiming to
+    reason "as of lap 30" leaks the future twice over: the race state is the
+    final classification rather than the order at lap 30, and any model fitted
+    on the collected laps has seen the laps that had not happened yet. Both
+    flatter a backtest, and neither is available live.
+    """
+    from pitwall.feed.replay import read_events
+
+    collector = LapCollector()
+    for event in read_events(path):
+        collector.apply(event)
+        if collector.state.lap > lap:
+            break
+    return collector

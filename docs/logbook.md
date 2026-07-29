@@ -4,6 +4,56 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-07-29 — Prediction ledger, scoring, and a leak I had shipped
+
+Phase 5. The engine now writes every call to an append-only log, commits it as it is made, and
+grades itself against what happened. This is the credibility machinery the whole project was
+pointed at: anyone can publish a model that looks good in hindsight, and the only defence against
+that suspicion is a commit timestamp from before the outcome was known.
+
+Three rules keep the guarantee real. The log is **append only** — a call that ages badly stays in
+it. Commits happen **immediately**, not batched after the flag when results are known. And a
+prediction commit stages **only the log file**, never `git add -A`, because a commit that also
+carried a source change would let a sceptic argue the model was tuned to fit.
+
+**The bug this exposed was mine, and it was already shipped.** `pitwall strategy --lap 30` claimed
+to answer "what would the engine have said at lap 30". It did not. It folded the *entire*
+recording, captured a snapshot it then threw away, and simulated from the **final classification**
+using a pace model fitted on **all 70 laps**. Two separate leaks of the future into a decision that
+was supposed to predict it, and the output looked completely reasonable throughout — LEC showed as
+P3 at lap 30 when he was actually P4. `fold_to_lap` now stops folding at the target lap, which
+fixes both at once.
+
+Worth noting how it surfaced: not from a test, but from building the scoring harness and finding
+the numbers were nonsense. The leak made results *worse* (−1.2% skill), because feeding
+end-of-race positions into a lap-16 simulation is garbage rather than cheating. A leak that
+flattered the model would have been far harder to notice.
+
+**The honest first scorecard**, 35 leak-free predictions across laps 16–48:
+
+| metric | model | baseline | skill |
+|---|---|---|---|
+| Brier (top 3) | 0.2481 | 0.3714 | **+33.2%** |
+| Brier (points) | 0.1366 | 0.1429 | +4.4% |
+| Mean position error | 3.46 | 3.17 | — |
+
+Better than "assume the order holds" at *probabilistic* top-three calls, and worse than it at point
+estimates of finishing position. A genuinely mixed verdict, and the report says so rather than
+quoting the flattering half.
+
+**Calibration is the more useful finding.** In the 0–20% band the model said 3.3% and it happened
+30.8% of the time. It is badly underconfident about cars reaching the podium from further back —
+almost certainly because the simulation under-models safety-car chaos and overtaking, so it treats
+the current order as more fixed than it is. That is a specific, actionable defect, and it came out
+of the scoring machinery rather than from staring at the model.
+
+**A scoring bug caught by its own test.** Skill is `1 - model/baseline`, undefined when the
+baseline is perfect. I returned 0.0 there — "matched the baseline" — while the model was wrong on
+every call. That is an error in the one direction a scoring function must never fail in, since it
+flatters the model. Now reported as infinitely worse and rendered as `worse*`.
+
+---
+
 ## 2026-07-28 (evening) — Live SignalR parser
 
 Phase 4, and the piece the whole project was pointed at. FastF1's client connects to this same

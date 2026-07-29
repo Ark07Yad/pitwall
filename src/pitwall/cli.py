@@ -16,7 +16,14 @@ from pathlib import Path
 
 from pitwall.feed.replay import ReplayFeed, read_events
 from pitwall.feed.signalr import SignalRFeed
-from pitwall.laps import CleanLapConfig, LapCollector, filter_laps
+from pitwall.laps import CleanLapConfig, LapCollector, filter_laps, fold_to_lap
+from pitwall.ledger import (
+    PredictionLog,
+    finishing_positions,
+    prediction_from,
+    race_report,
+    score_predictions,
+)
 from pitwall.models import EventKind, FuelModel, fit_hazard, fit_pace, load_history
 from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
 from pitwall.state.models import RaceState
@@ -192,13 +199,12 @@ def _strategy(args: argparse.Namespace) -> int:
         print(f"no such recording: {args.file}", file=sys.stderr)
         return 1
 
-    collector = LapCollector()
-    snapshot = None
-    for event in read_events(args.file):
-        collector.apply(event)
-        if snapshot is None and collector.state.lap >= args.lap:
-            snapshot = collector.state.running_order()
-    if snapshot is None:
+    # Fold only as far as the target lap. Reading the whole file first would
+    # put the *final* classification into the simulation and fit the pace model
+    # on laps that had not happened yet - neither is information the engine
+    # would have had live.
+    collector = fold_to_lap(args.file, args.lap)
+    if collector.state.lap < args.lap:
         print(f"recording never reached lap {args.lap}", file=sys.stderr)
         return 1
 
@@ -305,6 +311,115 @@ async def _live(args: argparse.Namespace) -> int:
     return 0
 
 
+def _backtest(args: argparse.Namespace) -> int:
+    """Log predictions at a series of laps, each fitted only on what was known then."""
+    if not args.file.exists():
+        print(f"no such recording: {args.file}", file=sys.stderr)
+        return 1
+
+    hazard = None
+    if args.history.exists():
+        hazard = fit_hazard(load_history(args.history), kind=EventKind.ANY)
+
+    laps = [int(x) for x in args.laps.split(",") if x.strip()]
+    wanted = {d.strip().upper() for d in args.drivers.split(",") if d.strip()}
+    cfg = SimConfig(n_sims=args.sims)
+    log = None
+    total = 0
+
+    for lap in laps:
+        # Re-fold from scratch for every lap. Slower than snapshotting, and the
+        # only way to be certain no later event has leaked into this decision.
+        collector = fold_to_lap(args.file, lap)
+        state = collector.state
+        if state.lap < lap:
+            print(f"lap {lap}: recording never got there, skipping", file=sys.stderr)
+            continue
+
+        clean, _ = filter_laps(collector.laps)
+        pace = fit_pace(clean)
+        if pace is None:
+            print(f"lap {lap}: too few clean laps to fit yet, skipping", file=sys.stderr)
+            continue
+
+        if log is None:
+            log = PredictionLog(
+                args.session or f"{state.session_name} {state.circuit}",
+                directory=args.out,
+                commit=not args.no_commit,
+            )
+
+        entries = entries_from_state(state, pace)
+        for entry in entries:
+            if wanted and entry.tla.upper() not in wanted:
+                continue
+            rec = evaluate_actions(
+                entries,
+                our_driver=entry.driver,
+                from_lap=lap,
+                total_laps=state.total_laps or lap + 20,
+                circuit=state.circuit,
+                pace=pace,
+                hazard=hazard,
+                config=cfg,
+            )
+            log.record(
+                prediction_from(
+                    rec,
+                    session=log.session,
+                    circuit=state.circuit,
+                    total_laps=state.total_laps or lap + 20,
+                    horizon=args.horizon,
+                )
+            )
+            total += 1
+        print(f"lap {lap}: {len(clean)} clean laps known, logged predictions", file=sys.stderr)
+
+    if log is None:
+        print("nothing logged", file=sys.stderr)
+        return 1
+    print(f"\n{total} predictions -> {log.path}")
+    if log.commit_failures:
+        print(f"  {log.commit_failures} commits failed (predictions are still on disk)")
+    return 0
+
+
+def _report(args: argparse.Namespace) -> int:
+    """Score a prediction log against the finish and write a markdown report."""
+    if not args.log.exists():
+        print(f"no prediction log: {args.log}", file=sys.stderr)
+        return 1
+    if not args.file.exists():
+        print(f"no such recording: {args.file}", file=sys.stderr)
+        return 1
+
+    log = PredictionLog("scored", directory=args.log.parent, commit=False)
+    log.path = args.log
+    entries = log.entries()
+
+    collector = LapCollector()
+    for event in read_events(args.file):
+        collector.apply(event)
+    state = collector.state
+    finish = finishing_positions(state)
+
+    card = score_predictions(entries, finish)
+    print(card)
+
+    session = entries[0].get("session") if entries else state.session_name
+    text = race_report(
+        entries,
+        finish,
+        session=str(session),
+        circuit=state.circuit,
+        tla_by_driver={n: c.tla for n, c in state.cars.items()},
+    )
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(text, encoding="utf-8")
+    print(f"\nwrote {args.out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pitwall")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -380,6 +495,22 @@ def main(argv: list[str] | None = None) -> int:
         "--duration", type=float, default=0.0, help="stop after N seconds (0 = forever)"
     )
 
+    backtest = sub.add_parser("backtest", help="log leak-free predictions at a series of laps")
+    backtest.add_argument("file", type=Path)
+    backtest.add_argument("--laps", default="16,24,32,40,48")
+    backtest.add_argument("--drivers", default="", help="TLAs, comma separated; blank = all")
+    backtest.add_argument("--sims", type=int, default=2000)
+    backtest.add_argument("--horizon", type=int, default=10)
+    backtest.add_argument("--session", default="", help="label for the log file")
+    backtest.add_argument("--out", type=Path, default=Path("predictions"))
+    backtest.add_argument("--no-commit", action="store_true")
+    backtest.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
+
+    report = sub.add_parser("report", help="score a prediction log and write a race report")
+    report.add_argument("file", type=Path, help="the recording, for final classification")
+    report.add_argument("--log", type=Path, required=True)
+    report.add_argument("--out", type=Path, default=Path("reports/race.md"))
+
     args = parser.parse_args(argv)
     if args.command == "replay":
         return asyncio.run(_replay(args))
@@ -393,6 +524,10 @@ def main(argv: list[str] | None = None) -> int:
         return _strategy(args)
     if args.command == "live":
         return asyncio.run(_live(args))
+    if args.command == "backtest":
+        return _backtest(args)
+    if args.command == "report":
+        return _report(args)
     return 1
 
 

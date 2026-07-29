@@ -214,6 +214,12 @@ def _strategy(args: argparse.Namespace) -> int:
     if pace is None:
         print("not enough clean laps to fit a pace model", file=sys.stderr)
         return 1
+    if not pace.usable:
+        print(f"the pace fit at lap {args.lap} is not usable:", file=sys.stderr)
+        for reason in pace.unusable_reasons:
+            print(f"  - {reason}", file=sys.stderr)
+        print("no recommendation is offered.", file=sys.stderr)
+        return 1
 
     hazard = None
     if args.history.exists():
@@ -340,6 +346,13 @@ def _backtest(args: argparse.Namespace) -> int:
         pace = fit_pace(clean)
         if pace is None:
             print(f"lap {lap}: too few clean laps to fit yet, skipping", file=sys.stderr)
+            continue
+        if not pace.usable:
+            # Better no prediction than a confident one drawn from a degenerate
+            # fit. Early in a race the design simply is not identified yet.
+            print(f"lap {lap}: fit not usable, skipping", file=sys.stderr)
+            for reason in pace.unusable_reasons:
+                print(f"         - {reason}", file=sys.stderr)
             continue
 
         if log is None:

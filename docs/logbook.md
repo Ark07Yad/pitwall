@@ -4,6 +4,50 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-07-29 (later) — Chasing the calibration miss, and finding two bugs instead
+
+The last report said the model was underconfident about cars reaching the podium and guessed the
+cause was under-modelled safety-car chaos. That guess was wrong, and worth recording as wrong.
+
+**The diagnostic rejected the hypothesis.** Simulated mean |Δposition| from a given lap to the flag
+tracks reality closely — 2.57 against a real 2.45 at lap 24, 1.95 against 1.82 at lap 32. The
+simulation is not too rigid. Only lap 16 was out, and wildly *over*-dispersed at 7.42, which
+pointed somewhere else entirely.
+
+**Bug 1: the race leader was being simulated from last place.** Looking at the individual misses
+rather than theorising: `lap 16 NOR P21 said 0.0% finished P1`. Norris was never P21 — he won.
+`entries_from_state` built each car's position from `GapToLeader`, and that field is not reliably a
+gap. The leader's carries `"LAP 17"` — the lap it is *on*. P2's was `None`. Both failed to parse,
+and the fallback dropped unparseable cars to the back, putting the two fastest cars **112 seconds
+behind the field** in every simulation. The engine then correctly concluded that a car running last
+would not finish on the podium. The running order is now authoritative and gaps only refine spacing
+within it, with elapsed times forced non-decreasing down the order.
+
+**Bug 2: fits nobody should have simulated from.** At lap 16 the pace fit was rank deficient and
+reported a **67-second** spread in driver pace and **+28 s/lap** of hard-tyre degradation. Early in
+a race the design genuinely is not identified — few laps, one stint per car, fuel and degradation
+perfectly collinear — and least squares answers anyway. `PaceFit.usable` now rejects a fit that is
+rank deficient, has a positive race-lap trend, or reports physically impossible coefficients, and
+the backtest publishes nothing rather than a confident number drawn from noise. Laps 12, 16 and 20
+are now refused at Hungary; 24 onward pass.
+
+**The calibration miss is largely fixed.** The 0–20% band went from *said 3.3%, happened 30.8%* to
+*said 8.4%, happened 15.4%* — a 27.5-point gap down to 7.0.
+
+**And the headline number I reported last time was inflated by the same bug.** Skill has gone from
++33.2% to **+3.7%**, and that is a correction, not a regression. The baseline scores each
+prediction against its recorded position, and those positions were the corrupted ones — so the
+baseline was being asked to explain how a car "running P21" won the race, failed, and made the
+model look far better by comparison. The honest figure is that this barely beats assuming the order
+holds. Worth stating plainly: the impressive version was an artifact, and I published it.
+
+**Where it stands.** A milder underconfidence remains in the middle bands (said 30.6%, happened
+57.1%), but on seven predictions from one race. Chasing that now would be tuning to a single
+afternoon, which is exactly the failure this machinery exists to prevent. It needs Zandvoort and
+the races after it.
+
+---
+
 ## 2026-07-29 — Prediction ledger, scoring, and a leak I had shipped
 
 Phase 5. The engine now writes every call to an append-only log, commits it as it is made, and

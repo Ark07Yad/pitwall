@@ -219,3 +219,59 @@ def test_report_renders():
     text = str(fit)
     assert "race-lap trend" in text
     assert "degradation" in text
+
+
+# -- refusing to simulate from a degenerate fit ------------------------
+
+
+def unusable_fit(**overrides):
+    from pitwall.models.pace import PaceFit
+
+    defaults = dict(
+        race_lap_coef=-0.05,
+        degradation={Compound.HARD: 0.08},
+        compound_offset={Compound.HARD: 0.0},
+        reference_compound=Compound.HARD,
+        compound_phase={},
+        driver_pace={"1": 0.0, "2": 1.0},
+        n_laps=200,
+        n_stints=20,
+        residual_std=0.5,
+        r_squared=0.8,
+        warnings=(),
+    )
+    defaults.update(overrides)
+    return PaceFit(**defaults)
+
+
+def test_a_sound_fit_is_usable():
+    assert unusable_fit().usable
+
+
+def test_rank_deficient_fit_is_refused():
+    """If the effects are not separately identified the coefficients are
+    arbitrary, and least squares returns them anyway."""
+    fit = unusable_fit(warnings=("design matrix is rank deficient (20 of 23) - ...",))
+    assert not fit.usable
+
+
+def test_positive_race_lap_trend_is_refused():
+    """Cars get faster as fuel burns off. A positive trend means the fit is
+    describing something other than a race."""
+    assert not unusable_fit(race_lap_coef=+0.03).usable
+
+
+def test_absurd_pace_spread_is_refused():
+    """Regression: at lap 16 of Hungary the fit reported a 67-second spread in
+    driver pace and +28 s/lap of hard-tyre degradation. Nothing errored - the
+    simulation just produced confident nonsense from it."""
+    assert not unusable_fit(driver_pace={"1": 0.0, "2": 67.2}).usable
+
+
+def test_absurd_degradation_is_refused():
+    assert not unusable_fit(degradation={Compound.HARD: 28.16}).usable
+
+
+def test_refusal_explains_itself():
+    reasons = unusable_fit(race_lap_coef=+0.03).unusable_reasons
+    assert reasons and "positive" in reasons[0]

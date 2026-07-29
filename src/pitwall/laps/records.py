@@ -25,6 +25,7 @@ from pitwall.state.models import Compound, RaceState, TrackStatus
 from pitwall.state.reducer import RaceStateReducer, parse_lap_time
 
 _INTERVAL = re.compile(r"^\+?(\d+(?:\.\d+)?)$")
+_LAPPED = re.compile(r"^(\d+)\s*L$", re.IGNORECASE)
 
 
 def parse_interval(value: object) -> float | None:
@@ -41,6 +42,17 @@ def parse_interval(value: object) -> float | None:
         return None
     match = _INTERVAL.match(text)
     return float(match.group(1)) if match else None
+
+
+def parse_laps_down(value: object) -> int:
+    """Laps a car is behind, from a gap like `"2L"`. Zero when it is on the lead lap.
+
+    Deliberately strict about the shape. The feed also puts `"LAP 17"` in this
+    field for the leader - the lap it is *on*, not a deficit - and a looser
+    pattern would read that as being seventeen laps down.
+    """
+    match = _LAPPED.match(str(value or "").strip())
+    return int(match.group(1)) if match else 0
 
 
 @dataclass(frozen=True, slots=True)

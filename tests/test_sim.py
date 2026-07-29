@@ -7,7 +7,14 @@ import pytest
 
 from pitwall.models.pace import PaceFit
 from pitwall.models.safety_car import BUCKETS, EventKind, HazardModel
-from pitwall.sim import CarEntry, SimConfig, evaluate_actions, simulate, undercut_threats
+from pitwall.sim import (
+    CarEntry,
+    SimConfig,
+    entries_from_state,
+    evaluate_actions,
+    simulate,
+    undercut_threats,
+)
 from pitwall.state.models import Compound
 
 
@@ -366,3 +373,67 @@ def test_threats_only_look_behind_and_within_the_window():
     # 0/1 are ahead of us rather than behind.
     assert [t.rival for t in threats] == ["3"]
     assert 0 < threats[0].probability < 1
+
+
+# -- building a grid from live state -----------------------------------
+
+
+class _Car:
+    def __init__(self, number, tla, position, gap, compound=Compound.MEDIUM, age=10, stops=1):
+        self.number, self.tla, self.position = number, tla, position
+        self.gap_to_leader, self.compound, self.tyre_age, self.pit_count = gap, compound, age, stops
+
+
+class _State:
+    def __init__(self, cars):
+        self._cars = cars
+
+    def running_order(self):
+        return self._cars
+
+
+def test_leader_is_placed_at_the_front_not_the_back():
+    """Regression, and a severe one. `GapToLeader` is not reliably a gap: the
+    leader's carries "LAP 17" - the lap it is on. An earlier version parsed that,
+    got nothing, and dropped the car to the back of the grid, so every simulation
+    started with the race leader 112 seconds behind the field. The engine then
+    correctly reported that a car running last would not finish on the podium."""
+    state = _State(
+        [
+            _Car("1", "NOR", 1, "LAP 17"),
+            _Car("81", "PIA", 2, None),
+            _Car("16", "LEC", 3, "+7.386"),
+        ]
+    )
+    entries = entries_from_state(state, pace_fit())
+
+    assert [e.tla for e in entries] == ["NOR", "PIA", "LEC"]
+    assert entries[0].elapsed == 0.0, "the leader defines the reference"
+    assert entries[0].elapsed < entries[1].elapsed < entries[2].elapsed
+
+
+def test_elapsed_never_contradicts_the_running_order():
+    """A car classified P4 must never be simulated ahead of P3, whatever the
+    gap field says."""
+    state = _State(
+        [
+            _Car("1", "A", 1, ""),
+            _Car("2", "B", 2, "+5.0"),
+            _Car("3", "C", 3, "+2.0"),  # inconsistent with the order
+            _Car("4", "D", 4, "+9.0"),
+        ]
+    )
+    elapsed = [e.elapsed for e in entries_from_state(state, pace_fit())]
+    assert elapsed == sorted(elapsed)
+
+
+def test_lapped_cars_are_placed_well_behind():
+    state = _State([_Car("1", "A", 1, ""), _Car("2", "B", 2, "+3.0"), _Car("3", "C", 3, "2L")])
+    entries = entries_from_state(state, pace_fit())
+    assert entries[2].elapsed > entries[1].elapsed + 30
+
+
+def test_gaps_are_used_when_they_are_sane():
+    state = _State([_Car("1", "A", 1, ""), _Car("2", "B", 2, "+7.386")])
+    entries = entries_from_state(state, pace_fit())
+    assert entries[1].elapsed == pytest.approx(7.386)

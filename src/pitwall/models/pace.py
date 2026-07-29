@@ -45,6 +45,11 @@ MIN_STINTS = 2
 # race, each one effectively occupies its own phase and its degradation cannot be
 # told apart from whatever else trends with race lap.
 PHASE_SEPARATION_LIMIT = 0.35
+# A modern grid is covered by a couple of seconds a lap. Anything near this is a
+# degenerate fit, not a slow car.
+MAX_PACE_SPREAD = 10.0
+# Even a tyre falling off a cliff does not lose a second a lap, every lap.
+MAX_DEGRADATION = 1.0
 
 
 @dataclass(frozen=True)
@@ -83,6 +88,44 @@ class PaceFit:
     def degradation_for(self, compound: Compound) -> float | None:
         return self.degradation.get(compound)
 
+    @property
+    def unusable_reasons(self) -> tuple[str, ...]:
+        """Why this fit should not be simulated from, if it should not be.
+
+        Early in a race the design is degenerate - few laps, one stint per car,
+        fuel and degradation perfectly collinear - and least squares answers
+        anyway. It returned a 67-second spread in driver pace and +28 s/lap of
+        hard-tyre degradation at lap 16 of the 2026 Hungarian GP. Nothing
+        errored; the simulation simply produced confident nonsense from it.
+
+        A fit that fails these checks is not a weaker signal, it is noise, and
+        the honest response is to publish no prediction rather than a bad one.
+        """
+        reasons: list[str] = []
+        if any("rank deficient" in w for w in self.warnings):
+            reasons.append("effects are not separately identified")
+        if self.race_lap_coef > 0:
+            reasons.append(
+                f"race-lap trend is positive ({self.race_lap_coef:+.4f} s/lap); "
+                "cars get faster as fuel burns off"
+            )
+        spread = (
+            max(self.driver_pace.values()) - min(self.driver_pace.values())
+            if self.driver_pace
+            else 0.0
+        )
+        if spread > MAX_PACE_SPREAD:
+            reasons.append(f"driver pace spread of {spread:.1f}s is not physical")
+        for compound, rate in self.degradation.items():
+            if not -MAX_DEGRADATION <= rate <= MAX_DEGRADATION:
+                reasons.append(f"{compound.short} degradation of {rate:+.2f} s/lap is out of range")
+        return tuple(reasons)
+
+    @property
+    def usable(self) -> bool:
+        """Whether this fit is sound enough to simulate from."""
+        return not self.unusable_reasons
+
     def __str__(self) -> str:
         lines = [
             f"fitted on {self.n_laps:,} clean laps across {self.n_stints} stints",
@@ -97,6 +140,8 @@ class PaceFit:
             lines.append(f"    {compound.short}  {rate:+.4f} s/lap   baseline {offset:+.3f} s")
         for warning in self.warnings:
             lines.append(f"  ! {warning}")
+        for reason in self.unusable_reasons:
+            lines.append(f"  ✗ UNUSABLE: {reason}")
         return "\n".join(lines)
 
 

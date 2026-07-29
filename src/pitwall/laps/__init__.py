@@ -8,7 +8,13 @@ from pitwall.laps.clean import (
     filter_laps,
     session_best,
 )
-from pitwall.laps.records import LapCollector, LapRecord, fold_to_lap, parse_interval
+from pitwall.laps.records import (
+    LapCollector,
+    LapRecord,
+    fold_to_lap,
+    parse_interval,
+    parse_laps_down,
+)
 
 __all__ = [
     "CleanLapConfig",
@@ -20,5 +26,6 @@ __all__ = [
     "fold_to_lap",
     "filter_laps",
     "parse_interval",
+    "parse_laps_down",
     "session_best",
 ]

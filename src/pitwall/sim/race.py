@@ -41,6 +41,12 @@ from pitwall.state.models import Compound
 
 RACING_COMPOUNDS: tuple[Compound, ...] = (Compound.SOFT, Compound.MEDIUM, Compound.HARD)
 
+# Seconds to place a car behind for each lap it is down. Approximate on purpose -
+# a lapped car is out of strategic contention and only its ordering matters.
+LAPPED_PENALTY = 40.0
+# Spacing used when the feed gives no usable gap for a car.
+UNKNOWN_GAP_SPACING = 1.5
+
 
 @dataclass(frozen=True)
 class CarEntry:
@@ -356,19 +362,42 @@ def with_pit_plan(
 def entries_from_state(state, pace: PaceFit) -> list[CarEntry]:
     """Build a simulation grid from live race state.
 
-    `elapsed` is reconstructed from each car's gap to the leader, which is what
-    the feed publishes. Cars whose gap is a lap count rather than a time are
-    placed behind the last timed car - they are out of strategic contention, but
-    dropping them would change the field size and therefore every position.
+    The **running order is authoritative**; gaps only refine the spacing within
+    it. That ordering matters more than it looks, because `GapToLeader` is not
+    reliably a gap: the leader's is blank or carries `"LAP 17"` (the lap it is
+    on, not a deficit), a lapped car's is `"2L"`, and a car yet to be timed has
+    none at all. An earlier version parsed the field and dropped anything
+    unparseable to the back of the grid, which put the race leader 112 seconds
+    behind the field in every simulation - and the engine then correctly
+    concluded that a car running last would not finish on the podium.
+
+    Elapsed times are therefore forced to be non-decreasing down the order: a
+    car classified P4 can never be simulated ahead of P3.
     """
-    from pitwall.laps.records import parse_interval
+    from pitwall.laps.records import parse_interval, parse_laps_down
 
     cars = [c for c in state.running_order() if c.tla or c.number]
-    timed = [(c, parse_interval(c.gap_to_leader)) for c in cars]
-    furthest = max((g for _, g in timed if g is not None), default=0.0)
-
     entries: list[CarEntry] = []
-    for index, (car, gap) in enumerate(timed):
+    last = 0.0
+
+    for index, car in enumerate(cars):
+        gap = parse_interval(car.gap_to_leader)
+        laps_down = parse_laps_down(car.gap_to_leader)
+
+        if index == 0:
+            # The leader defines the reference; its gap field never holds one.
+            elapsed = 0.0
+        elif laps_down:
+            elapsed = last + LAPPED_PENALTY * laps_down
+        elif gap is not None and gap >= last:
+            elapsed = gap
+        else:
+            # No usable gap, or one that contradicts the order. Fall back to a
+            # nominal spacing rather than trusting a field that disagrees with
+            # the classification.
+            elapsed = last + UNKNOWN_GAP_SPACING
+
+        last = elapsed
         entries.append(
             CarEntry(
                 driver=car.number,
@@ -377,7 +406,7 @@ def entries_from_state(state, pace: PaceFit) -> list[CarEntry]:
                 compound=car.compound,
                 tyre_age=car.tyre_age,
                 stops=car.pit_count,
-                elapsed=gap if gap is not None else furthest + 30.0 + index,
+                elapsed=elapsed,
             )
         )
     return entries

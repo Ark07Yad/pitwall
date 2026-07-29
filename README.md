@@ -178,21 +178,22 @@ laps 1–24 — no leak from the finish into a forecast of it. The report grades
 actual classification, and is generated rather than written so the bad weekends cannot be quietly
 skipped.
 
-The first scorecard, 35 leak-free predictions from the 2026 Hungarian GP:
+The current scorecard, 28 leak-free predictions from the 2026 Hungarian GP:
 
 | metric | model | baseline | skill |
 |---|---|---|---|
-| Brier (top 3) | 0.2481 | 0.3714 | **+33.2%** |
-| Brier (points) | 0.1366 | 0.1429 | +4.4% |
-| Mean position error | 3.46 | 3.17 | — |
+| Brier (top 3) | 0.2063 | 0.2143 | +3.7% |
+| Brier (points) | 0.1412 | 0.1429 | +1.1% |
+| Mean position error | 3.53 | 3.50 | — |
 
 The baseline assumes every car finishes where it currently runs. In F1 that is a strong benchmark,
-not a straw man. So: better than it at probabilistic podium calls, **worse than it** at point
-estimates of finishing position. A mixed result, reported as one.
+not a straw man — and on one race this engine barely beats it. That is the honest position.
 
-Calibration is the more useful output. In the 0–20% band the model said 3.3% and it happened 30.8%
-of the time — it is badly underconfident about cars reaching the podium from further back, which
-points at the simulation under-modelling safety-car chaos. See [the logbook](docs/logbook.md).
+An earlier version of this table reported +33.2% skill. It was wrong, and the correction is
+instructive: a bug placed the race leader at the back of the grid, so the *baseline* was also being
+scored against corrupted positions and looked far worse than it was. Fixing the bug cut the
+apparent skill by an order of magnitude. Both the bug and the inflated number are written up in
+[the logbook](docs/logbook.md).
 
 ---
 

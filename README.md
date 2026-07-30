@@ -12,6 +12,14 @@ in-session, and simulates the remainder of the race to answer one question: **sh
 Every recommendation is committed to this repository with a timestamp *before* the lap it refers
 to. The accuracy log is public and includes the calls it got wrong.
 
+![The Pitwall dashboard mid-race: a 22-car timing tower on the left, and on the right the current
+pit call for Leclerc with its ranked alternatives and a live undercut threat from Antonelli.](docs/dashboard.png)
+
+*Lap 34 of the 2026 Hungarian GP, replayed through the engine. Leclerc is P3; the engine rates
+stopping now on hards at an expected P4.59 — 0.33 clear of the next option — and puts Antonelli,
+one second back, at a 43% chance of jumping him. Regenerate with
+`python scripts/screenshot.py`.*
+
 > **Status: all five phases built.** Live ingest, race state, clean-lap filtering, fuel
 > correction, degradation and a per-circuit safety-car hazard feed a Monte Carlo simulation that
 > produces pit calls, and every call is logged, committed before the lap it refers to, and scored

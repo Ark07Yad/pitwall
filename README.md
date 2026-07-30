@@ -43,6 +43,25 @@ uv sync --extra dev
 uv run pytest
 ```
 
+### The dashboard
+
+```bash
+uv run pitwall dashboard                                    # live
+uv run pitwall dashboard --replay data/raw/2026-hungary-race.txt --speed 20 --skip 62 --driver LEC
+```
+
+A live timing tower, the current pit call with its ranked alternatives, undercut threats and feed
+health, pushed over a websocket to `http://127.0.0.1:8000`. Click any car to advise it instead.
+
+Because it runs off a `RaceFeed` it is identical live or on a recording — the replay form
+reproduces the Hungarian GP from lap 30 in about a minute, so it can be demonstrated on any
+Tuesday rather than once a fortnight. The simulation runs in a worker thread, so ingest and the
+screen keep going through the second or two a decision takes.
+
+When the engine cannot stand behind a number it says so instead of inventing one: early in a race
+the pace fit is not identified, and the recommendation panel explains why rather than showing a
+confident call drawn from noise.
+
 ### Run it live
 
 ```bash

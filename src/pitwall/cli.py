@@ -12,6 +12,7 @@ import asyncio
 import sys
 import time
 from collections import Counter
+from datetime import timedelta
 from pathlib import Path
 
 from pitwall.feed.replay import ReplayFeed, read_events
@@ -433,6 +434,36 @@ def _report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _dashboard(args: argparse.Namespace) -> int:
+    """Serve the live dashboard, from the live feed or a recording."""
+    from pitwall.dashboard import Engine, serve
+
+    if args.replay:
+        if not args.replay.exists():
+            print(f"no such recording: {args.replay}", file=sys.stderr)
+            return 1
+        # Warp rather than skip: fast-forwarding applies all the earlier state
+        # (driver list, stints, compounds), where skipping would silently drop it.
+        warp = timedelta(minutes=args.skip) if args.skip else None
+        feed = ReplayFeed(args.replay, speed=args.speed, warp_until=warp)
+        source = f"replay of {args.replay.name} at {args.speed or 'max'}x"
+        if warp:
+            source += f", from {args.skip:g} min in"
+    else:
+        feed = SignalRFeed(record_to=str(args.record) if args.record else None)
+        source = "F1 live timing"
+
+    hazard = None
+    if args.history.exists():
+        hazard = fit_hazard(load_history(args.history), kind=EventKind.ANY)
+
+    engine = Engine(feed, hazard=hazard, driver=args.driver, sims=args.sims)
+    print(f"pitwall dashboard - {source}")
+    print(f"  http://{args.host}:{args.port}")
+    serve(engine, host=args.host, port=args.port)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pitwall")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -524,6 +555,22 @@ def main(argv: list[str] | None = None) -> int:
     report.add_argument("--log", type=Path, required=True)
     report.add_argument("--out", type=Path, default=Path("reports/race.md"))
 
+    dashboard = sub.add_parser("dashboard", help="serve the live dashboard")
+    dashboard.add_argument("--replay", type=Path, help="drive it from a recording instead of live")
+    dashboard.add_argument("--speed", type=float, default=30.0, help="replay speed multiplier")
+    dashboard.add_argument(
+        "--skip",
+        type=float,
+        default=0.0,
+        help="minutes to fast-forward through before pacing begins",
+    )
+    dashboard.add_argument("--driver", default="", help="TLA to advise; blank = the leader")
+    dashboard.add_argument("--sims", type=int, default=1500)
+    dashboard.add_argument("--host", default="127.0.0.1")
+    dashboard.add_argument("--port", type=int, default=8000)
+    dashboard.add_argument("--record", type=Path, help="also write raw frames (live only)")
+    dashboard.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
+
     args = parser.parse_args(argv)
     if args.command == "replay":
         return asyncio.run(_replay(args))
@@ -541,6 +588,8 @@ def main(argv: list[str] | None = None) -> int:
         return _backtest(args)
     if args.command == "report":
         return _report(args)
+    if args.command == "dashboard":
+        return _dashboard(args)
     return 1
 
 

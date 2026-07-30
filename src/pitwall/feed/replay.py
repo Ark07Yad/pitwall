@@ -126,6 +126,15 @@ class ReplayFeed(RaceFeed):
     (the default, for tests and backtests), `1.0` reproduces real time, and
     larger values compress it - `speed=60` runs a two-hour race in two minutes,
     which is the useful setting for watching the dashboard behave.
+
+    `skip_to` and `warp_until` both start you later in a session and are not
+    interchangeable. `skip_to` **discards** everything before it; `warp_until`
+    **replays it at full speed** and only then starts pacing. Discarding loses
+    the state those events carried - jumping into the 2026 Hungarian GP an hour
+    in with `skip_to` left most of the field on an unknown tyre compound,
+    because the stints had been announced before the skip point. Prefer
+    `warp_until` for anything that consumes state; `skip_to` is for tests that
+    only care about ordering.
     """
 
     def __init__(
@@ -134,10 +143,12 @@ class ReplayFeed(RaceFeed):
         *,
         speed: float | None = None,
         skip_to: timedelta | None = None,
+        warp_until: timedelta | None = None,
     ) -> None:
         self.path = Path(path)
         self.speed = speed
         self.skip_to = skip_to
+        self.warp_until = warp_until
 
     async def __aiter__(self) -> AsyncIterator[FeedEvent]:
         loop = asyncio.get_running_loop()
@@ -150,6 +161,20 @@ class ReplayFeed(RaceFeed):
                 and event.session_time is not None
                 and event.session_time < self.skip_to
             ):
+                continue
+
+            warping = (
+                self.warp_until is not None
+                and event.session_time is not None
+                and event.session_time < self.warp_until
+            )
+            if warping:
+                # Fast-forward: emit without pacing so all state is applied, then
+                # reset the clock so pacing resumes from the warp point.
+                first_event_time = None
+                wall_start = loop.time()
+                await asyncio.sleep(0)
+                yield event
                 continue
 
             if self.speed and event.session_time is not None:

@@ -4,6 +4,44 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-07-30 — Dashboard
+
+A live timing tower, the current pit call with its ranked alternatives, undercut threats and feed
+health, pushed over a websocket. Deliberately small: the dashboard is evidence the engine works,
+not the product.
+
+The design decision that matters is that it runs off a `RaceFeed`, so it is identical live or on a
+recording. `pitwall dashboard --replay ... --speed 20 --skip 62` reproduces the Hungarian GP from
+lap 30 in about a minute, which means it can be demonstrated on any Tuesday rather than once a
+fortnight.
+
+**The simulation runs in a worker thread.** A twelve-option decision is a second or two of numpy,
+and running it on the event loop would freeze ingest and the screen exactly when a strategy call is
+being made. The last completed answer stays up while the next is computed.
+
+**A subtle bug worth writing down.** Every websocket upgrade was rejected with `403`. The route was
+registered, the REST endpoints worked, and the server logged nothing. Turning on trace logging gave
+it away:
+
+    Send {'type': 'websocket.close', 'code': 1008,
+          'reason': [{'loc': ['query', 'socket'], 'msg': 'Field required'}]}
+
+FastAPI was treating `socket: WebSocket` as a *query parameter*. `from __future__ import
+annotations` turns every annotation into a string, and FastAPI resolves those against the module
+namespace — but `WebSocket` was imported *inside* `build_app`, to keep fastapi an optional
+dependency. Unresolvable annotation, so it fell back to "unknown parameter, must be a query param",
+and reported a missing field rather than an import problem. Dropping the future import from that
+one module fixes it, because the annotation is then evaluated where the import is in scope.
+
+**And one the screenshot caught.** Running the dashboard mid-race showed most of the field on an
+unknown tyre, and the leader's gap column reading `LAP 37`. Two causes. `--skip` used
+`ReplayFeed.skip_to`, which *discards* earlier events — including the stints that had already
+announced everyone's compound. It now uses a new `warp_until`, which replays them at full speed and
+only then starts pacing. And `GapToLeader` carries `"LAP 37"` for the leader, which the simulation
+already knew to ignore but the display did not.
+
+---
+
 ## 2026-07-29 (later) — Chasing the calibration miss, and finding two bugs instead
 
 The last report said the model was underconfident about cars reaching the podium and guessed the

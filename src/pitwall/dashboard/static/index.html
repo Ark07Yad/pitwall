@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pitwall</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --line: #21262d; --ink: #e6edf3;
+    --dim: #8b949e; --accent: #f0b429; --good: #3fb950; --bad: #f85149;
+    --soft: #f85149; --med: #f0b429; --hard: #e6edf3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap;
+    padding: .8rem 1.1rem; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  h1 { font-size: 1rem; margin: 0; letter-spacing: .14em; text-transform: uppercase; }
+  .muted { color: var(--dim); }
+  .flag { padding: .1rem .5rem; border-radius: 3px; background: var(--good); color: #06240f; font-weight: 700; }
+  .flag.neutral { background: var(--accent); color: #2b1d00; }
+  .dot { width: .5rem; height: .5rem; border-radius: 50%; display: inline-block; background: var(--bad); }
+  .dot.on { background: var(--good); }
+  main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 1rem; padding: 1rem; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  h2 { font-size: .7rem; letter-spacing: .16em; text-transform: uppercase; color: var(--dim);
+       margin: 0; padding: .6rem .9rem; border-bottom: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: .3rem .55rem; text-align: right; white-space: nowrap; }
+  th { font-size: .65rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 500; }
+  td.l, th.l { text-align: left; }
+  tbody tr { border-top: 1px solid var(--line); cursor: pointer; }
+  tbody tr:hover { background: #1c2430; }
+  tbody tr.picked { background: #1f2a1f; box-shadow: inset 3px 0 0 var(--good); }
+  tbody tr.out { color: var(--dim); }
+  .SOF { color: var(--soft); } .MED { color: var(--med); } .HAR { color: var(--hard); }
+  .pit { color: var(--accent); font-size: .7rem; }
+  .call { padding: .9rem; }
+  .call .big { font-size: 1.35rem; font-weight: 700; color: var(--accent); }
+  .call .big.soft { color: var(--dim); font-weight: 500; font-size: 1rem; }
+  .refused { padding: .9rem; color: var(--dim); }
+  .bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--good); }
+  .foot { padding: .6rem .9rem; border-top: 1px solid var(--line); color: var(--dim); font-size: .72rem; }
+  .spin { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pitwall</h1>
+  <span id="session" class="muted">connecting…</span>
+  <span id="lap"></span>
+  <span id="flag" class="flag">—</span>
+  <span class="muted" id="weather"></span>
+  <span style="margin-left:auto"><span id="dot" class="dot"></span> <span id="mode" class="muted"></span></span>
+</header>
+
+<main>
+  <section>
+    <h2>Timing</h2>
+    <table>
+      <thead><tr>
+        <th>P</th><th class="l">Car</th><th class="l">Tyre</th><th>Age</th>
+        <th>Last</th><th>Gap</th><th>Int</th><th>St</th>
+      </tr></thead>
+      <tbody id="cars"></tbody>
+    </table>
+    <div class="foot" id="feed"></div>
+  </section>
+
+  <div style="display:flex; flex-direction:column; gap:1rem;">
+    <section>
+      <h2>Recommendation <span id="computing" class="spin"></span></h2>
+      <div id="call" class="refused">waiting for the race to develop…</div>
+      <table><tbody id="options"></tbody></table>
+    </section>
+    <section>
+      <h2>Undercut threats</h2>
+      <table><tbody id="threats"></tbody></table>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let socket, picked = null;
+
+function connect() {
+  socket = new WebSocket(`ws://${location.host}/ws`);
+  socket.onopen = () => { $("dot").classList.add("on"); };
+  socket.onclose = () => { $("dot").classList.remove("on"); setTimeout(connect, 2000); };
+  socket.onmessage = e => render(JSON.parse(e.data));
+}
+
+function pick(tla) {
+  picked = tla;
+  if (socket && socket.readyState === 1) socket.send(JSON.stringify({ driver: tla }));
+}
+
+function render(s) {
+  $("session").textContent = `${s.session || "Session"} @ ${s.circuit || "—"}`;
+  $("lap").textContent = s.lap ? `lap ${s.lap}/${s.total_laps || "?"}` : "";
+  const flag = $("flag");
+  flag.textContent = (s.track_status || "—").replace(/_/g, " ");
+  flag.className = "flag" + (s.neutralised ? " neutral" : "");
+  const w = s.weather || {};
+  $("weather").textContent = w.track ? `air ${w.air}°C  track ${w.track}°C${w.rain ? "  RAIN" : ""}` : "";
+  $("mode").textContent = s.feed && s.feed.live ? "live" : "replay";
+  $("computing").textContent = s.computing ? "· simulating…" : "";
+
+  $("cars").innerHTML = (s.cars || []).map(c => {
+    const cls = [c.out ? "out" : "", picked === c.tla ? "picked" : ""].join(" ").trim();
+    const flags = c.in_pit ? '<span class="pit">PIT</span>' : (c.out ? '<span class="pit">OUT</span>' : "");
+    return `<tr class="${cls}" onclick="pick('${c.tla}')">
+      <td>${c.position ?? ""}</td>
+      <td class="l"><b>${c.tla}</b> ${flags}</td>
+      <td class="l ${c.compound}">${c.compound}</td>
+      <td>${c.age ?? ""}</td>
+      <td>${c.last != null ? c.last.toFixed(3) : "—"}</td>
+      <td>${c.gap || "—"}</td>
+      <td>${c.interval || "—"}</td>
+      <td>${c.stops ?? 0}</td></tr>`;
+  }).join("");
+
+  const f = s.feed || {};
+  $("feed").textContent = f.live
+    ? `${(f.frames || 0).toLocaleString()} frames · ${(f.events || 0).toLocaleString()} events · decode p50 ${f.decode_p50_ms}ms p99 ${f.decode_p99_ms}ms`
+    : `${(f.events || 0).toLocaleString()} events replayed`;
+
+  const a = s.advice;
+  if (!a) {
+    $("call").className = "refused";
+    $("call").textContent = "waiting for the race to develop…";
+    $("options").innerHTML = ""; $("threats").innerHTML = "";
+    return;
+  }
+  if (a.refused) {
+    $("call").className = "refused";
+    $("call").innerHTML = `<b>${a.tla}</b> — no call offered.<br><span class="muted">${a.refused}</span>`;
+    $("options").innerHTML = ""; $("threats").innerHTML = "";
+    return;
+  }
+  $("call").className = "call";
+  $("call").innerHTML = `
+    <div class="big ${a.decisive ? "" : "soft"}">${a.decisive ? "PIT " + a.call : a.call + " — marginal, no clear call"}</div>
+    <div class="muted">${a.tla} · lap ${a.lap} · expected P${a.expected} · margin ${a.margin > 0 ? "+" : ""}${a.margin}</div>`;
+
+  $("options").innerHTML = (a.options || []).map(o => `
+    <tr><td class="l">${o.label}</td>
+    <td>P${o.expected.toFixed(2)}</td>
+    <td style="width:40%"><div class="bar"><i style="width:${Math.round(o.top3 * 100)}%"></i></div></td>
+    <td class="muted">${(o.top3 * 100).toFixed(0)}% top3</td></tr>`).join("");
+
+  $("threats").innerHTML = (a.threats || []).length
+    ? a.threats.map(t => `<tr><td class="l"><b>${t.tla}</b></td>
+        <td class="muted">${t.gap > 0 ? "+" : ""}${t.gap}s behind</td>
+        <td style="width:40%"><div class="bar"><i style="width:${Math.round(t.probability * 100)}%; background:${t.probability > 0.4 ? "var(--bad)" : "var(--good)"}"></i></div></td>
+        <td>${(t.probability * 100).toFixed(0)}%</td></tr>`).join("")
+    : `<tr><td class="l muted" style="padding:.9rem">nobody within range</td></tr>`;
+}
+
+connect();
+</script>
+</body>
+</html>

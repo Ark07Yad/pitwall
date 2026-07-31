@@ -91,6 +91,13 @@ Two protocol notes, established by probing since none of this is documented. The
 accepts an **unauthenticated** connection despite FastF1 wiring in an F1 TV token — no login is
 required.
 
+**Reconnection is tested, not hoped for.** F1's feed drops after roughly two hours and a Grand Prix
+is two hours, so a mid-race drop is the expected case. The suite drives the retry loop through
+injected drops, escalating backoff, the cap, the reset after a good connection, and cancellation.
+Against the live endpoint, with the silence timeout cut to force real drops, it completed **11
+reconnections in 75 seconds** — each a full negotiate, handshake and re-subscribe — with race state
+intact after every one.
+
 ### Record a live session
 
 Run this ~5 minutes before a session starts. It supervises the connection and reconnects, because

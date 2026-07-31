@@ -4,6 +4,46 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-07-31 — Reconnection proved, and there is no FP2 to rehearse on
+
+The plan was to dress-rehearse the live path on FP2 at Zandvoort. **Zandvoort 2026 is a Sprint
+weekend, so there is no FP2.** The format is one hour of practice and then straight into
+competitive sessions:
+
+| | session | Irish time |
+|---|---|---|
+| Fri 21 Aug | FP1 | 11:30–12:30 |
+| Fri 21 Aug | Sprint Qualifying | 15:30–16:14 |
+| Sat 22 Aug | Sprint | 11:00–11:30 |
+| Sat 22 Aug | Qualifying | 15:00–16:00 |
+| Sun 23 Aug | **Race** | 14:00–16:00 |
+
+Friday is a better rehearsal than FP2 would have been anyway: two live sessions separated by three
+idle hours exercises capture, the idle backoff, and reconnection in one unattended run.
+
+    nohup ./scripts/scheduled_record.sh "2026-08-21 11:15" data/raw/2026-netherlands-friday.txt 320 &
+
+**Reconnection is no longer the untested gap.** It was the one thing I had flagged as only
+exercised against forced local failures, and F1's feed drops after roughly two hours while a Grand
+Prix *is* two hours — so the failure mode is the expected case, not the exceptional one.
+
+Two levels of evidence now. Fault injection in the test suite drives the retry loop through drops,
+escalating backoff, the cap, the reset after a good connection, and cancellation. And against the
+real endpoint, with the silence timeout cut to six seconds to force genuine drops: **11 successful
+reconnections in 75 seconds**, each a full negotiate → connect → handshake → subscribe → snapshot,
+with all 22 cars still in state afterwards. The backoff held at 1s throughout, which is the
+reset-after-success path working in the wild rather than only in a test.
+
+**A bug in the test helper, which is still worth writing down.** My fake feed raised scheduled
+failures with `isinstance(step, Exception)`. `asyncio.CancelledError` derives from
+`BaseException`, not `Exception`, so the cancellation case never raised — the helper tried to
+*iterate* the exception instead, the loop caught the resulting `TypeError` as a connection drop,
+retried forever, and the suite hung for seven minutes instead of failing. The same confusion in
+production code would make a process refuse to shut down. `BaseException` in the helper, and the
+real code already had it right: it re-raises `CancelledError` before the generic handler.
+
+---
+
 ## 2026-07-30 — Dashboard
 
 A live timing tower, the current pit call with its ranked alternatives, undercut threats and feed

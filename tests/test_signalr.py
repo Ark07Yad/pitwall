@@ -15,6 +15,7 @@ import os
 
 import pytest
 
+from pitwall.feed.base import FeedEvent
 from pitwall.feed.signalr import RECORD_SEPARATOR, LatencyStats, SignalRFeed
 from pitwall.state.reducer import RaceStateReducer
 
@@ -262,3 +263,140 @@ async def test_connects_to_the_real_endpoint():
 
     assert events, "expected at least the state snapshot"
     assert any(e.topic == "SessionInfo" for e in events)
+
+
+# -- reconnection ------------------------------------------------------
+#
+# F1's feed drops after roughly two hours and a Grand Prix is two hours, so a
+# dropped socket mid-race is the expected case rather than the exceptional one.
+# These drive the retry loop with injected failures - the alternative is finding
+# out during a race, once a fortnight.
+
+
+class _Flaky(SignalRFeed):
+    """A feed whose underlying stream fails on a schedule."""
+
+    def __init__(self, plan: list, **kwargs):
+        super().__init__(**kwargs)
+        self.plan = list(plan)
+        self.attempts = 0
+        self.sleeps: list[float] = []
+
+    async def _stream_once(self):
+        self.attempts += 1
+        if not self.plan:
+            # Nothing left to serve. Close, or the retry loop spins forever and
+            # the test hangs instead of failing.
+            self._closed = True
+            return
+        step = self.plan.pop(0)
+        # BaseException, not Exception: asyncio.CancelledError derives from
+        # BaseException, so an `Exception` check silently fails to raise it.
+        if isinstance(step, BaseException):
+            raise step
+        for topic in step:
+            yield FeedEvent(topic=topic, data={"n": self.attempts})
+
+
+async def _drain(feed, *, limit=50):
+    out = []
+    async for event in feed:
+        out.append(event)
+        if len(out) >= limit:
+            break
+    return out
+
+
+@pytest.fixture
+def no_waiting(monkeypatch):
+    """Record backoff delays instead of serving them."""
+    recorded: list[float] = []
+
+    async def fake_sleep(seconds):
+        recorded.append(seconds)
+
+    monkeypatch.setattr("pitwall.feed.signalr.asyncio.sleep", fake_sleep)
+    return recorded
+
+
+async def test_reconnects_after_a_dropped_connection(no_waiting):
+    """A drop mid-session must not end the stream; the next attempt continues."""
+    feed = _Flaky([["A"], ConnectionResetError("dropped"), ["B", "C"]])
+
+    events = await _drain(feed, limit=3)
+
+    assert [e.topic for e in events] == ["A", "B", "C"]
+    assert feed.attempts == 3
+
+
+async def test_backoff_grows_while_failing(no_waiting):
+    feed = _Flaky([OSError("1"), OSError("2"), OSError("3"), ["ok"]])
+
+    await _drain(feed, limit=1)
+
+    assert no_waiting == [1.0, 2.0, 4.0], "delay should double between attempts"
+
+
+async def test_backoff_is_capped(no_waiting):
+    feed = _Flaky([OSError("x")] * 8 + [["ok"]], max_backoff=5.0)
+
+    await _drain(feed, limit=1)
+
+    assert max(no_waiting) == 5.0
+
+
+async def test_backoff_resets_after_a_good_connection(no_waiting):
+    """Two isolated drops an hour apart must not be treated as one outage.
+
+    Without the reset, a race with a handful of unrelated drops would end up
+    waiting the maximum backoff after each one, and the engine would sit idle
+    through the part of the race it exists for.
+    """
+    feed = _Flaky([OSError("a"), OSError("b"), ["recovered"], OSError("c"), ["again"]])
+
+    await _drain(feed, limit=2)
+
+    assert no_waiting[:3] == [1.0, 2.0, 1.0], "a successful event resets the delay"
+
+
+async def test_no_reconnect_when_disabled(no_waiting):
+    """With retries off the stream ends at the first interruption - here the
+    generator simply finishing - and never opens a second connection."""
+    feed = _Flaky([["A"], ["B"]], reconnect=False)
+
+    events = await _drain(feed)
+
+    assert [e.topic for e in events] == ["A"]
+    assert feed.attempts == 1
+    assert no_waiting == []
+
+
+async def test_a_drop_ends_the_stream_when_retries_are_off(no_waiting):
+    feed = _Flaky([ConnectionResetError("dropped"), ["B"]], reconnect=False)
+
+    events = await _drain(feed)
+
+    assert events == []
+    assert feed.attempts == 1
+
+
+async def test_closing_stops_the_retry_loop(no_waiting):
+    feed = _Flaky([OSError("x")] * 5)
+    await feed.aclose()
+
+    assert await _drain(feed) == []
+    assert feed.attempts == 0
+
+
+async def test_cancellation_is_not_swallowed_as_a_drop(no_waiting):
+    """Shutdown must actually shut down. Catching CancelledError as a connection
+    failure would make the feed reconnect forever while the process tries to
+    exit."""
+    import asyncio as _asyncio
+
+    feed = _Flaky([_asyncio.CancelledError()])
+
+    with pytest.raises(_asyncio.CancelledError):
+        await _drain(feed)
+
+    assert feed.attempts == 1

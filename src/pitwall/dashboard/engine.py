@@ -54,6 +54,7 @@ class Advice:
     margin: float
     options: list[dict[str, Any]] = field(default_factory=list)
     threats: list[dict[str, Any]] = field(default_factory=list)
+    distribution: dict[int, float] = field(default_factory=dict)
     computed_at: float = 0.0
     refused: str = ""
 
@@ -83,6 +84,13 @@ class Engine:
         self._last_advised_lap = -1
         self._busy = False
 
+        # Where each car started, so the screen can show positions gained
+        # rather than only where everyone is now. Captured the first time a car
+        # is seen classified, which for a race is the grid.
+        self._grid: dict[str, int] = {}
+        self._pace: PaceFit | None = None
+        self._clean_laps = 0
+
     @property
     def state(self) -> RaceState:
         return self.collector.state
@@ -92,6 +100,9 @@ class Engine:
         async for event in self.feed:
             self.collector.apply(event)
             self.events += 1
+            for number, car in self.collector.state.cars.items():
+                if car.position is not None and number not in self._grid:
+                    self._grid[number] = car.position
             await self._maybe_advise()
 
     async def _maybe_advise(self) -> None:
@@ -127,7 +138,9 @@ class Engine:
     def _compute(self, lap: int) -> Advice | None:
         state = self.state
         clean, _ = filter_laps(self.collector.laps)
+        self._clean_laps = len(clean)
         pace: PaceFit | None = fit_pace(clean)
+        self._pace = pace if (pace and pace.usable) else None
 
         if pace is None:
             return Advice(
@@ -202,6 +215,7 @@ class Engine:
                 }
                 for o in recommendation.outcomes[:6]
             ],
+            distribution=recommendation.best.distribution,
             threats=[
                 {"tla": t.tla, "gap": round(t.gap, 1), "probability": round(t.probability, 3)}
                 for t in threats
@@ -209,13 +223,75 @@ class Engine:
             computed_at=time.time(),
         )
 
+    def _recent_laps(self, limit: int = 12) -> dict[str, list[float]]:
+        """Last few clean-ish lap times per car, for the trend sparklines.
+
+        Pit and neutralised laps are dropped: a 105-second in-lap in a series of
+        85s laps flattens the sparkline into a single spike and hides the tyre
+        trend the chart exists to show.
+        """
+        recent: dict[str, list[float]] = {}
+        for lap in self.collector.laps:
+            if lap.lap_time is None or lap.entered_pit or lap.exited_pit:
+                continue
+            if lap.was_neutralised:
+                continue
+            recent.setdefault(lap.driver, []).append(round(lap.lap_time, 3))
+        return {k: v[-limit:] for k, v in recent.items()}
+
+    def _model_summary(self) -> dict[str, Any] | None:
+        """What the pace model currently believes, so the screen can show its
+        working rather than only its conclusion."""
+        pace = self._pace
+        if pace is None:
+            return None
+        return {
+            "clean_laps": self._clean_laps,
+            "stints": pace.n_stints,
+            "trend": round(pace.race_lap_coef, 4),
+            "residual": round(pace.residual_std, 3),
+            "r2": round(pace.r_squared, 3),
+            "degradation": {
+                compound.short: round(rate, 4)
+                for compound, rate in sorted(pace.degradation.items(), key=lambda kv: -kv[1])
+            },
+            "warnings": list(pace.warnings),
+        }
+
+    def _risk(self) -> dict[str, Any] | None:
+        """Safety-car risk over the rest of the race, from the fitted hazard."""
+        state = self.state
+        if self.hazard is None or not state.total_laps or state.lap <= 0:
+            return None
+        circuit, lap, total = state.circuit, state.lap, state.total_laps
+        windows = {}
+        for span in (5, 10, 20):
+            end = min(total, lap + span)
+            if end > lap:
+                windows[str(span)] = round(
+                    self.hazard.probability_within(circuit, lap + 1, end, total), 3
+                )
+        return {
+            "circuit_factor": round(self.hazard.circuit_factor.get(circuit, 1.0), 2),
+            "known_circuit": self.hazard.known_circuit(circuit),
+            "windows": windows,
+            "remaining": round(self.hazard.probability_within(circuit, lap + 1, total, total), 3),
+        }
+
     def snapshot(self) -> dict[str, Any]:
         """Everything the browser needs, as plain JSON."""
         state = self.state
+        recent = self._recent_laps()
+
+        timed = [c.best_lap_time for c in state.cars.values() if c.best_lap_time]
+        session_best = min(timed) if timed else None
+
         cars = []
         for car in state.running_order():
             if car.position is None and not car.tla:
                 continue
+            grid = self._grid.get(car.number)
+            history = recent.get(car.number, [])
             cars.append(
                 {
                     "position": car.position,
@@ -225,14 +301,23 @@ class Engine:
                     "compound": car.compound.short,
                     "age": car.tyre_age,
                     "last": round(car.last_lap_time, 3) if car.last_lap_time else None,
-                    # `GapToLeader` carries "LAP 37" for the leader - the lap it
-                    # is on, not a gap. Showing it raw puts nonsense in the
-                    # column; the leader is the reference and has no gap.
+                    "best": round(car.best_lap_time, 3) if car.best_lap_time else None,
+                    "fastest": bool(
+                        car.best_lap_time and session_best and car.best_lap_time <= session_best
+                    ),
                     "gap": car.gap_to_leader if _is_gap(car.gap_to_leader) else None,
                     "interval": car.interval if _is_gap(car.interval) else None,
                     "stops": car.pit_count,
                     "in_pit": car.in_pit,
                     "out": car.retired or car.stopped,
+                    "gained": (grid - car.position) if (grid and car.position) else 0,
+                    "stints": [
+                        {"compound": st.compound.short, "laps": st.total_laps}
+                        for st in car.stints
+                        if st.total_laps > 0 or st is car.stints[-1]
+                    ],
+                    "trend": history,
+                    "delta": (round(history[-1] - min(history), 3) if len(history) >= 3 else None),
                 }
             )
 
@@ -256,12 +341,17 @@ class Engine:
             advice = {
                 "lap": self.advice.lap,
                 "tla": self.advice.tla,
+                "driver": self.advice.driver,
                 "call": self.advice.call,
                 "decisive": self.advice.decisive,
                 "expected": round(self.advice.expected_position, 2),
                 "margin": round(self.advice.margin, 2),
                 "options": self.advice.options,
                 "threats": self.advice.threats,
+                "distribution": {str(k): round(v, 4) for k, v in self.advice.distribution.items()},
+                "age": round(time.time() - self.advice.computed_at, 1)
+                if self.advice.computed_at
+                else None,
                 "refused": self.advice.refused,
             }
 
@@ -270,6 +360,7 @@ class Engine:
             "circuit": state.circuit,
             "lap": state.lap,
             "total_laps": state.total_laps,
+            "progress": round(state.lap / state.total_laps, 4) if state.total_laps else 0.0,
             "track_status": state.track_status.name,
             "neutralised": state.track_status.is_neutralised,
             "weather": {
@@ -277,8 +368,11 @@ class Engine:
                 "track": state.weather.track_temp,
                 "rain": state.weather.rainfall,
             },
+            "session_best": round(session_best, 3) if session_best else None,
             "cars": cars,
             "advice": advice,
+            "model": self._model_summary(),
+            "risk": self._risk(),
             "feed": feed_stats,
             "computing": self._busy,
         }

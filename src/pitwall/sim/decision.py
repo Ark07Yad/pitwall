@@ -17,7 +17,9 @@ clear air and everything when it decides a pit exit.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
+
+import numpy as np
 
 from pitwall.models.pace import PaceFit
 from pitwall.models.safety_car import HazardModel
@@ -43,6 +45,11 @@ class Outcome:
     p_top3: float
     p_points: float
     p_gain: float
+    # P(finishing at each position). The simulation computes a whole
+    # distribution and reporting only its mean throws away the part that says
+    # how *uncertain* the call is - a tight spread around P4 and a coin-flip
+    # between P2 and P8 have the same mean and mean very different things.
+    distribution: dict[int, float] = field(default_factory=dict)
 
     @property
     def label(self) -> str:
@@ -139,8 +146,13 @@ def evaluate_actions(
                 config=cfg,
             )
             positions = result.positions[:, index]
+            values, counts = np.unique(positions, return_counts=True)
             outcomes.append(
                 Outcome(
+                    distribution={
+                        int(v): float(c / len(positions))
+                        for v, c in zip(values, counts, strict=False)
+                    },
                     delay=delay,
                     compound=compound,
                     pit_lap=pit_lap,

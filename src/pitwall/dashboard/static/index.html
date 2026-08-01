@@ -6,164 +6,391 @@
 <title>Pitwall</title>
 <style>
   :root {
-    --bg: #0d1117; --panel: #161b22; --line: #21262d; --ink: #e6edf3;
-    --dim: #8b949e; --accent: #f0b429; --good: #3fb950; --bad: #f85149;
-    --soft: #f85149; --med: #f0b429; --hard: #e6edf3;
+    --bg:#0a0d12; --panel:#12161d; --panel2:#161b24; --line:#222a36;
+    --ink:#e8eef6; --dim:#7d8998; --faint:#4d5766;
+    --accent:#ffb400; --good:#35d07f; --bad:#ff4d4d; --cool:#4da3ff; --purple:#b06cff;
+    --sof:#ff3b3b; --med:#ffd12e; --har:#eaeef4; --int:#43b02a; --wet:#0067ad;
+    --r:8px;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing:border-box; }
+  html,body { height:100%; }
   body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    margin:0; background:radial-gradient(1200px 600px at 70% -10%, #16202c 0%, var(--bg) 60%);
+    color:var(--ink);
+    font:13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    -webkit-font-smoothing:antialiased;
   }
+
+  /* ---------- header ---------- */
   header {
-    display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap;
-    padding: .8rem 1.1rem; border-bottom: 1px solid var(--line); background: var(--panel);
+    position:sticky; top:0; z-index:10;
+    background:rgba(10,13,18,.92); backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
   }
-  h1 { font-size: 1rem; margin: 0; letter-spacing: .14em; text-transform: uppercase; }
-  .muted { color: var(--dim); }
-  .flag { padding: .1rem .5rem; border-radius: 3px; background: var(--good); color: #06240f; font-weight: 700; }
-  .flag.neutral { background: var(--accent); color: #2b1d00; }
-  .dot { width: .5rem; height: .5rem; border-radius: 50%; display: inline-block; background: var(--bad); }
-  .dot.on { background: var(--good); }
-  main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 1rem; padding: 1rem; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-  h2 { font-size: .7rem; letter-spacing: .16em; text-transform: uppercase; color: var(--dim);
-       margin: 0; padding: .6rem .9rem; border-bottom: 1px solid var(--line); }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { padding: .3rem .55rem; text-align: right; white-space: nowrap; }
-  th { font-size: .65rem; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 500; }
-  td.l, th.l { text-align: left; }
-  tbody tr { border-top: 1px solid var(--line); cursor: pointer; }
-  tbody tr:hover { background: #1c2430; }
-  tbody tr.picked { background: #1f2a1f; box-shadow: inset 3px 0 0 var(--good); }
-  tbody tr.out { color: var(--dim); }
-  .SOF { color: var(--soft); } .MED { color: var(--med); } .HAR { color: var(--hard); }
-  .pit { color: var(--accent); font-size: .7rem; }
-  .call { padding: .9rem; }
-  .call .big { font-size: 1.35rem; font-weight: 700; color: var(--accent); }
-  .call .big.soft { color: var(--dim); font-weight: 500; font-size: 1rem; }
-  .refused { padding: .9rem; color: var(--dim); }
-  .bar { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
-  .bar > i { display: block; height: 100%; background: var(--good); }
-  .foot { padding: .6rem .9rem; border-top: 1px solid var(--line); color: var(--dim); font-size: .72rem; }
-  .spin { color: var(--accent); }
+  .bar { display:flex; align-items:center; gap:1.1rem; flex-wrap:wrap; padding:.7rem 1.1rem; }
+  .brand { font-size:1rem; font-weight:700; letter-spacing:.22em; }
+  .brand em { color:var(--accent); font-style:normal; }
+  .sep { width:1px; height:1.1rem; background:var(--line); }
+  .muted { color:var(--dim); }
+  .faint { color:var(--faint); }
+  .flag { padding:.15rem .55rem; border-radius:4px; font-weight:700; font-size:.72rem;
+          letter-spacing:.1em; background:var(--good); color:#04240f; }
+  .flag.neutral { background:var(--accent); color:#2b1d00; animation:pulse 1.6s infinite; }
+  .flag.danger  { background:var(--bad); color:#2b0000; animation:pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity:.55; } }
+  .status { margin-left:auto; display:flex; align-items:center; gap:.5rem; }
+  .dot { width:.5rem; height:.5rem; border-radius:50%; background:var(--bad); }
+  .dot.on { background:var(--good); box-shadow:0 0 0 3px rgba(53,208,127,.18); }
+  .progress { height:2px; background:var(--line); }
+  .progress > i { display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--good));
+                  transition:width .6s ease; }
+
+  /* ---------- layout ---------- */
+  main { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(340px,1fr);
+         gap:.9rem; padding:.9rem 1.1rem 1.4rem; align-items:start; }
+  @media (max-width:1080px){ main { grid-template-columns:1fr; } }
+  .col { display:flex; flex-direction:column; gap:.9rem; }
+  section { background:linear-gradient(180deg,var(--panel2),var(--panel));
+            border:1px solid var(--line); border-radius:var(--r); overflow:hidden; }
+  h2 { margin:0; padding:.55rem .85rem; font-size:.66rem; letter-spacing:.18em;
+       text-transform:uppercase; color:var(--dim); font-weight:600;
+       border-bottom:1px solid var(--line); display:flex; align-items:center; gap:.5rem; }
+  h2 .tag { margin-left:auto; font-size:.62rem; letter-spacing:.08em; color:var(--faint);
+            text-transform:none; }
+
+  /* ---------- timing tower ---------- */
+  table { width:100%; border-collapse:collapse; }
+  th,td { padding:.28rem .5rem; text-align:right; white-space:nowrap; }
+  th { font-size:.6rem; letter-spacing:.12em; text-transform:uppercase;
+       color:var(--faint); font-weight:500; padding-bottom:.4rem; }
+  td.l,th.l { text-align:left; }
+  tbody tr { border-top:1px solid rgba(34,42,54,.7); cursor:pointer;
+             transition:background .15s ease; }
+  tbody tr:hover { background:#19202b; }
+  tbody tr.picked { background:linear-gradient(90deg,rgba(255,180,0,.13),transparent 60%); }
+  tbody tr.picked td:first-child { position:relative; }
+  tbody tr.picked td:first-child::before {
+    content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--accent); }
+  tbody tr.out { opacity:.42; }
+  .pos { font-weight:700; width:2.2rem; }
+  .team { display:inline-block; width:3px; height:.95rem; border-radius:2px;
+          vertical-align:-2px; margin-right:.5rem; background:var(--faint); }
+  .car { font-weight:700; letter-spacing:.04em; }
+  .num { color:var(--faint); font-size:.72rem; margin-left:.25rem; }
+  .tyre { display:inline-flex; align-items:center; justify-content:center;
+          width:1.15rem; height:1.15rem; border-radius:50%; font-size:.6rem; font-weight:700;
+          color:#0a0d12; vertical-align:-3px; }
+  .tyre.SOF{background:var(--sof);color:#fff} .tyre.MED{background:var(--med)}
+  .tyre.HAR{background:var(--har)} .tyre.INT{background:var(--int);color:#fff}
+  .tyre.WET{background:var(--wet);color:#fff} .tyre.---{background:var(--faint)}
+  .age { color:var(--dim); margin-left:.35rem; }
+  .best { color:var(--purple); }
+  .up { color:var(--good); } .down { color:var(--bad); }
+  .badge { font-size:.6rem; padding:.05rem .3rem; border-radius:3px; letter-spacing:.06em; }
+  .badge.pit { background:rgba(255,180,0,.16); color:var(--accent); }
+  .badge.out { background:rgba(255,77,77,.14); color:var(--bad); }
+  .strategy { display:inline-flex; height:.5rem; width:5.2rem; border-radius:3px;
+              overflow:hidden; background:#0c1016; vertical-align:0px; }
+  .strategy > i { display:block; height:100%; }
+  .spark { vertical-align:-2px; }
+  .foot { padding:.5rem .85rem; border-top:1px solid var(--line);
+          color:var(--faint); font-size:.68rem; display:flex; gap:1rem; flex-wrap:wrap; }
+
+  /* ---------- recommendation ---------- */
+  .call { padding:.85rem; }
+  .call .verdict { font-size:1.4rem; font-weight:700; color:var(--accent); letter-spacing:.01em; }
+  .call .verdict.soft { font-size:1rem; font-weight:600; color:var(--dim); }
+  .call .sub { color:var(--dim); margin-top:.2rem; font-size:.78rem; }
+  .chips { display:flex; gap:.4rem; margin-top:.6rem; flex-wrap:wrap; }
+  .chip { background:#0e1319; border:1px solid var(--line); border-radius:5px;
+          padding:.3rem .5rem; font-size:.7rem; }
+  .chip b { color:var(--ink); }
+  .refused { padding:.85rem; color:var(--dim); font-size:.8rem; line-height:1.6; }
+  .refused b { color:var(--ink); }
+
+  .dist { display:flex; align-items:flex-end; gap:2px; height:52px;
+          padding:.7rem .85rem .2rem; }
+  .dist > div { flex:1; background:linear-gradient(180deg,var(--cool),#1d4d7d);
+                border-radius:2px 2px 0 0; min-height:1px; position:relative;
+                transition:height .4s ease; }
+  .dist > div.mode { background:linear-gradient(180deg,var(--accent),#8a5f00); }
+  .distx { display:flex; gap:2px; padding:.15rem .85rem .6rem; color:var(--faint); font-size:.58rem; }
+  .distx > div { flex:1; text-align:center; }
+
+  .opts { width:100%; }
+  .opts td { padding:.3rem .85rem; }
+  .opts tr { border-top:1px solid rgba(34,42,54,.6); }
+  .opts tr.top td { color:var(--ink); }
+  .track { height:4px; background:#0c1016; border-radius:2px; overflow:hidden; }
+  .track > i { display:block; height:100%; background:var(--good); transition:width .4s ease; }
+
+  .rows { padding:.15rem 0; }
+  .row { display:flex; align-items:center; gap:.6rem; padding:.4rem .85rem; font-size:.78rem; }
+  .row + .row { border-top:1px solid rgba(34,42,54,.6); }
+  .row .grow { flex:1; }
+  .kv { display:flex; justify-content:space-between; padding:.32rem .85rem; font-size:.75rem; }
+  .kv + .kv { border-top:1px solid rgba(34,42,54,.5); }
+  .kv span:first-child { color:var(--dim); }
+  .warn { padding:.5rem .85rem; color:var(--accent); font-size:.68rem; line-height:1.5;
+          background:rgba(255,180,0,.06); border-top:1px solid var(--line); }
+  .empty { padding:.8rem .85rem; color:var(--faint); font-size:.76rem; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Pitwall</h1>
-  <span id="session" class="muted">connecting…</span>
-  <span id="lap"></span>
-  <span id="flag" class="flag">—</span>
-  <span class="muted" id="weather"></span>
-  <span style="margin-left:auto"><span id="dot" class="dot"></span> <span id="mode" class="muted"></span></span>
+  <div class="bar">
+    <div class="brand">PIT<em>WALL</em></div>
+    <div class="sep"></div>
+    <span id="session" class="muted">connecting…</span>
+    <span id="lap"></span>
+    <span id="flag" class="flag">—</span>
+    <span id="weather" class="faint"></span>
+    <div class="status">
+      <span id="best" class="faint"></span>
+      <span class="sep"></span>
+      <span id="dot" class="dot"></span><span id="mode" class="muted"></span>
+    </div>
+  </div>
+  <div class="progress"><i id="progress" style="width:0%"></i></div>
 </header>
 
 <main>
   <section>
-    <h2>Timing</h2>
+    <h2>Timing <span class="tag" id="picked-hint">click a car to advise it</span></h2>
     <table>
       <thead><tr>
-        <th>P</th><th class="l">Car</th><th class="l">Tyre</th><th>Age</th>
-        <th>Last</th><th>Gap</th><th>Int</th><th>St</th>
+        <th class="l" style="width:2.2rem">P</th>
+        <th class="l">Driver</th>
+        <th class="l">Tyre</th>
+        <th>Last</th>
+        <th>Best</th>
+        <th>Gap</th>
+        <th>Int</th>
+        <th class="l">Trend</th>
+        <th class="l">Strategy</th>
+        <th>+/−</th>
       </tr></thead>
       <tbody id="cars"></tbody>
     </table>
     <div class="foot" id="feed"></div>
   </section>
 
-  <div style="display:flex; flex-direction:column; gap:1rem;">
+  <div class="col">
     <section>
-      <h2>Recommendation <span id="computing" class="spin"></span></h2>
+      <h2>Recommendation <span class="tag" id="advice-tag"></span></h2>
       <div id="call" class="refused">waiting for the race to develop…</div>
-      <table><tbody id="options"></tbody></table>
+      <div id="dist" class="dist"></div>
+      <div id="distx" class="distx"></div>
+      <table class="opts"><tbody id="options"></tbody></table>
     </section>
+
     <section>
       <h2>Undercut threats</h2>
-      <table><tbody id="threats"></tbody></table>
+      <div id="threats" class="rows"></div>
+    </section>
+
+    <section>
+      <h2>Safety car risk <span class="tag" id="risk-tag"></span></h2>
+      <div id="risk" class="rows"></div>
+    </section>
+
+    <section>
+      <h2>Pace model <span class="tag" id="model-tag"></span></h2>
+      <div id="model" class="rows"></div>
     </section>
   </div>
 </main>
 
 <script>
 const $ = id => document.getElementById(id);
+const TEAM = {
+  "McLaren":"#ff8000","Red Bull Racing":"#3671c6","Ferrari":"#e8002d","Mercedes":"#27f4d2",
+  "Aston Martin":"#229971","Alpine":"#ff87bc","Williams":"#64c4ff","Racing Bulls":"#6692ff",
+  "Audi":"#00a19b","Haas F1 Team":"#b6babd","Cadillac":"#c9a227","Kick Sauber":"#00e701",
+};
+const TYRE = { SOF:"#ff3b3b", MED:"#ffd12e", HAR:"#eaeef4", INT:"#43b02a", WET:"#0067ad" };
 let socket, picked = null;
 
 function connect() {
   socket = new WebSocket(`ws://${location.host}/ws`);
-  socket.onopen = () => { $("dot").classList.add("on"); };
-  socket.onclose = () => { $("dot").classList.remove("on"); setTimeout(connect, 2000); };
+  socket.onopen = () => $("dot").classList.add("on");
+  socket.onclose = () => { $("dot").classList.remove("on"); setTimeout(connect, 1500); };
   socket.onmessage = e => render(JSON.parse(e.data));
 }
-
 function pick(tla) {
   picked = tla;
   if (socket && socket.readyState === 1) socket.send(JSON.stringify({ driver: tla }));
 }
+const pct = v => `${(v * 100).toFixed(0)}%`;
+const secs = v => v == null ? "—" : v.toFixed(3);
+
+/* A lap-time trend line. Falling is improving; the eye reads the slope faster
+   than it reads a column of numbers. */
+function sparkline(values, w = 56, h = 14) {
+  if (!values || values.length < 3) return "";
+  const lo = Math.min(...values), hi = Math.max(...values), span = hi - lo || 1;
+  const pts = values.map((v, i) =>
+    `${(i / (values.length - 1) * w).toFixed(1)},${(h - (v - lo) / span * (h - 2) - 1).toFixed(1)}`
+  ).join(" ");
+  const rising = values[values.length - 1] > values[0];
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline points="${pts}" fill="none" stroke="${rising ? "#ff4d4d" : "#35d07f"}"
+      stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/></svg>`;
+}
+
+/* Stint history as a bar: each block is a stint, width by laps, colour by compound. */
+function strategy(stints) {
+  if (!stints || !stints.length) return "";
+  const total = stints.reduce((a, s) => a + Math.max(s.laps, 1), 0);
+  return `<span class="strategy">` + stints.map(s =>
+    `<i style="width:${Math.max(Math.max(s.laps, 1) / total * 100, 4)}%;background:${TYRE[s.compound] || "#4d5766"}"
+        title="${s.compound} · ${s.laps} laps"></i>`).join("") + `</span>`;
+}
 
 function render(s) {
   $("session").textContent = `${s.session || "Session"} @ ${s.circuit || "—"}`;
-  $("lap").textContent = s.lap ? `lap ${s.lap}/${s.total_laps || "?"}` : "";
+  $("lap").innerHTML = s.lap ? `<b>${s.lap}</b><span class="faint">/${s.total_laps || "?"}</span>` : "";
+  $("progress").style.width = `${(s.progress || 0) * 100}%`;
   const flag = $("flag");
   flag.textContent = (s.track_status || "—").replace(/_/g, " ");
-  flag.className = "flag" + (s.neutralised ? " neutral" : "");
+  flag.className = "flag" + (s.track_status === "RED" ? " danger" : s.neutralised ? " neutral" : "");
   const w = s.weather || {};
-  $("weather").textContent = w.track ? `air ${w.air}°C  track ${w.track}°C${w.rain ? "  RAIN" : ""}` : "";
-  $("mode").textContent = s.feed && s.feed.live ? "live" : "replay";
-  $("computing").textContent = s.computing ? "· simulating…" : "";
+  $("weather").textContent = w.track ? `air ${w.air}° track ${w.track}°${w.rain ? " · RAIN" : ""}` : "";
+  $("best").innerHTML = s.session_best ? `fastest <span class="best">${s.session_best.toFixed(3)}</span>` : "";
+  $("mode").textContent = s.feed?.live ? "live" : "replay";
 
+  /* timing tower */
   $("cars").innerHTML = (s.cars || []).map(c => {
     const cls = [c.out ? "out" : "", picked === c.tla ? "picked" : ""].join(" ").trim();
-    const flags = c.in_pit ? '<span class="pit">PIT</span>' : (c.out ? '<span class="pit">OUT</span>' : "");
-    return `<tr class="${cls}" onclick="pick('${c.tla}')">
-      <td>${c.position ?? ""}</td>
-      <td class="l"><b>${c.tla}</b> ${flags}</td>
-      <td class="l ${c.compound}">${c.compound}</td>
-      <td>${c.age ?? ""}</td>
-      <td>${c.last != null ? c.last.toFixed(3) : "—"}</td>
+    const flags = c.in_pit ? '<span class="badge pit">PIT</span>'
+                : c.out ? '<span class="badge out">OUT</span>' : "";
+    const gained = c.gained > 0 ? `<span class="up">▲${c.gained}</span>`
+                 : c.gained < 0 ? `<span class="down">▼${-c.gained}</span>`
+                 : `<span class="faint">·</span>`;
+    return `<tr class="${cls}" onclick="pick('${c.tla}')" title="${c.team || ""}">
+      <td class="l pos">${c.position ?? ""}</td>
+      <td class="l"><span class="team" style="background:${TEAM[c.team] || "#4d5766"}"></span>
+          <span class="car">${c.tla}</span><span class="num">${c.number}</span> ${flags}</td>
+      <td class="l"><span class="tyre ${c.compound}">${c.compound[0]}</span><span class="age">${c.age}</span></td>
+      <td>${secs(c.last)}</td>
+      <td class="${c.fastest ? "best" : ""}">${secs(c.best)}</td>
       <td>${c.gap || "—"}</td>
       <td>${c.interval || "—"}</td>
-      <td>${c.stops ?? 0}</td></tr>`;
+      <td class="l">${sparkline(c.trend)}</td>
+      <td class="l">${strategy(c.stints)}</td>
+      <td>${gained}</td></tr>`;
   }).join("");
 
   const f = s.feed || {};
-  $("feed").textContent = f.live
-    ? `${(f.frames || 0).toLocaleString()} frames · ${(f.events || 0).toLocaleString()} events · decode p50 ${f.decode_p50_ms}ms p99 ${f.decode_p99_ms}ms`
-    : `${(f.events || 0).toLocaleString()} events replayed`;
+  $("feed").innerHTML = f.live
+    ? `<span>${(f.frames || 0).toLocaleString()} frames</span>
+       <span>${(f.events || 0).toLocaleString()} events</span>
+       <span>decode p50 <b>${f.decode_p50_ms}ms</b> · p99 ${f.decode_p99_ms}ms</span>`
+    : `<span>${(f.events || 0).toLocaleString()} events replayed</span>`;
 
+  renderAdvice(s);
+  renderRisk(s.risk);
+  renderModel(s.model);
+}
+
+function renderAdvice(s) {
   const a = s.advice;
+  $("advice-tag").textContent = s.computing ? "simulating…" : (a?.age != null ? `${a.age}s ago` : "");
   if (!a) {
     $("call").className = "refused";
     $("call").textContent = "waiting for the race to develop…";
-    $("options").innerHTML = ""; $("threats").innerHTML = "";
+    $("dist").innerHTML = ""; $("distx").innerHTML = ""; $("options").innerHTML = "";
+    $("threats").innerHTML = `<div class="empty">—</div>`;
     return;
   }
   if (a.refused) {
     $("call").className = "refused";
-    $("call").innerHTML = `<b>${a.tla}</b> — no call offered.<br><span class="muted">${a.refused}</span>`;
-    $("options").innerHTML = ""; $("threats").innerHTML = "";
+    $("call").innerHTML = `<b>${a.tla}</b> — no call offered.<br>${a.refused}`;
+    $("dist").innerHTML = ""; $("distx").innerHTML = ""; $("options").innerHTML = "";
+    $("threats").innerHTML = `<div class="empty">—</div>`;
     return;
   }
   $("call").className = "call";
   $("call").innerHTML = `
-    <div class="big ${a.decisive ? "" : "soft"}">${a.decisive ? "PIT " + a.call : a.call + " — marginal, no clear call"}</div>
-    <div class="muted">${a.tla} · lap ${a.lap} · expected P${a.expected} · margin ${a.margin > 0 ? "+" : ""}${a.margin}</div>`;
+    <div class="verdict ${a.decisive ? "" : "soft"}">
+      ${a.decisive ? "PIT " + a.call : a.call + " — marginal"}</div>
+    <div class="sub">${a.tla} · lap ${a.lap} · margin ${a.margin > 0 ? "+" : ""}${a.margin} to next option</div>
+    <div class="chips">
+      <div class="chip">expected <b>P${a.expected}</b></div>
+      <div class="chip">top 3 <b>${pct(a.options?.[0]?.top3 ?? 0)}</b></div>
+      <div class="chip">points <b>${pct(a.options?.[0]?.points ?? 0)}</b></div>
+    </div>`;
 
-  $("options").innerHTML = (a.options || []).map(o => `
-    <tr><td class="l">${o.label}</td>
-    <td>P${o.expected.toFixed(2)}</td>
-    <td style="width:40%"><div class="bar"><i style="width:${Math.round(o.top3 * 100)}%"></i></div></td>
-    <td class="muted">${(o.top3 * 100).toFixed(0)}% top3</td></tr>`).join("");
+  /* Monte Carlo finishing distribution - the spread is the point, not the mean.
+     Clipped to the positions holding ~95% of the mass: a long thin tail out to
+     P22 squeezes the part that carries the information into a few pixels. */
+  const dist = a.distribution || {};
+  const keys = Object.keys(dist).map(Number).sort((x, y) => x - y);
+  if (keys.length) {
+    const ranked = [...keys].sort((x, y) => (dist[y] || 0) - (dist[x] || 0));
+    let mass = 0; const core = [];
+    for (const p of ranked) { core.push(p); mass += dist[p] || 0; if (mass >= 0.95) break; }
+    const lo = Math.min(...core), hi = Math.max(...core);
+    const span = [];
+    for (let p = lo; p <= hi; p++) span.push(p);
+    const max = Math.max(...span.map(p => dist[p] || 0));
+    const mode = span.reduce((b, p) => (dist[p] || 0) > (dist[b] || 0) ? p : b, lo);
+    $("dist").innerHTML = span.map(p =>
+      `<div class="${p === mode ? "mode" : ""}" style="height:${((dist[p] || 0) / max * 100).toFixed(1)}%"
+        title="P${p}: ${pct(dist[p] || 0)}"></div>`).join("");
+    $("distx").innerHTML = span.map(p =>
+      `<div>${span.length <= 12 || p === lo || p === hi || p === mode ? "P" + p : ""}</div>`).join("");
+  }
+
+  $("options").innerHTML = (a.options || []).map((o, i) => `
+    <tr class="${i === 0 ? "top" : ""}">
+      <td class="l" style="width:8rem">${o.label}</td>
+      <td style="width:3.2rem">P${o.expected.toFixed(2)}</td>
+      <td><div class="track"><i style="width:${(o.top3 * 100).toFixed(0)}%"></i></div></td>
+      <td class="muted" style="width:3.5rem">${pct(o.top3)}</td></tr>`).join("");
 
   $("threats").innerHTML = (a.threats || []).length
-    ? a.threats.map(t => `<tr><td class="l"><b>${t.tla}</b></td>
-        <td class="muted">${t.gap > 0 ? "+" : ""}${t.gap}s behind</td>
-        <td style="width:40%"><div class="bar"><i style="width:${Math.round(t.probability * 100)}%; background:${t.probability > 0.4 ? "var(--bad)" : "var(--good)"}"></i></div></td>
-        <td>${(t.probability * 100).toFixed(0)}%</td></tr>`).join("")
-    : `<tr><td class="l muted" style="padding:.9rem">nobody within range</td></tr>`;
+    ? a.threats.map(t => `<div class="row">
+        <b>${t.tla}</b><span class="muted">${t.gap > 0 ? "+" : ""}${t.gap}s behind</span>
+        <div class="grow"><div class="track">
+          <i style="width:${(t.probability * 100).toFixed(0)}%;
+             background:${t.probability > 0.4 ? "var(--bad)" : "var(--good)"}"></i></div></div>
+        <span>${pct(t.probability)}</span></div>`).join("")
+    : `<div class="empty">nobody within a stop of us</div>`;
 }
 
+function renderRisk(r) {
+  if (!r) { $("risk").innerHTML = `<div class="empty">no hazard model loaded</div>`;
+            $("risk-tag").textContent = ""; return; }
+  $("risk-tag").textContent = r.known_circuit ? `${r.circuit_factor}× this circuit` : "circuit unseen";
+  const rows = Object.entries(r.windows).map(([span, p]) => `
+    <div class="row"><span class="muted" style="width:6.5rem">next ${span} laps</span>
+      <div class="grow"><div class="track">
+        <i style="width:${(p * 100).toFixed(0)}%;background:${p > 0.3 ? "var(--accent)" : "var(--cool)"}"></i>
+      </div></div><span>${pct(p)}</span></div>`).join("");
+  $("risk").innerHTML = rows + `<div class="kv"><span>rest of race</span><b>${pct(r.remaining)}</b></div>`;
+}
+
+function renderModel(m) {
+  if (!m) { $("model").innerHTML = `<div class="empty">not identified yet — no call will be offered</div>`;
+            $("model-tag").textContent = ""; return; }
+  $("model-tag").textContent = `${m.clean_laps} clean laps · ${m.stints} stints`;
+  const deg = Object.entries(m.degradation).map(([c, v]) =>
+    `<div class="kv"><span><span class="tyre ${c}">${c[0]}</span> degradation</span>
+     <b>${v > 0 ? "+" : ""}${v.toFixed(3)} s/lap</b></div>`).join("");
+  $("model").innerHTML =
+    `<div class="kv"><span>race-lap trend</span><b>${m.trend.toFixed(4)} s/lap</b></div>` +
+    deg +
+    `<div class="kv"><span>residual σ</span><b>${m.residual.toFixed(2)}s</b></div>` +
+    `<div class="kv"><span>r²</span><b>${m.r2.toFixed(3)}</b></div>` +
+    (m.warnings?.length ? `<div class="warn">${m.warnings[0]}</div>` : "");
+}
+
+/* Paint from the REST snapshot immediately, then let the websocket take over.
+   Waiting for the first push leaves the page reading "connecting…" for a round
+   trip - long enough that a headless screenshot can capture the empty state,
+   and long enough for a human to notice on every reload. */
+fetch("/api/state").then(r => r.json()).then(render).catch(() => {});
 connect();
 </script>
 </body>

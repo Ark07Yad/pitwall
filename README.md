@@ -12,12 +12,16 @@ in-session, and simulates the remainder of the race to answer one question: **sh
 Every recommendation is committed to this repository with a timestamp *before* the lap it refers
 to. The accuracy log is public and includes the calls it got wrong.
 
-![The Pitwall dashboard mid-race: a 22-car timing tower on the left, and on the right the current
-pit call for Leclerc with its ranked alternatives and a live undercut threat from Antonelli.](docs/dashboard.png)
+![The Pitwall dashboard mid-race: a 22-car timing tower with team colours, tyre badges, lap-time
+sparklines and stint bars on the left; on the right the current pit call for Leclerc, the Monte
+Carlo distribution of his finishing positions, ranked alternatives, an undercut threat from
+Antonelli, safety-car risk and the fitted pace model.](docs/dashboard.png)
 
-*Lap 34 of the 2026 Hungarian GP, replayed through the engine. Leclerc is P3; the engine rates
-stopping now on hards at an expected P4.59 — 0.33 clear of the next option — and puts Antonelli,
-one second back, at a 43% chance of jumping him. Regenerate with
+*Lap 34 of the 2026 Hungarian GP, replayed through the engine. Leclerc is P3; stopping now on hards
+comes out at an expected P4.58, 0.33 clear of the next option, with Antonelli one second back at a
+41% chance of jumping him. The histogram is the simulation's actual output — the spread from P1 to
+P7 is the part a single expected value hides. Bottom right, the model reports the confounding in
+its own degradation estimates rather than presenting them as fact. Regenerate with
 `python scripts/screenshot.py`.*
 
 > **Status: all five phases built.** Live ingest, race state, clean-lap filtering, fuel
@@ -58,17 +62,30 @@ uv run pitwall dashboard                                    # live
 uv run pitwall dashboard --replay data/raw/2026-hungary-race.txt --speed 20 --skip 62 --driver LEC
 ```
 
-A live timing tower, the current pit call with its ranked alternatives, undercut threats and feed
-health, pushed over a websocket to `http://127.0.0.1:8000`. Click any car to advise it instead.
+Pushed over a websocket to `http://127.0.0.1:8000`, and it paints from a REST snapshot on load so
+it is correct from the first frame rather than after a round trip.
+
+**The timing tower** carries team colours, tyre-compound badges with age, lap-time sparklines
+(green improving, red falling away), stint bars showing each car's strategy so far, session-fastest
+in purple, and positions gained or lost since the grid. Click any car to advise it instead.
+
+**The right column** is the engine showing its working:
+
+- **The call**, with its margin over the next option — and where that margin is thin, it says
+  "marginal" rather than dressing a coin-flip as a decision.
+- **The finishing distribution** from the Monte Carlo, clipped to the positions holding 95% of the
+  probability. A tight spread around P4 and a coin-flip between P2 and P8 have the same mean and
+  mean very different things; the histogram is where that shows.
+- **Undercut threats** — who can jump us by stopping now, and how likely, against our own planned
+  stop rather than against never stopping.
+- **Safety-car risk** over the next 5, 10 and 20 laps from the per-circuit hazard.
+- **The pace model** — race-lap trend, per-compound degradation, residual σ and r², plus any
+  warning the fit carries. When the design is not identified it says so and no call is offered.
 
 Because it runs off a `RaceFeed` it is identical live or on a recording — the replay form
 reproduces the Hungarian GP from lap 30 in about a minute, so it can be demonstrated on any
 Tuesday rather than once a fortnight. The simulation runs in a worker thread, so ingest and the
 screen keep going through the second or two a decision takes.
-
-When the engine cannot stand behind a number it says so instead of inventing one: early in a race
-the pace fit is not identified, and the recommendation panel explains why rather than showing a
-confident call drawn from noise.
 
 ### Run it live
 

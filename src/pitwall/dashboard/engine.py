@@ -25,7 +25,7 @@ from typing import Any
 from pitwall.feed.base import RaceFeed
 from pitwall.feed.signalr import SignalRFeed
 from pitwall.laps import LapCollector, filter_laps
-from pitwall.models import HazardModel, PaceFit, fit_pace
+from pitwall.models import AttritionModel, HazardModel, PaceFit, fit_pace
 from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
 from pitwall.state.models import RaceState
 
@@ -67,11 +67,13 @@ class Engine:
         feed: RaceFeed,
         *,
         hazard: HazardModel | None = None,
+        attrition: AttritionModel | None = None,
         driver: str = "",
         sims: int = 1500,
     ) -> None:
         self.feed = feed
         self.hazard = hazard
+        self.attrition = attrition
         self.requested_driver = driver.upper()
         self.sims = sims
 
@@ -184,6 +186,7 @@ class Engine:
             circuit=state.circuit,
             pace=pace,
             hazard=self.hazard,
+            attrition=self.attrition,
             config=config,
         )
         threats = undercut_threats(
@@ -194,6 +197,7 @@ class Engine:
             circuit=state.circuit,
             pace=pace,
             hazard=self.hazard,
+            attrition=self.attrition,
             our_pit_lap=recommendation.best.pit_lap,
             config=config,
         )
@@ -212,6 +216,7 @@ class Engine:
                     "expected": round(o.mean_position, 2),
                     "top3": round(o.p_top3, 3),
                     "points": round(o.p_points, 3),
+                    "retire": round(o.p_retire, 3),
                 }
                 for o in recommendation.outcomes[:6]
             ],

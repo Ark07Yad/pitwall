@@ -1,5 +1,6 @@
 """Fitted models: fuel, pace, tyre degradation and safety-car hazard."""
 
+from pitwall.models.attrition import AttritionModel, fit_attrition
 from pitwall.models.fuel import (
     DEFAULT_SECONDS_PER_KG,
     DEFAULT_START_FUEL_KG,
@@ -15,6 +16,7 @@ from pitwall.models.safety_car import (
 )
 
 __all__ = [
+    "AttritionModel",
     "DEFAULT_SECONDS_PER_KG",
     "DEFAULT_START_FUEL_KG",
     "EventKind",
@@ -22,6 +24,7 @@ __all__ = [
     "HazardModel",
     "PaceFit",
     "bucket_for",
+    "fit_attrition",
     "fit_hazard",
     "fit_pace",
     "load_history",

@@ -21,6 +21,7 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 
+from pitwall.models.attrition import AttritionModel
 from pitwall.models.pace import PaceFit
 from pitwall.models.safety_car import HazardModel
 from pitwall.sim.race import CarEntry, SimConfig, simulate
@@ -45,6 +46,7 @@ class Outcome:
     p_top3: float
     p_points: float
     p_gain: float
+    p_retire: float = 0.0
     # P(finishing at each position). The simulation computes a whole
     # distribution and reporting only its mean throws away the part that says
     # how *uncertain* the call is - a tight spread around P4 and a coin-flip
@@ -113,6 +115,7 @@ def evaluate_actions(
     circuit: str,
     pace: PaceFit,
     hazard: HazardModel | None = None,
+    attrition: AttritionModel | None = None,
     compounds: tuple[Compound, ...] = DEFAULT_COMPOUNDS,
     delays: tuple[int, ...] = DEFAULT_DELAYS,
     config: SimConfig | None = None,
@@ -143,6 +146,7 @@ def evaluate_actions(
                 circuit=circuit,
                 pace=pace,
                 hazard=hazard,
+                attrition=attrition,
                 config=cfg,
             )
             positions = result.positions[:, index]
@@ -160,6 +164,7 @@ def evaluate_actions(
                     p_top3=float((positions <= 3).mean()),
                     p_points=float((positions <= 10).mean()),
                     p_gain=float((positions < start_position).mean()),
+                    p_retire=result.probability_retired(our_driver),
                 )
             )
 
@@ -191,6 +196,7 @@ def undercut_threats(
     circuit: str,
     pace: PaceFit,
     hazard: HazardModel | None = None,
+    attrition: AttritionModel | None = None,
     window: float = 4.0,
     our_pit_lap: int | None = None,
     config: SimConfig | None = None,
@@ -231,6 +237,7 @@ def undercut_threats(
             circuit=circuit,
             pace=pace,
             hazard=hazard,
+            attrition=attrition,
             config=cfg,
         )
         threats.append(

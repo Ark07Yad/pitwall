@@ -55,6 +55,30 @@ def starts(active: list[int]) -> list[int]:
     return [lap for lap in active if lap - 1 not in active]
 
 
+def retirements(session, laps) -> tuple[int, list[int]]:
+    """Starters, and the lap each retiring car stopped on.
+
+    `ClassifiedPosition` is "R" for a retirement; "Lapped" cars are classified
+    and finished the race, so they are emphatically not attrition. The lap is
+    the last one the car completed, which is what a hazard model needs - a
+    retirement on lap 50 is a different event from one on lap 2.
+    """
+    results = getattr(session, "results", None)
+    if results is None or results.empty:
+        return 0, []
+
+    out: list[int] = []
+    for _, row in results.iterrows():
+        classified = str(row.get("ClassifiedPosition", "")).strip().upper()
+        if classified != "R":
+            continue
+        driver = str(row.get("Abbreviation", ""))
+        theirs = laps[laps["Driver"] == driver]
+        last = int(theirs["LapNumber"].max()) if not theirs.empty else 0
+        out.append(max(1, last))
+    return int(len(results)), sorted(out)
+
+
 def collect_race(season: int, rnd: int) -> dict[str, Any] | None:
     session = fastf1.get_session(season, rnd, "R")
     session.load(telemetry=False, weather=False, messages=False)
@@ -75,6 +99,7 @@ def collect_race(season: int, rnd: int) -> dict[str, Any] | None:
     if not by_lap:
         return None
 
+    starters, retired = retirements(session, laps)
     sc = laps_with(SAFETY_CAR, by_lap)
     vsc = laps_with(VIRTUAL_SAFETY_CAR, by_lap)
     red = laps_with(RED_FLAG, by_lap)
@@ -89,6 +114,8 @@ def collect_race(season: int, rnd: int) -> dict[str, Any] | None:
         "sc_laps": sc,
         "vsc_laps": vsc,
         "red_laps": red,
+        "starters": starters,
+        "retirements": retired,
         "sc_starts": starts(sc),
         "vsc_starts": starts(vsc),
         "red_starts": starts(red),
@@ -111,7 +138,14 @@ def main() -> int:
     if args.out.exists():
         races = json.loads(args.out.read_text(encoding="utf-8"))
         print(f"resuming from {args.out} with {len(races)} races already collected", flush=True)
-    have = {(r["season"], r["round"]) for r in races}
+    # Only skip races that already carry every field. Adding a new one to the
+    # schema means the old rows are incomplete, and silently keeping them would
+    # fit the model on a subset while reporting the full count.
+    have = {(r["season"], r["round"]) for r in races if "retirements" in r and "starters" in r}
+    stale = len(races) - len(have)
+    if stale:
+        print(f"{stale} races predate the current schema and will be re-collected", flush=True)
+        races = [r for r in races if (r["season"], r["round"]) in have]
 
     def save() -> None:
         races.sort(key=lambda r: (r["season"], r["round"]))
@@ -157,7 +191,7 @@ def main() -> int:
                 f"[{season} r{rnd:>2}] {race['circuit']:<22} "
                 f"{race['total_laps']:>3} laps  "
                 f"SC={len(race['sc_starts'])} VSC={len(race['vsc_starts'])} "
-                f"RED={len(race['red_starts'])}",
+                f"RED={len(race['red_starts'])} DNF={len(race['retirements'])}/{race['starters']}",
                 flush=True,
             )
 

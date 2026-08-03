@@ -190,7 +190,7 @@
     </section>
 
     <section>
-      <h2>Safety car risk <span class="tag" id="risk-tag"></span></h2>
+      <h2>Race risk <span class="tag" id="risk-tag"></span></h2>
       <div id="risk" class="rows"></div>
     </section>
 
@@ -368,7 +368,12 @@ function renderRisk(r) {
       <div class="grow"><div class="track">
         <i style="width:${(p * 100).toFixed(0)}%;background:${p > 0.3 ? "var(--accent)" : "var(--cool)"}"></i>
       </div></div><span>${pct(p)}</span></div>`).join("");
-  $("risk").innerHTML = rows + `<div class="kv"><span>rest of race</span><b>${pct(r.remaining)}</b></div>`;
+  let extra = `<div class="kv"><span>safety car, rest of race</span><b>${pct(r.remaining)}</b></div>`;
+  if (r.attrition) {
+    extra += `<div class="kv"><span>a given car retires</span><b>${pct(r.attrition.per_car)}</b></div>`
+           + `<div class="kv"><span>expected DNFs</span><b>${r.attrition.expected.toFixed(1)}</b></div>`;
+  }
+  $("risk").innerHTML = rows + extra;
 }
 
 function renderModel(m) {

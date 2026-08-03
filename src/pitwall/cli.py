@@ -25,7 +25,14 @@ from pitwall.ledger import (
     race_report,
     score_predictions,
 )
-from pitwall.models import EventKind, FuelModel, fit_hazard, fit_pace, load_history
+from pitwall.models import (
+    EventKind,
+    FuelModel,
+    fit_attrition,
+    fit_hazard,
+    fit_pace,
+    load_history,
+)
 from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
 from pitwall.state.models import RaceState
 from pitwall.state.reducer import RaceStateReducer
@@ -183,14 +190,24 @@ def _hazard(args: argparse.Namespace) -> int:
 
     print(fit)
 
+    attrition = fit_attrition(races)
+    if attrition is not None:
+        print()
+        print(attrition)
+
     if args.circuit:
         total = args.laps
         print(f"\n  {args.circuit} over {total} laps:")
-        print(f"    expected events   {fit.expected_events(args.circuit, total):.2f}")
+        print(f"    expected safety cars  {fit.expected_events(args.circuit, total):.2f}")
         for window in (5, 10, 15):
             start = max(1, total // 2)
             p = fit.probability_within(args.circuit, start, start + window - 1, total)
-            print(f"    P(event in laps {start}-{start + window - 1})  {p:.1%}")
+            print(f"    P(event in laps {start}-{start + window - 1})   {p:.1%}")
+        if attrition is not None:
+            per_car = attrition.probability_within(args.circuit, 1, total, total)
+            dnfs = attrition.expected_retirements(args.circuit, total, 22)
+            print(f"    P(a given car retires) {per_car:.1%}")
+            print(f"    expected DNFs (22 cars) {dnfs:.1f}")
     return 0
 
 
@@ -222,9 +239,11 @@ def _strategy(args: argparse.Namespace) -> int:
         print("no recommendation is offered.", file=sys.stderr)
         return 1
 
-    hazard = None
+    hazard = attrition = None
     if args.history.exists():
-        hazard = fit_hazard(load_history(args.history), kind=EventKind.ANY)
+        history = load_history(args.history)
+        hazard = fit_hazard(history, kind=EventKind.ANY)
+        attrition = fit_attrition(history)
 
     entries = entries_from_state(state, pace)
     target = next(
@@ -250,6 +269,7 @@ def _strategy(args: argparse.Namespace) -> int:
         circuit=state.circuit,
         pace=pace,
         hazard=hazard,
+        attrition=attrition,
         config=cfg,
     )
     print(rec)
@@ -262,6 +282,7 @@ def _strategy(args: argparse.Namespace) -> int:
         circuit=state.circuit,
         pace=pace,
         hazard=hazard,
+        attrition=attrition,
         our_pit_lap=rec.best.pit_lap,
         config=cfg,
     )
@@ -324,9 +345,11 @@ def _backtest(args: argparse.Namespace) -> int:
         print(f"no such recording: {args.file}", file=sys.stderr)
         return 1
 
-    hazard = None
+    hazard = attrition = None
     if args.history.exists():
-        hazard = fit_hazard(load_history(args.history), kind=EventKind.ANY)
+        history = load_history(args.history)
+        hazard = fit_hazard(history, kind=EventKind.ANY)
+        attrition = fit_attrition(history)
 
     laps = [int(x) for x in args.laps.split(",") if x.strip()]
     wanted = {d.strip().upper() for d in args.drivers.split(",") if d.strip()}
@@ -375,6 +398,7 @@ def _backtest(args: argparse.Namespace) -> int:
                 circuit=state.circuit,
                 pace=pace,
                 hazard=hazard,
+                attrition=attrition,
                 config=cfg,
             )
             log.record(
@@ -453,11 +477,13 @@ def _dashboard(args: argparse.Namespace) -> int:
         feed = SignalRFeed(record_to=str(args.record) if args.record else None)
         source = "F1 live timing"
 
-    hazard = None
+    hazard = attrition = None
     if args.history.exists():
-        hazard = fit_hazard(load_history(args.history), kind=EventKind.ANY)
+        history = load_history(args.history)
+        hazard = fit_hazard(history, kind=EventKind.ANY)
+        attrition = fit_attrition(history)
 
-    engine = Engine(feed, hazard=hazard, driver=args.driver, sims=args.sims)
+    engine = Engine(feed, hazard=hazard, attrition=attrition, driver=args.driver, sims=args.sims)
     print(f"pitwall dashboard - {source}")
     print(f"  http://{args.host}:{args.port}")
     serve(engine, host=args.host, port=args.port)

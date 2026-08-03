@@ -274,3 +274,16 @@ def test_normalise_leaves_unknown_names_alone():
     assert normalise_circuit("Zandvoort") == "Zandvoort"
     assert normalise_circuit("  Monza  ") == "Monza"
     assert normalise_circuit(None) == "unknown"
+
+
+def test_monaco_rename_is_merged():
+    """FastF1 called it "Monaco" through 2025 and "Monte Carlo" in 2026. The
+    second instance of this rename pattern, hence the alias table."""
+    races = [
+        race(circuit="Monaco", sc_starts=[10]),
+        race(circuit="Monte Carlo", sc_starts=[20]),
+    ]
+    fit = fit_hazard(races)
+    assert fit is not None
+    assert set(fit.circuit_races) == {"Monaco"}
+    assert fit.circuit_races["Monaco"] == 2

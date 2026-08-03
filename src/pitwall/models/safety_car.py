@@ -39,13 +39,17 @@ BUCKETS: tuple[str, ...] = ("lap1", "early", "mid", "late", "final")
 # roughly this much exposure before its own history outweighs the field average.
 DEFAULT_SHRINKAGE = 3.0
 
-# FastF1's `Location` is not a stable circuit identity - Miami was recorded as
-# "Miami" through 2024 and "Miami Gardens" from 2025, which silently split four
-# seasons of history into two under-sampled entries that shrinkage then flattened
-# toward the mean. Normalising here rather than in the fetcher means existing
-# data files are corrected without re-spending API calls.
+# FastF1's `Location` is not a stable circuit identity, and this keeps happening:
+# Miami was "Miami" through 2024 and "Miami Gardens" from 2025, and Monaco became
+# "Monte Carlo" in 2026. Each rename silently splits a circuit's history into two
+# under-sampled entries that shrinkage then flattens toward the mean - no error,
+# just a quietly worse model. Check this table whenever a season is added.
+#
+# Normalising here rather than in the fetcher means existing data files are
+# corrected without re-spending API calls against a 500/hour limit.
 CIRCUIT_ALIASES: dict[str, str] = {
     "Miami Gardens": "Miami",
+    "Monte Carlo": "Monaco",
 }
 
 

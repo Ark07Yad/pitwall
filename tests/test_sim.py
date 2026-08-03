@@ -5,6 +5,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
+from pitwall.models.attrition import AttritionModel
 from pitwall.models.pace import PaceFit
 from pitwall.models.safety_car import BUCKETS, EventKind, HazardModel
 from pitwall.sim import (
@@ -437,3 +438,124 @@ def test_gaps_are_used_when_they_are_sane():
     state = _State([_Car("1", "A", 1, ""), _Car("2", "B", 2, "+7.386")])
     entries = entries_from_state(state, pace_fit())
     assert entries[1].elapsed == pytest.approx(7.386)
+
+
+# -- attrition ---------------------------------------------------------
+#
+# Roughly one car in ten does not finish. A simulation where everyone reaches
+# the flag is wrong in a one-sided way: it can never promote anyone, so it
+# systematically understates the chances of cars further back.
+
+
+def attrition_model(hazard: float) -> AttritionModel:
+    return AttritionModel(
+        baseline=dict.fromkeys(BUCKETS, hazard),
+        circuit_factor={"Test": 1.0},
+        circuit_races={"Test": 5},
+        n_races=5,
+        n_starters=100,
+        n_retirements=10,
+    )
+
+
+def test_nobody_retires_without_a_model():
+    result = run(grid(6))
+    assert result.retired is not None
+    assert not result.retired.any()
+
+
+def test_cars_retire_when_the_model_says_so():
+    result = run(grid(6), attrition=attrition_model(0.02))
+    assert result.retired.any()
+    assert 0.0 < result.probability_retired("0") < 1.0
+
+
+def test_more_hazard_means_more_retirements():
+    low = run(grid(6), attrition=attrition_model(0.002))
+    high = run(grid(6), attrition=attrition_model(0.05))
+    assert high.retired.sum() > low.retired.sum()
+
+
+def test_retired_cars_classify_behind_finishers():
+    """A car that stops is out of the results, not merely slow.
+
+    Isolated to runs where the *other* car actually finished. When both retire
+    the quick one may legitimately classify ahead - retirements are ordered by
+    distance covered - so asserting over every run it retired in tests the
+    wrong thing.
+    """
+    entries = [
+        CarEntry(driver="quick", tla="QCK", base_pace=88.0, tyre_age=10, elapsed=0.0),
+        CarEntry(driver="slow", tla="SLO", base_pace=95.0, tyre_age=10, elapsed=60.0),
+    ]
+    result = run(entries, attrition=attrition_model(0.06), config=SimConfig(n_sims=600, seed=12))
+
+    quick, slow = result.index_of("quick"), result.index_of("slow")
+    only_quick_stopped = result.retired[:, quick] & ~result.retired[:, slow]
+
+    assert only_quick_stopped.any(), "expected some runs where only the quick car retired"
+    assert (result.positions[only_quick_stopped, quick] == 2).all(), (
+        "a retirement must classify behind a car that finished, however slow"
+    )
+
+
+def test_a_later_retirement_classifies_ahead_of_an_earlier_one():
+    """F1 classifies retirements by distance covered, so lasting longer counts."""
+    entries = grid(2, spread=0.0, gap=0.0)
+    result = run(
+        entries,
+        attrition=attrition_model(0.15),
+        config=SimConfig(n_sims=800, seed=13, min_gap=0.0),
+    )
+    both = result.retired.all(axis=1)
+    assert both.any(), "expected some runs where both cars retired"
+    # Neither ordering should be impossible: whoever got further classifies ahead,
+    # and which car that is varies run to run.
+    winners = set(result.positions[both, 0].tolist())
+    assert winners <= {1, 2} and len(winners) == 2
+
+
+def test_a_retired_car_stops_accumulating_time():
+    """Parked cars do not keep lapping, and must not keep holding others up."""
+    entries = grid(3, spread=0.0, gap=1.0)
+    result = run(entries, attrition=attrition_model(0.08), config=SimConfig(n_sims=400, seed=14))
+    for row in result.positions:
+        assert sorted(row) == [1, 2, 3], "classification must stay a permutation"
+
+
+def test_attrition_promotes_the_cars_behind():
+    """The whole point: when cars ahead fail, someone further back gains.
+
+    Without this the simulation treats promotion as impossible rather than as a
+    one-in-ten event repeated across everyone ahead."""
+    entries = grid(8, spread=0.4)
+    without = run(entries, config=SimConfig(n_sims=1500, seed=15))
+    with_dnf = run(entries, attrition=attrition_model(0.03), config=SimConfig(n_sims=1500, seed=15))
+
+    # A car starting sixth has a better shot at the podium when the field can break.
+    assert with_dnf.probability_top("5", 3) > without.probability_top("5", 3)
+
+
+def test_a_safety_car_lowers_retirement_risk():
+    """Cars are least likely to be lost while crawling in single file."""
+    entries = grid(4)
+    calm = run(
+        entries,
+        attrition=attrition_model(0.03),
+        hazard=None,
+        config=SimConfig(n_sims=800, seed=16),
+    )
+    neutralised = run(
+        entries,
+        attrition=attrition_model(0.03),
+        hazard=hazard_model(0.5),
+        config=SimConfig(n_sims=800, seed=16, sc_attrition_factor=0.0),
+    )
+    assert neutralised.retired.sum() < calm.retired.sum()
+
+
+def test_finished_and_retired_probabilities_are_complementary():
+    result = run(grid(4), attrition=attrition_model(0.02))
+    for entry in grid(4):
+        p = result.probability_retired(entry.driver)
+        assert result.probability_finished(entry.driver) == pytest.approx(1 - p)

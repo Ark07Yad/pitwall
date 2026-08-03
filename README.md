@@ -78,7 +78,8 @@ in purple, and positions gained or lost since the grid. Click any car to advise 
   mean very different things; the histogram is where that shows.
 - **Undercut threats** — who can jump us by stopping now, and how likely, against our own planned
   stop rather than against never stopping.
-- **Safety-car risk** over the next 5, 10 and 20 laps from the per-circuit hazard.
+- **Race risk** — safety-car probability over the next 5, 10 and 20 laps, plus the chance a given
+  car retires and how many DNFs to expect, both from per-circuit hazards fitted on 103 races.
 - **The pace model** — race-lap trend, per-compound degradation, residual σ and r², plus any
   warning the fit carries. When the design is not identified it says so and no call is offered.
 
@@ -233,9 +234,9 @@ The current scorecard, 28 leak-free predictions from the 2026 Hungarian GP:
 
 | metric | model | baseline | skill |
 |---|---|---|---|
-| Brier (top 3) | 0.2063 | 0.2143 | +3.7% |
-| Brier (points) | 0.1412 | 0.1429 | +1.1% |
-| Mean position error | 3.53 | 3.50 | — |
+| Brier (top 3) | 0.1961 | 0.2143 | +8.5% |
+| Brier (points) | 0.1327 | 0.1429 | +7.1% |
+| Mean position error | 3.69 | 3.50 | — |
 
 The baseline assumes every car finishes where it currently runs. In F1 that is a strong benchmark,
 not a straw man — and on one race this engine barely beats it. That is the honest position.

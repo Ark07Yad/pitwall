@@ -34,6 +34,7 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 
+from pitwall.models.attrition import AttritionModel
 from pitwall.models.fuel import FuelModel
 from pitwall.models.pace import PaceFit
 from pitwall.models.safety_car import HazardModel
@@ -46,6 +47,11 @@ RACING_COMPOUNDS: tuple[Compound, ...] = (Compound.SOFT, Compound.MEDIUM, Compou
 LAPPED_PENALTY = 40.0
 # Spacing used when the feed gives no usable gap for a car.
 UNKNOWN_GAP_SPACING = 1.5
+
+# Elapsed time assigned to a retired car so it sorts behind every finisher. Far
+# larger than any plausible race, and retirements are then ordered among
+# themselves by how far they got.
+RETIRED_SENTINEL = 1e9
 
 
 @dataclass(frozen=True)
@@ -98,6 +104,10 @@ class SimConfig:
     # Chance a rival reacts to our stop by covering it on the next lap.
     rival_cover_chance: float = 0.35
 
+    # Retirement risk is far lower behind a safety car: the field is crawling in
+    # single file, which is when cars are least likely to be lost.
+    sc_attrition_factor: float = 0.25
+
 
 @dataclass
 class SimResult:
@@ -107,6 +117,7 @@ class SimResult:
     tlas: list[str]
     positions: np.ndarray  # (n_sims, n_cars), 1-based finishing position
     sc_deployed: np.ndarray  # (n_sims,) count of safety cars in the run
+    retired: np.ndarray | None = None  # (n_sims, n_cars) bool, did not finish
     config: SimConfig = field(default_factory=SimConfig)
 
     def index_of(self, driver: str) -> int:
@@ -127,6 +138,14 @@ class SimResult:
         ours = self.positions[:, self.index_of(driver)]
         theirs = self.positions[:, self.index_of(rival)]
         return float((ours < theirs).mean())
+
+    def probability_retired(self, driver: str) -> float:
+        if self.retired is None:
+            return 0.0
+        return float(self.retired[:, self.index_of(driver)].mean())
+
+    def probability_finished(self, driver: str) -> float:
+        return 1.0 - self.probability_retired(driver)
 
 
 def _compound_index(compound: Compound) -> int:
@@ -213,6 +232,7 @@ def simulate(
     circuit: str,
     pace: PaceFit,
     hazard: HazardModel | None = None,
+    attrition: AttritionModel | None = None,
     fuel: FuelModel | None = None,
     config: SimConfig | None = None,
 ) -> SimResult:
@@ -261,6 +281,11 @@ def simulate(
 
     sc_active = np.zeros(n_sims, dtype=bool)
     sc_count = np.zeros(n_sims, dtype=int)
+    # Cars that have retired. Without this every car reaches the flag, and the
+    # simulation can never promote anyone - which understates the chances of a
+    # car further back precisely because roughly one in ten does not finish.
+    retired = np.zeros((n_sims, n_cars), dtype=bool)
+    retired_on = np.zeros((n_sims, n_cars), dtype=float)
 
     for lap in range(from_lap, total_laps + 1):
         # --- safety car ---
@@ -293,6 +318,9 @@ def simulate(
             cost = np.where(sc_active[:, None], cost * cfg.sc_pit_discount, cost)
             lap_time = np.where(pitting, lap_time + cost, lap_time)
 
+        # A retired car is parked: it stops accumulating time, so its lap time
+        # must not be added and it cannot be overtaken or hold anyone up.
+        lap_time = np.where(retired, 0.0, lap_time)
         elapsed += lap_time
 
         if pitting.any():
@@ -303,10 +331,22 @@ def simulate(
         else:
             age += 1.0
 
+        # --- retirements ---
+        if attrition is not None:
+            rate = attrition.hazard(circuit, lap, total_laps)
+            # A neutralised race is slow and single file, so cars are far less
+            # likely to be lost while it is out.
+            effective = np.where(sc_active, rate * cfg.sc_attrition_factor, rate)
+            failing = (~retired) & (rng.random((n_sims, n_cars)) < effective[:, None])
+            if failing.any():
+                retired |= failing
+                retired_on = np.where(failing, float(lap), retired_on)
+
         # --- track position ---
         # Pace delta drives overtaking odds: how much quicker a car would be on
         # clear track, ignoring the noise it happened to draw this lap.
-        _apply_track_position(elapsed, order_before, -green_pace, pitting, cfg, rng)
+        # Retired cars are off the track entirely, so they defend nothing.
+        _apply_track_position(elapsed, order_before, -green_pace, pitting | retired, cfg, rng)
 
         # --- safety car bunching and restart ---
         if deployed.any():
@@ -319,10 +359,14 @@ def simulate(
             ending = sc_active & (rng.random(n_sims) < cfg.sc_end_chance)
             sc_active &= ~ending
 
-    order = np.argsort(elapsed, axis=1)
+    # Retired cars classify behind every finisher, ordered among themselves by
+    # how far they got - which is how F1 actually classifies them.
+    final = np.where(retired, RETIRED_SENTINEL + (total_laps - retired_on), elapsed)
+    order = np.argsort(final, axis=1)
     positions = np.argsort(order, axis=1) + 1
 
     return SimResult(
+        retired=retired,
         drivers=[e.driver for e in entries],
         tlas=[e.tla for e in entries],
         positions=positions,

@@ -4,6 +4,68 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-02 — Attrition, and a hypothesis that was right after all
+
+Every car finished, every time. Roughly one in ten does not, and a simulation without that is wrong
+in a specific, one-sided way: it can never promote anyone. A car running P8 gains places when two
+ahead retire, and the model treated that as impossible rather than as a one-in-ten event repeated
+across seven cars.
+
+**Fitted, not guessed.** Extending the history fetcher cost almost nothing because FastF1's cache
+already held 103 races. `ClassifiedPosition == "R"` marks a retirement and the car's last completed
+lap dates it. **204 retirements from 2,080 starters — 9.8% per car-race**, and 43 of those are on
+lap 1.
+
+**Lap 1 again.** The same spike as safety cars, and larger in relative terms:
+
+| phase | hazard per car-lap |
+|---|---|
+| **lap 1** | **0.0207** |
+| early | 0.0014 |
+| mid | 0.0018 |
+| late | 0.0017 |
+| final | 0.0007 |
+
+A **14× spike** on the opening lap. Two independent hazards, fitted from different columns of
+different data, both saying the same thing about lap 1.
+
+Circuit factors rank plausibly: Melbourne 1.68×, Jeddah 1.41×, Silverstone 1.33× at the top;
+Budapest 0.51×, Barcelona 0.53×, Yas Island 0.68× at the bottom.
+
+**Exposure is per car-lap, not per race.** A car that retires on lap 20 was at risk for twenty laps
+and then stopped being at risk. Counting it as a full race would understate the hazard, most for
+the circuits where cars fail earliest, and counting the race rather than the car would ignore that
+twenty-two cars each roll the dice.
+
+**And it measurably helped**, which is the part I did not expect. Back on 29 July I guessed the
+calibration miss came from under-modelled chaos, ran a diagnostic, and concluded the guess was
+wrong — position volatility already matched reality. That conclusion was right about *dispersion*
+and wrong about *promotion*: the field moved the correct amount overall, but nobody was ever
+promoted by a retirement ahead of them.
+
+| | before | after |
+|---|---|---|
+| Brier skill (top 3) | +3.7% | **+8.5%** |
+| Brier skill (points) | +1.1% | **+7.1%** |
+| 0–20% calibration gap | 7.0 pts | **1.2 pts** |
+| Mean position error | 3.53 | 3.69 |
+
+Skill roughly doubled and the low-confidence band is now nearly perfectly calibrated — it says
+11.2% and it happens 10.0%. Point-estimate error got slightly *worse*, which is the honest
+trade: retirement variance widens the distribution, so the mean drifts from the mode. For a model
+whose output is a probability, that is the right direction to trade in.
+
+**A third circuit rename.** Monaco became "Monte Carlo" in the 2026 data — after Miami became
+"Miami Gardens" in 2025. Same silent split, same fix. The alias table now carries a note to check
+it whenever a season is added, because this is clearly a pattern and not an accident.
+
+**A test that was wrong again.** I asserted a retired car always classifies behind the other car.
+It does not when *both* retire — then they are ordered by distance covered, which is how F1
+actually classifies them, and the quick car can legitimately be ahead. Now isolated to runs where
+the other car finished.
+
+---
+
 ## 2026-07-31 — Reconnection proved, and there is no FP2 to rehearse on
 
 The plan was to dress-rehearse the live path on FP2 at Zandvoort. **Zandvoort 2026 is a Sprint

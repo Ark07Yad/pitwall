@@ -152,7 +152,7 @@ uv run pitwall replay data/raw/2026-hungary-race.txt      # fold it into race st
 uv run pitwall replay data/raw/2026-hungary-race.txt --speed 60 --follow
 uv run pitwall laps   data/raw/2026-hungary-race.txt      # extract and filter laps
 uv run pitwall hazard                                    # per-circuit safety-car risk
-uv run pitwall strategy data/raw/2026-hungary-race.txt --lap 30 --driver LEC
+uv run pitwall strategy data/raw/2026-hungary-race.txt --lap 34 --driver LEC
 ```
 
 `--speed 60` replays a two-hour race in about two minutes with a live timing screen.
@@ -183,20 +183,20 @@ exactly, and the in/out-lap counts match the 47 recorded pit stops.
 2,000 full race simulations take 0.14 s, so a twelve-option decision lands in under two seconds:
 
 ```
-Race @ Hungaroring  lap 30/70
+Race @ Hungaroring  lap 34/70
 
-LEC P3, lap 30 (3,000 sims)
-  → PIT now on SOF
-     expected P2.41, margin +0.19 to next option
+LEC P3, lap 34 (3,000 sims)
+  → PIT now on HAR
+     expected P4.85, margin +0.25 to next option
 
   option              exp. pos    top3  points    gain
-  now on SOF              2.41  81.9%   98.7%   64.4%
-  now on MED              2.60  79.2%   98.8%   61.0%
-  lap +3 on SOF           2.64  78.1%   98.9%   59.3%
+  now on HAR              4.85  37.5%   95.6%   24.5%
+  now on MED              5.09  33.8%   95.6%   24.6%
+  now on SOF              5.16  32.1%   95.6%   23.9%
   ...
 
   undercut threats:
-    HAM  +0.7s behind   P(jumps us) 45.9%
+    ANT  +0.9s behind   P(jumps us) 46.3%
 ```
 
 Three things carry the realism. **Track position is enforced** — cars cannot pass through each
@@ -319,22 +319,23 @@ Everything used here is free.
 No public dataset publishes per-circuit safety-car rates, so `scripts/fetch_history.py` builds one
 from 2022–2026 race control data and `pitwall hazard` fits a discrete-time hazard over it.
 
-The strongest signal is that lap 1 is a different regime entirely — a 22% chance of a safety car or
-VSC, against about 2% for any other lap:
+The strongest signal is that lap 1 is a different regime entirely — a 21% chance of a safety car or
+VSC (`pitwall hazard --kind any`; the default reports safety cars alone), against about 2% for any
+other lap:
 
 ```
   baseline per-lap hazard by race phase:
-    lap1   0.2234
-    early  0.0207
-    mid    0.0195
-    late   0.0168
-    final  0.0119
+    lap1   0.2136
+    early  0.0195
+    mid    0.0214
+    late   0.0203
+    final  0.0137
 
   circuit factor (shrunk, prior weight 3):
-    Melbourne                 2.33x  (5 races)
-    Zandvoort                 1.33x  (4 races)
+    Melbourne                 2.24x  (5 races)
+    Zandvoort                 1.28x  (4 races)
     ...
-    Barcelona                 0.48x  (4 races)
+    Yas Island                0.49x  (4 races)
 ```
 
 Laps already running under a safety car are excluded from exposure — the question is "given none is

@@ -4,6 +4,43 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-08 — An audit, and which numbers rot
+
+No new feature today — a pass back through every phase to check nothing had quietly drifted since
+the attrition work. The code held up: 263 tests pass, lint and format clean, and the CLI still
+reproduces the documented output for `laps`, `hazard`, `strategy` and `report`.
+
+The README did not, in two places, and the pattern in *which* two is the useful part.
+
+**The safety-car block was the 94-race fit.** It still read lap1 0.2234, Melbourne 2.33x, Barcelona
+0.48x over four races — the numbers from before the attrition history grew the sample to 103. The
+prose two lines above already said "103 races", so the table was contradicting its own caption. The
+current safety-car-or-VSC fit reads lap1 0.2136, Melbourne 2.24x, Yas Island now the calmest track.
+While fixing it I noticed the block is the `--kind any` view but the default `pitwall hazard`
+reports safety cars alone (17% on lap 1, not 21%), so the command now says which is which.
+
+**The strategy example was pre-fix output.** It showed LEC P3 at lap 30 stopping to an expected
+P2.41 — a decisive, tidy call. Folding the recording to lap 30 today puts LEC P5, and every compound
+option there sits within a tenth of the others, so the honest call is "marginal, no clear
+recommendation". That example dates to the Phase 3 commit on 28 July and was never regenerated after
+the 29 July running-order fix — the same bug write-up already in this logbook, quietly still on
+display in the README. Moved it to lap 34, where LEC really is P3 and the engine makes a clean
+"PIT now on hards", which is also the scenario in the dashboard screenshot.
+
+**The lesson is about provenance, not arithmetic.** The numbers that stayed correct — the scorecard,
+the clean-lap counts — are the ones produced by machinery: `report` and `laps` regenerate them, so
+they cannot drift without the code drifting too. The two that rotted were both hand-pasted snippets
+of example output with nothing regenerating them. So the fix that actually prevents a recurrence is
+to generate the README's example blocks the same way the race report is generated, rather than
+trusting a paste to stay true across a model change. Filed as the next chore; for now they are at
+least correct again, and the Monte Carlo is seeded so they reproduce exactly.
+
+A small reassurance in a boring pass: the things designed to stay honest did, and the things that
+slipped are exactly the things the project's own philosophy says to distrust — a number without a
+process behind it.
+
+---
+
 ## 2026-08-02 — Attrition, and a hypothesis that was right after all
 
 Every car finished, every time. Roughly one in ten does not, and a simulation without that is wrong

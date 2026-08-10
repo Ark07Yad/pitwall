@@ -4,6 +4,33 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-10 — Making the anti-rot rule executable
+
+Two days ago the audit found the README quoting numbers the code no longer produced — the hazard
+table stuck on the 94-race fit, the strategy example predating the running-order fix. I fixed the
+text and wrote down the real lesson: the numbers that stayed honest were the ones a command
+regenerates, and the two that rotted were hand-pasted with nothing behind them. Writing that down is
+not the same as fixing it, so today it becomes a tool.
+
+`scripts/readme_examples.py` re-runs the four commands the README quotes — `laps`, `hazard --kind
+any`, the lap-34 `strategy` call, `report` — and prints each block under the heading it belongs to.
+Refreshing the README is now a run and a diff instead of a paste taken on trust. It deliberately does
+not edit the file: it prints the current truth beside where each block lives and leaves the paste to
+a human, because a script that rewrites its own documentation is a new way to be silently wrong.
+
+Two small things fell out of building it. The strategy block needed the same trim the README uses —
+three options then `...` then the undercut line — so the tool reproduces that rather than dumping all
+twelve, which means its output is paste-ready rather than merely correct. And `report` writes a file
+as a side effect; pointing `--out` at a tempfile keeps the generator from littering `reports/` every
+time it runs, the same discipline the prediction commits already follow.
+
+Ran against today's code it prints exactly what the README now carries, which is the point: the check
+that would have caught the 8 August drift is green because the drift is already fixed. The value is
+the next time — a model change that moves a number will now show up as a diff the moment anyone runs
+this, instead of surviving to the next person who reads the file closely.
+
+---
+
 ## 2026-08-08 — An audit, and which numbers rot
 
 No new feature today — a pass back through every phase to check nothing had quietly drifted since

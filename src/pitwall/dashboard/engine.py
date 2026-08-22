@@ -321,7 +321,9 @@ class Engine:
             circuit = self.state.circuit
             stop = {
                 "seconds": round(self.pit_loss.loss(circuit), 2),
+                "expected": round(self.pit_loss.expected_loss(circuit), 2),
                 "spread": round(self.pit_loss.spread_for(circuit), 2),
+                "botch_rate": round(self.pit_loss.botch_rate, 3),
                 "fitted": self.pit_loss.known_circuit(circuit),
                 "races": self.pit_loss.races_at(circuit),
             }

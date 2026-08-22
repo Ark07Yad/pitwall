@@ -252,7 +252,9 @@ def simulate(
 
     # Pit loss is circuit-specific and varies by about nine seconds across the
     # calendar, which is far more than the margin most pit calls turn on. A
-    # fitted model supplies it; without one, fall back to the flat config value.
+    # fitted model supplies it - including the right tail from botched stops,
+    # which a symmetric draw cannot represent. Without one, fall back to the flat
+    # config value and a symmetric draw, which is what this did before.
     stop_cost = pit_loss.loss(circuit) if pit_loss is not None else cfg.pit_loss
     stop_cost_sd = pit_loss.spread_for(circuit) if pit_loss is not None else cfg.pit_loss_sd
 
@@ -322,7 +324,10 @@ def simulate(
         # --- pit stops ---
         pitting = (planned == lap) & (planned >= 0)
         if pitting.any():
-            cost = rng.normal(stop_cost, stop_cost_sd, size=(n_sims, n_cars))
+            if pit_loss is not None:
+                cost = pit_loss.sample(rng, circuit, (n_sims, n_cars))
+            else:
+                cost = rng.normal(stop_cost, stop_cost_sd, size=(n_sims, n_cars))
             cost = np.where(sc_active[:, None], cost * cfg.sc_pit_discount, cost)
             lap_time = np.where(pitting, lap_time + cost, lap_time)
 

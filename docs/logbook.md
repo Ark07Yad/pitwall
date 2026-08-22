@@ -4,6 +4,65 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-22 (later still) — The fat tail, and two ways to get it wrong
+
+Pit loss was measured this afternoon but still drawn from a symmetric normal. That gets the shape
+wrong in the one direction that matters: a stop cannot go meaningfully *better* than a clean one —
+the pit lane has a speed limit and the stationary time has a floor — but it can go very much worse.
+And a marginal pit call is decided by the expensive futures, not the typical one.
+
+**The distribution, once you look at it.** Excess over each race's own median, pooled across 2023–25
+so the circuit constant drops out: p75 +1.0 s, p90 +2.6 s, p95 +8.9 s, max +30 s. Firmly
+right-skewed, as expected.
+
+But also p1 **−5.4 s**, min −11.0 s. A stop cannot cost eleven seconds *less* than the median, so
+that left tail is measurement, not physics: the out-lap runs on fresh tyres against a baseline of
+worn ones, so genuine tyre-age gain is being subtracted from the measured pit loss. The median
+absorbs it, and the core spread is therefore an upper bound on true pit-lane variability rather
+than an estimate of it. Worth knowing before anyone reads 1.4 s as the real scatter of a pit stop.
+
+**First way to get it wrong: penalties.** 3.3% of stops came out more than 12 s slower than the
+race median, which is an order of magnitude above the real rate of catastrophic pit stops. The
+empirical p99 was +20.5 s, which is *suspiciously exactly* a drive-through. A served time penalty
+is added to the stationary time, so in lap data it is a pit stop that went badly — indistinguishable
+from a botched one. Race control announces them, but `RacingNumber` is null on those messages and
+the car number lives only in the text, so it has to be parsed out of "FOR CAR 55 (SAI)". Excluding
+the 134 stops that served one halves p95, from +8.95 s to +4.88 s.
+
+This mattered more than a tidier number. An over-fat tail is not a conservative error: it tells the
+simulation that stopping carries a risk it does not carry, and biases every call against pitting.
+Getting the contamination out was the difference between modelling botched stops and modelling the
+stewards.
+
+**Second way: double-counting the core.** The obvious estimator — botch rate = fraction of stops
+more than 2 s over the median — is wrong, and quietly. With a spread of 1.4 s, about 7% of
+*perfectly clean* stops clear +2 s on ordinary scatter alone. Counting them as botched inflated the
+rate from a real 5.0% to 12.1%, and the simulated P(stop >2 s slow) came out at 17.6% against an
+empirical 12.1%. Subtracting what the core already explains, and taking the scale from the mean
+rather than from the same threshold count, fixes it: fitted rate 5.0%, scale 3.81 s, and the
+mixture now reproduces the empirical mean excess *exactly* and P(>2 s) to within 0.2 points.
+
+**Where it deliberately stops.** Above +15 s the model does not reach, and the empirical p99 sits
+above that cap. Beyond there it is a front wing change, a repair, or a penalty the parser missed —
+a different event. Discovering that the >15 s outliers carried **half the total mean excess**
+(+0.62 s pooled, +0.29 s in-scope) was the moment this stopped being a rounding argument. The
+honest cost is that a genuinely catastrophic stop — the stuck wheel nut that costs half a minute —
+is not modelled either, because in lap data I cannot tell it apart from damage.
+
+**What it moves.** Leclerc, Hungary lap 34, 6,000 sims: expected P4.781 symmetric against P4.879
+with the tail, top-3 31.9% against 30.1%. Modest, and it should be — a tail that swung calls around
+would mean I had fitted the contamination rather than the phenomenon.
+
+**A test of mine that was passing by luck.** `test_the_model_overrides_the_flat_config_constant`,
+written this afternoon, put two cars 30 s apart and asserted the pit-loss model changed the expected
+finishing position. It cannot: the leader wins every simulation whatever a stop costs, and the
+expected position saturates at exactly 1.0. It had been passing on floating-point noise between two
+identical answers, and the tail made both land on 1.0 at once. Any assertion about pit loss has to
+be made where track position is actually contested, so it now runs on a three-car field within five
+seconds. A test that cannot fail for the right reason is worse than no test, because it is counted.
+
+---
+
 ## 2026-08-22 (later) — Pit loss, and a lookup that had been failing in silence
 
 The last hard-coded constant in the engine was pit loss: a flat 20.0 s ± 1.2 for every circuit,

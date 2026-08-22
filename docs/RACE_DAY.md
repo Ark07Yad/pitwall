@@ -91,17 +91,21 @@ risk numbers (a 17% hazard against ~1% for any other lap).
 
 Attrition factor is 0.82, slightly below average.
 
-**Pit loss is now measured, not assumed.** Zandvoort costs **22.58 s ± 1.55** under green, fitted
-on 4 races and 97 stops — against the flat 20.0 s the engine used until the night before. A stop
-here is ~2.6 s more expensive than the model believed, which makes every call slightly more
-conservative about stopping and narrows the margins. Confirm it on the dashboard: `model.pit_loss`
-should read `{"seconds": 22.58, "fitted": true, "races": 4}`. If `fitted` is false, the circuit
-name did not resolve and it has fallen back to the 22.18 s field median.
+**Pit loss is now measured, not assumed.** Zandvoort costs **22.57 s** at the median under green,
+**22.86 s expected** once botched stops are counted, fitted on 4 races and 97 stops — against the
+flat 20.0 s the engine used until the night before. A stop here is ~2.6 s more expensive than the
+model believed, which makes every call slightly more conservative about stopping.
+
+Confirm it on the dashboard: `model.pit_loss` should read roughly
+`{"seconds": 22.57, "expected": 22.86, "botch_rate": 0.05, "fitted": true, "races": 4}`. If
+`fitted` is false the circuit name did not resolve and it has fallen back to the 22.17 s field
+median — still sane, but say so in the write-up.
 
 **Known weakness, going in deliberately.** Compound choice still carries the single-race
 degradation confounding documented in the logbook — Zandvoort is the second data point that starts
-to break it. And the pit-loss spread is symmetric, where the real distribution has a long right
-tail from botched stops; the plan asked for that tail and it is not modelled yet.
+to break it. And the botched-stop tail is capped at +15 s: a genuinely catastrophic stop, the stuck
+wheel nut that costs half a minute, is not modelled, because in lap data it is indistinguishable
+from a front wing change.
 
 ---
 

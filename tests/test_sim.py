@@ -571,8 +571,12 @@ def test_finished_and_retired_probabilities_are_complementary():
 from pitwall.models.pit_loss import PitLossModel  # noqa: E402
 
 
-def pit_loss_model(**circuits: float) -> PitLossModel:
+def pit_loss_model(botch_rate: float = 0.0, botch_scale: float = 3.8, **circuits: float):
+    """A fitted model over the named circuits. The tail is off by default so a
+    test that is not about the tail is not perturbed by it."""
     return PitLossModel(
+        botch_rate=botch_rate,
+        botch_scale=botch_scale,
         baseline=22.0,
         circuit_loss=dict(circuits),
         circuit_raw=dict(circuits),
@@ -619,19 +623,57 @@ def test_an_expensive_pit_lane_makes_stopping_worse():
     assert dear.best.mean_position >= cheap.best.mean_position
 
 
+def contested_field() -> list[CarEntry]:
+    """Three cars close enough that a few seconds in the pits changes the order.
+
+    A field spread by more than a pit stop cannot show a pit-loss effect at all -
+    the leader wins every simulation whatever a stop costs, and the expected
+    position saturates at 1.0. Any assertion about pit loss has to be made where
+    track position is actually contested.
+    """
+    return [
+        CarEntry(driver="a", tla="AAA", base_pace=90.0, tyre_age=22, elapsed=0.0),
+        CarEntry(driver="b", tla="BBB", base_pace=90.1, tyre_age=8, elapsed=2.0),
+        CarEntry(driver="c", tla="CCC", base_pace=90.2, tyre_age=8, elapsed=5.0),
+    ]
+
+
 def test_the_model_overrides_the_flat_config_constant():
-    entries = two_cars()
     kwargs = dict(
         our_driver="a",
         from_lap=20,
         total_laps=50,
         circuit="Monza",
         pace=pace_fit(),
-        config=SimConfig(n_sims=400, seed=11),
+        config=SimConfig(n_sims=1500, seed=11),
     )
-    flat = evaluate_actions(entries, **kwargs)
-    fitted = evaluate_actions(entries, pit_loss=pit_loss_model(Monza=30.0), **kwargs)
-    assert fitted.best.mean_position != flat.best.mean_position
+    flat = evaluate_actions(contested_field(), **kwargs)
+    fitted = evaluate_actions(contested_field(), pit_loss=pit_loss_model(Monza=32.0), **kwargs)
+    # A 32s pit lane against the config's 20s must make stopping visibly worse.
+    assert fitted.best.mean_position > flat.best.mean_position
+
+
+def test_the_botched_stop_tail_makes_stopping_dearer():
+    """Same median cost, different shape: the tail adds expected loss."""
+    kwargs = dict(
+        our_driver="a",
+        from_lap=20,
+        total_laps=50,
+        circuit="Monza",
+        pace=pace_fit(),
+        config=SimConfig(n_sims=3000, seed=5),
+    )
+    symmetric = evaluate_actions(
+        contested_field(),
+        pit_loss=pit_loss_model(Monza=25.0, botch_rate=0.0),
+        **kwargs,
+    )
+    tailed = evaluate_actions(
+        contested_field(),
+        pit_loss=pit_loss_model(Monza=25.0, botch_rate=0.12, botch_scale=5.0),
+        **kwargs,
+    )
+    assert tailed.best.mean_position >= symmetric.best.mean_position
 
 
 def test_an_unknown_circuit_uses_the_field_median_not_zero():

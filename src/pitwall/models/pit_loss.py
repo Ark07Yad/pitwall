@@ -28,11 +28,14 @@ reason: the alternative is letting one chaotic afternoon define a constant.
 from __future__ import annotations
 
 import json
+import math
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import numpy as np
 
 from pitwall.models.safety_car import normalise_circuit
 
@@ -52,6 +55,24 @@ DEFAULT_SHRINKAGE = 2.0
 # tail would inflate a symmetric spread the simulation then draws both ways.
 IQR_TO_SD = 1.349
 
+# Above this much over the circuit median, a stop is treated as having gone
+# wrong rather than as ordinary scatter. Chosen against the data: at +2.0s the
+# fitted mixture reproduces the empirical p90 and p95 (+2.83 vs +2.64, +4.64 vs
+# +4.88) and the mean.
+BOTCH_THRESHOLD = 2.0
+
+# Beyond this, it is not a routine stop at all - a front wing change, a repair,
+# an uncaught penalty. Those are a different event, and folding them in would
+# tell the simulation that stopping carries a 3% chance of losing fifteen
+# seconds, which would bias it against pitting for the wrong reason. The
+# empirical p99 sits above this cap and the model deliberately does not reach
+# it.
+BOTCH_CAP = 15.0
+
+# Used when no history is available. Fitted values from 2022-2026.
+DEFAULT_BOTCH_RATE = 0.05
+DEFAULT_BOTCH_SCALE = 3.8
+
 
 @dataclass(frozen=True)
 class PitLossModel:
@@ -66,6 +87,12 @@ class PitLossModel:
     spread: float
     n_races: int
     n_stops: int
+    # The tail is fitted globally, not per circuit. A wheel gun failing is not a
+    # property of the track, and five races per circuit cannot estimate the rate
+    # of a one-in-eight event anyway.
+    botch_rate: float = DEFAULT_BOTCH_RATE
+    botch_scale: float = DEFAULT_BOTCH_SCALE
+    botch_threshold: float = BOTCH_THRESHOLD
     shrinkage: float = DEFAULT_SHRINKAGE
     warnings: tuple[str, ...] = field(default=())
 
@@ -76,6 +103,41 @@ class PitLossModel:
     def spread_for(self, circuit: str) -> float:
         """Lap-to-lap scatter in that cost, for the simulation to draw against."""
         return self.circuit_spread.get(normalise_circuit(circuit), self.spread)
+
+    def expected_loss(self, circuit: str) -> float:
+        """Mean cost of a stop, which is above the median because of the tail.
+
+        This is the number that matters for a pit decision: the simulation
+        averages over futures, and in a meaningful share of them the stop goes
+        wrong. A symmetric draw around the median understated it.
+        """
+        return self.loss(circuit) + self.botch_rate * (self.botch_threshold + self.botch_scale)
+
+    def sample(
+        self,
+        rng: np.random.Generator,
+        circuit: str,
+        size: tuple[int, ...] | int,
+    ) -> np.ndarray:
+        """Draw pit-stop costs, with the right tail botched stops actually have.
+
+        A stop cannot go meaningfully *better* than a clean one - the pit lane
+        has a speed limit and the stationary time has a floor - but it can go
+        very much worse. Drawing symmetrically around the median therefore gets
+        the shape wrong in the direction that matters, because the expensive
+        futures are exactly the ones a marginal call turns on.
+
+        Two components: ordinary scatter around the circuit's median, plus, with
+        probability `botch_rate`, an exponential excess for a stop that went
+        wrong. The exponential is the maximum-entropy choice given only a mean
+        excess, which is all the data supports.
+        """
+        core = rng.normal(self.loss(circuit), self.spread_for(circuit), size=size)
+        if self.botch_rate <= 0.0 or self.botch_scale <= 0.0:
+            return core
+        botched = rng.random(size) < self.botch_rate
+        excess = self.botch_threshold + rng.exponential(self.botch_scale, size=size)
+        return core + np.where(botched, excess, 0.0)
 
     def known_circuit(self, circuit: str) -> bool:
         return normalise_circuit(circuit) in self.circuit_loss
@@ -88,6 +150,11 @@ class PitLossModel:
             f"Green-flag pit loss from {self.n_races} races, {self.n_stops} stops",
             "",
             f"  field median {self.baseline:.2f}s  (spread {self.spread:.2f}s)",
+            f"  botched stops: {self.botch_rate:.1%} of stops, "
+            f"+{self.botch_threshold:.1f}s then mean +{self.botch_scale:.2f}s more",
+            f"  so a stop costs {self.baseline:.2f}s at the median, "
+            f"{self.baseline + self.botch_rate * (self.botch_threshold + self.botch_scale):.2f}s "
+            f"on average",
         ]
         ranked = sorted(self.circuit_loss.items(), key=lambda kv: kv[1])
         if ranked:
@@ -106,6 +173,13 @@ class PitLossModel:
         for warning in self.warnings:
             lines.append(f"  ! {warning}")
         return "\n".join(lines)
+
+
+def _normal_sf(x: float, sd: float) -> float:
+    """P(N(0, sd) > x) - how much of the tail ordinary scatter already explains."""
+    if sd <= 0:
+        return 0.0
+    return 0.5 * (1.0 - math.erf(x / (sd * math.sqrt(2.0))))
 
 
 def load_pit_loss(path: Path | str) -> list[dict[str, Any]]:
@@ -133,6 +207,7 @@ def fit_pit_loss(
 
     all_medians: list[float] = []
     all_spreads: list[float] = []
+    all_excess: list[float] = []
     total_stops = 0
 
     for race in usable:
@@ -144,6 +219,8 @@ def fit_pit_loss(
         n = int(race.get("n_stops") or 0)
         stops[circuit] += n
         total_stops += n
+
+        all_excess.extend(float(x) for x in race.get("excess") or ())
 
         q1, q3 = race.get("q1"), race.get("q3")
         if q1 is not None and q3 is not None and q3 >= q1:
@@ -175,7 +252,37 @@ def fit_pit_loss(
         else:
             circuit_spread[circuit] = global_spread
 
+    # The tail, fitted on every stop at once. Excesses are measured against each
+    # race's own median, so the circuit constant is already removed and they pool
+    # across the calendar - which is the only way to estimate a one-in-eight
+    # event, since no single circuit has the stops for it.
+    botch_rate, botch_scale = DEFAULT_BOTCH_RATE, DEFAULT_BOTCH_SCALE
+    in_scope = [x for x in all_excess if x <= BOTCH_CAP]
+    over = [x for x in in_scope if x > BOTCH_THRESHOLD]
+    if len(over) >= 20 and in_scope:
+        # Not simply "the fraction of stops above the threshold". Ordinary
+        # scatter already puts mass up there - with a spread of 1.4s about 7% of
+        # clean stops clear +2s on their own - so counting those as botched
+        # would double-count them and hand the simulation a tail it then draws
+        # too often. Subtract what the core explains, and take the scale from the
+        # mean rather than from the same threshold count.
+        observed = len(over) / len(in_scope)
+        from_core = _normal_sf(BOTCH_THRESHOLD, global_spread)
+        botch_rate = max(0.0, (observed - from_core) / max(1e-9, 1.0 - from_core))
+        if botch_rate > 1e-4:
+            mean_excess = statistics.mean(in_scope)
+            botch_scale = max(0.1, mean_excess / botch_rate - BOTCH_THRESHOLD)
+        else:
+            botch_rate, botch_scale = 0.0, DEFAULT_BOTCH_SCALE
+
     warnings: list[str] = []
+    if all_excess and len(over) < 20:
+        warnings.append("too few slow stops to fit the botched-stop tail; using the fitted default")
+    if not all_excess:
+        warnings.append(
+            "history carries no per-stop detail, so the botched-stop tail is the "
+            "fitted default - re-run scripts/fetch_pit_loss.py to measure it"
+        )
     thin = sorted(c for c, n in circuit_races.items() if n < 2)
     if thin:
         warnings.append(
@@ -193,6 +300,8 @@ def fit_pit_loss(
         spread=global_spread,
         n_races=len(usable),
         n_stops=total_stops,
+        botch_rate=botch_rate,
+        botch_scale=botch_scale,
         shrinkage=shrinkage,
         warnings=tuple(warnings),
     )

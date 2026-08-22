@@ -46,6 +46,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import statistics
 import warnings
 from pathlib import Path
@@ -70,6 +71,64 @@ MIN_LOSS, MAX_LOSS = 10.0, 60.0
 MIN_STOPS_PER_RACE = 5
 
 GREEN = "1"
+
+# A served time penalty is added to the stationary time, so the stop reads as a
+# botched one in lap data. Left in, they roughly double the apparent rate of
+# disastrous stops - the tail would then tell the simulation that stopping is
+# far riskier than it is, and bias it against pitting at all. The car number
+# lives in the message text; `RacingNumber` is null on these.
+PENALTY_MESSAGE = re.compile(
+    r"(\d+)\s*SECOND\s+TIME\s+PENALTY|DRIVE.?THROUGH|STOP\s*(?:/|\s+AND\s+)?GO", re.I
+)
+PENALTY_CAR = re.compile(r"CAR\s+(\d+)", re.I)
+
+
+def penalised_stops(session: Any, laps: pd.DataFrame) -> set[tuple[str, int]]:
+    """(car number, lap) for stops that served a penalty.
+
+    A penalty issued on lap L is served at that car's next stop, so that is the
+    one to drop.
+    """
+    try:
+        messages = session.race_control_messages
+    except Exception:  # noqa: BLE001
+        return set()
+    if messages is None or len(messages) == 0:
+        return set()
+
+    issued: dict[str, list[int]] = {}
+    for _, message in messages.iterrows():
+        text = str(message.get("Message") or "")
+        if not PENALTY_MESSAGE.search(text):
+            continue
+        car = PENALTY_CAR.search(text)
+        lap = message.get("Lap")
+        if car is None or lap is None or pd.isna(lap):
+            continue
+        issued.setdefault(car.group(1), []).append(int(lap))
+
+    flagged: set[tuple[str, int]] = set()
+    for number, laps_issued in issued.items():
+        driver = laps[laps.DriverNumber.astype(str) == number]
+        stops = sorted(int(x) for x in driver[driver.PitInTime.notna()].LapNumber)
+        for issued_on in laps_issued:
+            served = next((s for s in stops if s >= issued_on), None)
+            if served is not None:
+                flagged.add((number, served))
+    return flagged
+
+
+def drop_penalised(laps: pd.DataFrame, flagged: set[tuple[str, int]]) -> pd.DataFrame:
+    if not flagged:
+        return laps
+    keep = pd.Series(True, index=laps.index)
+    for number, lap in flagged:
+        keep &= ~(
+            (laps.DriverNumber.astype(str) == number)
+            & (laps.LapNumber == lap)
+            & laps.PitInTime.notna()
+        )
+    return laps[keep]
 
 
 def is_rate_limit(exc: Exception) -> bool:
@@ -136,7 +195,8 @@ def stop_losses(laps: pd.DataFrame) -> tuple[list[float], dict[str, int]]:
 
 def collect(season: int, rnd: int) -> dict[str, Any] | None:
     session = fastf1.get_session(season, rnd, "R")
-    session.load(telemetry=False, weather=False, messages=False)
+    # Messages are needed to identify penalty-serving stops.
+    session.load(telemetry=False, weather=False, messages=True)
 
     # The live feed sends `ShortName`, so key on it where it is available and the
     # runtime lookup needs no translation. `Location` is kept alongside because
@@ -150,7 +210,9 @@ def collect(season: int, rnd: int) -> dict[str, Any] | None:
         circuit = location = str(session.event["Location"])
         circuit_key = 0
 
-    losses, rejected = stop_losses(session.laps)
+    flagged = penalised_stops(session, session.laps)
+    losses, rejected = stop_losses(drop_penalised(session.laps, flagged))
+    rejected["penalty"] = len(flagged)
     if len(losses) < MIN_STOPS_PER_RACE:
         return {
             "season": season,
@@ -165,6 +227,7 @@ def collect(season: int, rnd: int) -> dict[str, Any] | None:
         }
 
     ordered = sorted(losses)
+    median = statistics.median(ordered)
     return {
         "season": season,
         "round": rnd,
@@ -173,10 +236,15 @@ def collect(season: int, rnd: int) -> dict[str, Any] | None:
         "location": location,
         "circuit_key": circuit_key,
         "n_stops": len(losses),
-        "median_loss": round(statistics.median(ordered), 3),
+        "median_loss": round(median, 3),
         "q1": round(ordered[len(ordered) // 4], 3),
         "q3": round(ordered[3 * len(ordered) // 4], 3),
         "sd": round(statistics.pstdev(ordered), 3),
+        # Each stop's excess over this race's own median. Subtracting the median
+        # removes the circuit constant, so excesses pool across the calendar and
+        # the tail can be fitted on all of them at once rather than on the five
+        # races any one circuit provides.
+        "excess": [round(x - median, 3) for x in ordered],
         "rejected": rejected,
     }
 

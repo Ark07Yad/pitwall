@@ -386,17 +386,19 @@ about nine seconds.
 `scripts/fetch_pit_loss.py` measures it from 2022–2026 lap data and `pitwall pitloss` fits it:
 
 ```
-Green-flag pit loss from 89 races, 2066 stops
+Green-flag pit loss from 87 races, 1981 stops
 
-  field median 22.18s  (spread 1.56s)
+  field median 22.17s  (spread 1.39s)
+  botched stops: 5.0% of stops, +2.0s then mean +3.81s more
+  so a stop costs 22.17s at the median, 22.45s on average
 
   per circuit (shrunk, prior weight 2 races):
     circuit                   shrunk     raw     sd  races  stops
-    Spa-Francorchamps         19.48s  18.40s  1.64s      5    101
-    Miami                     20.47s  19.78s  1.60s      5     74
+    Spa-Francorchamps         19.47s  18.40s  1.60s      5    101
+    Miami                     20.46s  19.78s  1.55s      5     73
     ...
-    Monza                     24.25s  25.29s  1.18s      4     93
-    Lusail                    25.56s  27.81s  1.35s      3     70
+    Monza                     24.24s  25.29s  1.15s      4     92
+    Lusail                    25.55s  27.81s  1.32s      3     69
 ```
 
 What is measured is the quantity the simulation actually adds — total time lost against staying
@@ -408,6 +410,24 @@ Green-flag stops only: a stop under a safety car is cheaper because the field is
 simulation discounts that separately. Races contribute their median rather than their stops, so one
 wet afternoon with forty measurable stops cannot outvote three clean ones, and circuits are shrunk
 toward the field median because five races is not enough to justify a raw constant.
+
+**Stops are not symmetric, so they are not drawn symmetrically.** A stop cannot go meaningfully
+*better* than a clean one — the pit lane has a speed limit and the stationary time has a floor —
+but it can go very much worse. The simulation draws ordinary scatter around the circuit median plus,
+5% of the time, an exponential excess for a stop that went wrong. That is the difference between a
+median stop and an *expected* one: 22.17 s against 22.45 s across the calendar, and the expensive
+futures are exactly the ones a marginal call turns on.
+
+Two things keep that tail from being too fat, which would bias the engine against pitting for a
+reason that is not real. Served time penalties are excluded — they are added to the stationary time
+and read as botched stops in lap data, and leaving them in roughly doubles the apparent rate of
+disasters. And the rate subtracts what ordinary scatter already explains: with a spread of 1.4 s
+about 7% of perfectly clean stops clear +2 s on their own, so counting those as botched would
+double-count them. Fitted on 1,981 stops, the mixture reproduces the empirical mean excess exactly
+and P(stop >2 s slow) to within 0.2 points.
+
+Above +15 s the model deliberately stops: that is a front wing change, a repair, or an uncaught
+penalty — a different event, not a routine stop, and not one this model claims to describe.
 
 ### A note on circuit names
 

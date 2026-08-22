@@ -90,6 +90,27 @@ screen keep going through the second or two a decision takes.
 
 ### Run it live
 
+On a race day this is the whole system in one process — one connection to F1's endpoint, which
+records the raw frames, folds them, fits the models, publishes a call every lap, and commits each
+call to the ledger as it is made:
+
+```bash
+uv run pitwall dashboard --record data/raw/2026-netherlands-race.txt \
+    --log-predictions --session "2026 Dutch GP"
+```
+
+`scripts/race_day.sh` wraps that for an unattended run: it waits for the session, checks the git
+identity *before* the two-hour wait rather than failing silently for the whole race, holds off
+system sleep, and stops on its own.
+
+Predictions are written only when `LapCount` says a race is running, so a dashboard left going
+through practice records nothing; only once per lap, so the reconnection that a two-hour feed
+guarantees cannot double-count a call; and never fatally, because the race is not re-runnable. The
+CLI refuses to *commit* calls made from a `--replay`, since the recording already contains the
+outcome and the commit timestamp is the only thing the ledger is worth anything for.
+
+For just the timing screen, without the engine:
+
 ```bash
 uv run pitwall live --record data/raw/2026-netherlands-race.txt
 ```

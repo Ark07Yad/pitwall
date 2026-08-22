@@ -4,6 +4,64 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-22 — The night before Zandvoort, and the gap that would have wasted it
+
+Race-day preflight, the day before the first live race. The suite is green, the endpoint still
+answers unauthenticated, and the models know the circuit. One thing was missing, and it was the
+only one that mattered.
+
+**The dashboard never logged anything.** `Engine._compute` built a full `Recommendation` every lap
+and then flattened it into an `Advice` for the screen. `PredictionLog` was wired into `backtest`
+and `report` — both of which run against a *finished* recording — and nowhere else. Every one of
+the 28 predictions in this repo was made after the fact, against a race whose result was already on
+disk.
+
+So tomorrow, as built this morning, would have produced a nice screen, a ~200 MB recording, and
+zero live track record. The README already claimed otherwise. The plan said, in June, "build the
+commit step into the live loop so it happens automatically, not by hand" — and then five phases
+happened and nobody checked that sentence against the code.
+
+That is the failure worth writing down: not a bug, an *absence*, in the one feature the whole
+project is a delivery mechanism for. Nothing failed a test, because no test asserted it. The engine
+worked. The dashboard was pretty. The thesis was unimplemented.
+
+**Fixed, with the guards that keep a ledger meaningful rather than merely full.** Predictions are
+written only when `LapCount` reports a race — practice and qualifying never send it, so a dashboard
+left running through FP1 records nothing and could not be scored against a classification anyway.
+Only once per lap, because F1's feed drops after about two hours and a Grand Prix *is* two hours,
+so the reconnection that replays the state snapshot and revisits a lap is the expected path, not
+the exception; logging it twice would double-count that call in every score drawn from the file.
+And never fatally — a ledger failure costs the calls, not the engine.
+
+**The CLI refuses to commit predictions made from a `--replay`.** This one is not defensive
+programming, it is the whole argument. A replayed race contains its own outcome; a commit timestamp
+on a call made from it proves nothing, and mixing those into the same file as live calls would
+quietly destroy the evidentiary value of every honest entry beside them. `--no-commit` still allows
+a rehearsal.
+
+**A rehearsal that lied, and why.** First end-to-end run against the Hungary recording logged
+*nothing* while replaying all 76,979 events. Not the guards — `MIN_SECONDS_BETWEEN_ADVICE` is 8
+seconds of wall clock, and at unbounded replay speed the whole race folds in 6.8 s, so exactly one
+advice attempt fired, at lap 1, where the pace fit is correctly not yet identified. Live, laps are
+~80 s apart and the throttle never binds. Worth knowing before reading a quiet dashboard tomorrow
+as a failure: at max speed this system is *supposed* to look idle. With the throttle neutralised
+the real path ran — 47 calls, one per lap from 24 to 70, no duplicates, and laps 1–23 refused while
+the design was unidentified.
+
+**Zandvoort is a good first race for this engine.** Shrunk safety-car factor 1.45x, third of 26
+circuits behind only Melbourne and São Paulo, on four races. Over 72 laps that is a 72% chance of a
+safety car and 87% of some neutralisation. The part of the simulation that compresses the field and
+discounts a stop taken under a neutralisation is the part most likely to be *exercised* tomorrow —
+and most likely to be caught being wrong, which is better.
+
+**Still open, and going in as known.** Pit loss is a flat 20.0 s ± 1.2 for every circuit; the plan
+called for a per-circuit constant measured from history and never got one. Zandvoort's real number
+is close enough to 20 s that tomorrow is not the day to change it, but every call is sitting on an
+assumption rather than a measurement, and the next quiet week should fix it. The compound
+confounding from Hungary is unchanged — Zandvoort is the second data point that starts to break it.
+
+---
+
 ## 2026-08-10 — Making the anti-rot rule executable
 
 Two days ago the audit found the README quoting numbers the code no longer produced — the hazard

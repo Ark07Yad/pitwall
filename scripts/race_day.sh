@@ -11,8 +11,9 @@
 # Arguments: start time (local), recording basename, ledger session name, the
 # TLA to advise (blank = the leader), minutes to run, and the dashboard port.
 #
-# The port defaults to 8010 rather than the CLI's 8000, because this machine has
-# another project's API listening on 8000. Binding is checked before the wait.
+# The port is checked before the wait rather than at launch: uvicorn cannot bind
+# a taken port, so a clash would kill the engine the instant it finally started -
+# hours later, with the race under way and no second chance at it.
 #
 # Deliberately NOT run alongside scripts/record.py. That would open a second
 # connection to an undocumented endpoint from one address, which is exactly the
@@ -28,7 +29,7 @@ BASENAME="${2:?missing recording basename}"
 SESSION="${3:?missing ledger session name}"
 DRIVER="${4:-}"
 MINUTES="${5:-195}"
-PORT="${6:-8010}"
+PORT="${6:-8000}"
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT="${REPO}/data/raw/${BASENAME}.txt"

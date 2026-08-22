@@ -287,3 +287,67 @@ def test_monaco_rename_is_merged():
     assert fit is not None
     assert set(fit.circuit_races) == {"Monaco"}
     assert fit.circuit_races["Monaco"] == 2
+
+
+# -- circuit identity, from both sides ---------------------------------
+
+
+def test_live_feed_short_names_reach_the_fitted_history():
+    """Regression: the models are fitted on FastF1's `Location` but queried with
+    the name the live feed sends, `Meeting.Circuit.ShortName`.
+
+    Nine of twenty-seven circuits spell those differently, and the mismatch was
+    silent - `circuit_factor.get(name, 1.0)` simply returned the neutral default,
+    so the model declined to use what it knew and nothing reported it. The 2026
+    Hungarian GP ran on a 1.0x safety-car factor when the fitted value was
+    0.58x.
+    """
+    races = [
+        {
+            "circuit": "Budapest",
+            "total_laps": 70,
+            "sc_starts": [],
+            "sc_laps": [],
+            "vsc_starts": [],
+            "vsc_laps": [],
+        }
+        for _ in range(5)
+    ]
+    races += [
+        {
+            "circuit": "Melbourne",
+            "total_laps": 58,
+            "sc_starts": [1, 20],
+            "sc_laps": [1, 2, 20, 21],
+            "vsc_starts": [],
+            "vsc_laps": [],
+        }
+        for _ in range(5)
+    ]
+    fit = fit_hazard(races)
+    assert fit is not None
+
+    # The name the live feed actually sends at the Hungaroring.
+    assert fit.known_circuit("Hungaroring")
+    assert fit.hazard("Hungaroring", 30, 70) == pytest.approx(fit.hazard("Budapest", 30, 70))
+    assert fit.hazard("Hungaroring", 30, 70) < fit.baseline["mid"]
+
+
+@pytest.mark.parametrize(
+    ("live_name", "history_name"),
+    [
+        ("Hungaroring", "Budapest"),
+        ("Catalunya", "Barcelona"),
+        ("Singapore", "Marina Bay"),
+        ("Interlagos", "São Paulo"),
+        ("Yas Marina Circuit", "Yas Island"),
+        ("Montreal", "Montréal"),
+        ("Paul Ricard", "Le Castellet"),
+        ("Monte Carlo", "Monaco"),
+    ],
+)
+def test_every_known_rename_resolves(live_name: str, history_name: str):
+    """Derived from F1's own session info by `scripts/circuit_aliases.py`, not
+    written from memory - a wrong entry maps one circuit's history onto another
+    and nothing errors."""
+    assert normalise_circuit(live_name) == normalise_circuit(history_name)

@@ -39,17 +39,43 @@ BUCKETS: tuple[str, ...] = ("lap1", "early", "mid", "late", "final")
 # roughly this much exposure before its own history outweighs the field average.
 DEFAULT_SHRINKAGE = 3.0
 
-# FastF1's `Location` is not a stable circuit identity, and this keeps happening:
-# Miami was "Miami" through 2024 and "Miami Gardens" from 2025, and Monaco became
-# "Monte Carlo" in 2026. Each rename silently splits a circuit's history into two
-# under-sampled entries that shrinkage then flattens toward the mean - no error,
-# just a quietly worse model. Check this table whenever a season is added.
+# Circuit identity has two independent failure modes, and both are silent.
+#
+# **The history and the live feed do not use the same names.** These models are
+# fitted on FastF1's `Location` ("Budapest") but queried at runtime with the name
+# the live feed sends, `Meeting.Circuit.ShortName` ("Hungaroring"). Where those
+# differ the lookup misses and every per-circuit estimate falls back to the
+# neutral 1.0x - no error, no warning, just the model quietly declining to use
+# what it knows. It cost the 2026 Hungarian GP a 0.58x safety-car factor, which
+# is to say the one race this system has run against used a safety-car risk
+# roughly 73% too high.
+#
+# **`Location` is not stable across seasons either.** Miami was "Miami" through
+# 2024 and "Miami Gardens" from 2025; Monaco became "Monte Carlo" in 2026. Each
+# rename splits a circuit's history into two under-sampled entries that shrinkage
+# then flattens toward the mean.
+#
+# Both are handled by normalising every name - from either side - onto the
+# `Location` spelling the history files are keyed on. The mapping is *derived*
+# rather than recalled: `scripts/circuit_aliases.py` reads `Meeting.Circuit.
+# ShortName` and `Meeting.Location` straight out of F1's own session info for
+# every cached race and prints the pairs that disagree. Re-run it when a season
+# is added rather than guessing an entry.
 #
 # Normalising here rather than in the fetcher means existing data files are
 # corrected without re-spending API calls against a 500/hour limit.
 CIRCUIT_ALIASES: dict[str, str] = {
+    # Season-to-season renames within FastF1's `Location`.
     "Miami Gardens": "Miami",
     "Monte Carlo": "Monaco",
+    # Live-feed `ShortName` -> the `Location` the history is keyed on.
+    "Catalunya": "Barcelona",
+    "Hungaroring": "Budapest",
+    "Interlagos": "São Paulo",
+    "Montreal": "Montréal",
+    "Paul Ricard": "Le Castellet",
+    "Singapore": "Marina Bay",
+    "Yas Marina Circuit": "Yas Island",
 }
 
 

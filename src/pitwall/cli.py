@@ -28,11 +28,15 @@ from pitwall.ledger import (
 from pitwall.models import (
     EventKind,
     FuelModel,
+    PitLossModel,
     fit_attrition,
     fit_hazard,
     fit_pace,
+    fit_pit_loss,
     load_history,
+    load_pit_loss,
 )
+from pitwall.models.pit_loss import DEFAULT_SHRINKAGE as PIT_LOSS_SHRINKAGE
 from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
 from pitwall.state.models import RaceState
 from pitwall.state.reducer import RaceStateReducer
@@ -211,6 +215,33 @@ def _hazard(args: argparse.Namespace) -> int:
     return 0
 
 
+def _pitloss(args: argparse.Namespace) -> int:
+    """Fit and report per-circuit green-flag pit loss."""
+    if not args.file.exists():
+        print(f"no pit-loss history: {args.file}", file=sys.stderr)
+        print(
+            "build one first:  python scripts/fetch_pit_loss.py --from 2022 --to 2026",
+            file=sys.stderr,
+        )
+        return 1
+
+    fit = fit_pit_loss(load_pit_loss(args.file), shrinkage=args.shrinkage)
+    if fit is None:
+        print("not enough history to fit pit loss", file=sys.stderr)
+        return 1
+
+    if args.circuit:
+        name = args.circuit
+        known = "" if fit.known_circuit(name) else "  (unknown here - field median)"
+        print(f"{name}: {fit.loss(name):.2f}s +/- {fit.spread_for(name):.2f}{known}")
+        if fit.known_circuit(name):
+            print(f"  fitted on {fit.races_at(name)} race(s)")
+        return 0
+
+    print(fit)
+    return 0
+
+
 def _strategy(args: argparse.Namespace) -> int:
     """Replay a recording to a given lap and ask what the engine would have said."""
     if not args.file.exists():
@@ -244,6 +275,7 @@ def _strategy(args: argparse.Namespace) -> int:
         history = load_history(args.history)
         hazard = fit_hazard(history, kind=EventKind.ANY)
         attrition = fit_attrition(history)
+    pit_loss = _load_pit_loss(args.pit_loss_history)
 
     entries = entries_from_state(state, pace)
     target = next(
@@ -270,6 +302,7 @@ def _strategy(args: argparse.Namespace) -> int:
         pace=pace,
         hazard=hazard,
         attrition=attrition,
+        pit_loss=pit_loss,
         config=cfg,
     )
     print(rec)
@@ -283,6 +316,7 @@ def _strategy(args: argparse.Namespace) -> int:
         pace=pace,
         hazard=hazard,
         attrition=attrition,
+        pit_loss=pit_loss,
         our_pit_lap=rec.best.pit_lap,
         config=cfg,
     )
@@ -350,6 +384,7 @@ def _backtest(args: argparse.Namespace) -> int:
         history = load_history(args.history)
         hazard = fit_hazard(history, kind=EventKind.ANY)
         attrition = fit_attrition(history)
+    pit_loss = _load_pit_loss(args.pit_loss_history)
 
     laps = [int(x) for x in args.laps.split(",") if x.strip()]
     wanted = {d.strip().upper() for d in args.drivers.split(",") if d.strip()}
@@ -399,6 +434,7 @@ def _backtest(args: argparse.Namespace) -> int:
                 pace=pace,
                 hazard=hazard,
                 attrition=attrition,
+                pit_loss=pit_loss,
                 config=cfg,
             )
             log.record(
@@ -458,6 +494,17 @@ def _report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_pit_loss(path: Path) -> PitLossModel | None:
+    """Per-circuit pit loss, or None if the history has not been built.
+
+    Absence is not fatal: the simulation falls back to the flat config constant,
+    which is what it used before this model existed.
+    """
+    if not path.exists():
+        return None
+    return fit_pit_loss(load_pit_loss(path))
+
+
 def _dashboard(args: argparse.Namespace) -> int:
     """Serve the live dashboard, from the live feed or a recording."""
     from pitwall.dashboard import Engine, serve
@@ -482,6 +529,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         history = load_history(args.history)
         hazard = fit_hazard(history, kind=EventKind.ANY)
         attrition = fit_attrition(history)
+    pit_loss = _load_pit_loss(args.pit_loss_history)
 
     log = None
     if args.log_predictions:
@@ -509,6 +557,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         feed,
         hazard=hazard,
         attrition=attrition,
+        pit_loss=pit_loss,
         driver=args.driver,
         sims=args.sims,
         log=log,
@@ -577,12 +626,23 @@ def main(argv: list[str] | None = None) -> int:
     hazard.add_argument("--circuit", help="report window probabilities for one circuit")
     hazard.add_argument("--laps", type=int, default=60, help="race length for --circuit")
 
+    pitloss = sub.add_parser("pitloss", help="fit per-circuit green-flag pit loss")
+    pitloss.add_argument("file", type=Path, nargs="?", default=Path("data/history/pit_loss.json"))
+    pitloss.add_argument("--shrinkage", type=float, default=PIT_LOSS_SHRINKAGE)
+    pitloss.add_argument("--circuit", default="", help="report one circuit")
+
     strategy = sub.add_parser("strategy", help="ask for a pit call at a given lap")
     strategy.add_argument("file", type=Path)
     strategy.add_argument("--lap", type=int, required=True)
     strategy.add_argument("--driver", required=True, help="TLA or car number")
     strategy.add_argument("--sims", type=int, default=3000)
     strategy.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
+    strategy.add_argument(
+        "--pit-loss-history",
+        type=Path,
+        default=Path("data/history/pit_loss.json"),
+        help="per-circuit pit loss; falls back to a flat constant if absent",
+    )
 
     live = sub.add_parser("live", help="connect to F1 live timing and fold it in real time")
     live.add_argument(
@@ -605,6 +665,12 @@ def main(argv: list[str] | None = None) -> int:
     backtest.add_argument("--out", type=Path, default=Path("predictions"))
     backtest.add_argument("--no-commit", action="store_true")
     backtest.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
+    backtest.add_argument(
+        "--pit-loss-history",
+        type=Path,
+        default=Path("data/history/pit_loss.json"),
+        help="per-circuit pit loss; falls back to a flat constant if absent",
+    )
 
     report = sub.add_parser("report", help="score a prediction log and write a race report")
     report.add_argument("file", type=Path, help="the recording, for final classification")
@@ -627,6 +693,12 @@ def main(argv: list[str] | None = None) -> int:
     dashboard.add_argument("--record", type=Path, help="also write raw frames (live only)")
     dashboard.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
     dashboard.add_argument(
+        "--pit-loss-history",
+        type=Path,
+        default=Path("data/history/pit_loss.json"),
+        help="per-circuit pit loss; falls back to a flat constant if absent",
+    )
+    dashboard.add_argument(
         "--log-predictions",
         action="store_true",
         help="write each call to the prediction ledger and commit it as it is made",
@@ -647,6 +719,8 @@ def main(argv: list[str] | None = None) -> int:
         return _laps(args)
     if args.command == "hazard":
         return _hazard(args)
+    if args.command == "pitloss":
+        return _pitloss(args)
     if args.command == "strategy":
         return _strategy(args)
     if args.command == "live":

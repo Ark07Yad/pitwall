@@ -37,6 +37,7 @@ import numpy as np
 from pitwall.models.attrition import AttritionModel
 from pitwall.models.fuel import FuelModel
 from pitwall.models.pace import PaceFit
+from pitwall.models.pit_loss import PitLossModel
 from pitwall.models.safety_car import HazardModel
 from pitwall.state.models import Compound
 
@@ -234,6 +235,7 @@ def simulate(
     hazard: HazardModel | None = None,
     attrition: AttritionModel | None = None,
     fuel: FuelModel | None = None,
+    pit_loss: PitLossModel | None = None,
     config: SimConfig | None = None,
 ) -> SimResult:
     """Run the race from `from_lap` to the flag, `config.n_sims` times."""
@@ -247,6 +249,12 @@ def simulate(
     n_sims, n_cars = cfg.n_sims, len(entries)
 
     base, degradation, offset = _lap_time_terms(entries, pace)
+
+    # Pit loss is circuit-specific and varies by about nine seconds across the
+    # calendar, which is far more than the margin most pit calls turn on. A
+    # fitted model supplies it; without one, fall back to the flat config value.
+    stop_cost = pit_loss.loss(circuit) if pit_loss is not None else cfg.pit_loss
+    stop_cost_sd = pit_loss.spread_for(circuit) if pit_loss is not None else cfg.pit_loss_sd
 
     # Two ways to get the per-lap trend, and which one is right depends on what
     # is known. A fitted `race_lap_coef` is measured from this race and absorbs
@@ -314,7 +322,7 @@ def simulate(
         # --- pit stops ---
         pitting = (planned == lap) & (planned >= 0)
         if pitting.any():
-            cost = rng.normal(cfg.pit_loss, cfg.pit_loss_sd, size=(n_sims, n_cars))
+            cost = rng.normal(stop_cost, stop_cost_sd, size=(n_sims, n_cars))
             cost = np.where(sc_active[:, None], cost * cfg.sc_pit_discount, cost)
             lap_time = np.where(pitting, lap_time + cost, lap_time)
 

@@ -1,0 +1,2020 @@
+[
+  {
+    "season": 2022,
+    "round": 1,
+    "event": "Bahrain Grand Prix",
+    "circuit": "Sakhir",
+    "location": "Sakhir",
+    "circuit_key": 63,
+    "n_stops": 27,
+    "median_loss": 24.402,
+    "q1": 23.108,
+    "q3": 25.331,
+    "sd": 1.61,
+    "rejected": {
+      "neutralised": 25,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 6,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 2,
+    "event": "Saudi Arabian Grand Prix",
+    "circuit": "Jeddah",
+    "location": "Jeddah",
+    "circuit_key": 149,
+    "n_stops": 5,
+    "median_loss": 21.248,
+    "q1": 20.543,
+    "q3": 21.71,
+    "sd": 10.141,
+    "rejected": {
+      "neutralised": 14,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 3,
+    "event": "Australian Grand Prix",
+    "circuit": "Melbourne",
+    "location": "Melbourne",
+    "circuit_key": 10,
+    "n_stops": 11,
+    "median_loss": 20.206,
+    "q1": 19.518,
+    "q3": 21.087,
+    "sd": 1.933,
+    "rejected": {
+      "neutralised": 10,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 4,
+    "event": "Emilia Romagna Grand Prix",
+    "circuit": "Imola",
+    "location": "Imola",
+    "circuit_key": 6,
+    "n_stops": 4,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 3,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 18,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 5,
+    "event": "Miami Grand Prix",
+    "circuit": "Miami",
+    "location": "Miami",
+    "circuit_key": 151,
+    "n_stops": 14,
+    "median_loss": 21.333,
+    "q1": 20.493,
+    "q3": 23.224,
+    "sd": 1.552,
+    "rejected": {
+      "neutralised": 11,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 6,
+    "event": "Spanish Grand Prix",
+    "circuit": "Catalunya",
+    "location": "Barcelona",
+    "circuit_key": 15,
+    "n_stops": 50,
+    "median_loss": 22.648,
+    "q1": 21.429,
+    "q3": 23.688,
+    "sd": 2.491,
+    "rejected": {
+      "neutralised": 2,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 7,
+    "event": "Monaco Grand Prix",
+    "circuit": "Monte Carlo",
+    "location": "Monaco",
+    "circuit_key": 22,
+    "n_stops": 1,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 39,
+      "no_time": 0,
+      "thin_baseline": 1,
+      "unstable": 12,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 8,
+    "event": "Azerbaijan Grand Prix",
+    "circuit": "Baku",
+    "location": "Baku",
+    "circuit_key": 144,
+    "n_stops": 10,
+    "median_loss": 23.676,
+    "q1": 21.79,
+    "q3": 26.136,
+    "sd": 6.441,
+    "rejected": {
+      "neutralised": 17,
+      "no_time": 1,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 9,
+    "event": "Canadian Grand Prix",
+    "circuit": "Montreal",
+    "location": "Montr\u00e9al",
+    "circuit_key": 23,
+    "n_stops": 9,
+    "median_loss": 18.87,
+    "q1": 17.986,
+    "q3": 19.443,
+    "sd": 3.357,
+    "rejected": {
+      "neutralised": 21,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 10,
+    "event": "British Grand Prix",
+    "circuit": "Silverstone",
+    "location": "Silverstone",
+    "circuit_key": 2,
+    "n_stops": 16,
+    "median_loss": 22.238,
+    "q1": 21.222,
+    "q3": 23.519,
+    "sd": 2.19,
+    "rejected": {
+      "neutralised": 29,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 2,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 11,
+    "event": "Austrian Grand Prix",
+    "circuit": "Spielberg",
+    "location": "Spielberg",
+    "circuit_key": 19,
+    "n_stops": 35,
+    "median_loss": 21.898,
+    "q1": 21.008,
+    "q3": 23.029,
+    "sd": 3.411,
+    "rejected": {
+      "neutralised": 6,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 1
+    }
+  },
+  {
+    "season": 2022,
+    "round": 12,
+    "event": "French Grand Prix",
+    "circuit": "Paul Ricard",
+    "location": "Le Castellet",
+    "circuit_key": 28,
+    "n_stops": 6,
+    "median_loss": 28.803,
+    "q1": 28.028,
+    "q3": 31.623,
+    "sd": 3.49,
+    "rejected": {
+      "neutralised": 19,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 13,
+    "event": "Hungarian Grand Prix",
+    "circuit": "Hungaroring",
+    "location": "Budapest",
+    "circuit_key": 4,
+    "n_stops": 29,
+    "median_loss": 23.367,
+    "q1": 21.635,
+    "q3": 24.417,
+    "sd": 2.916,
+    "rejected": {
+      "neutralised": 11,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 2,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 14,
+    "event": "Belgian Grand Prix",
+    "circuit": "Spa-Francorchamps",
+    "location": "Spa-Francorchamps",
+    "circuit_key": 7,
+    "n_stops": 32,
+    "median_loss": 18.396,
+    "q1": 17.801,
+    "q3": 19.849,
+    "sd": 1.936,
+    "rejected": {
+      "neutralised": 2,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 4,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 15,
+    "event": "Dutch Grand Prix",
+    "circuit": "Zandvoort",
+    "location": "Zandvoort",
+    "circuit_key": 55,
+    "n_stops": 30,
+    "median_loss": 22.478,
+    "q1": 21.8,
+    "q3": 24.167,
+    "sd": 2.984,
+    "rejected": {
+      "neutralised": 41,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 16,
+    "event": "Italian Grand Prix",
+    "circuit": "Monza",
+    "location": "Monza",
+    "circuit_key": 39,
+    "n_stops": 19,
+    "median_loss": 25.235,
+    "q1": 24.224,
+    "q3": 26.053,
+    "sd": 2.104,
+    "rejected": {
+      "neutralised": 9,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 17,
+    "event": "Singapore Grand Prix",
+    "circuit": "Singapore",
+    "location": "Marina Bay",
+    "circuit_key": 61,
+    "n_stops": 1,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 13,
+      "no_time": 5,
+      "thin_baseline": 1,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 18,
+    "event": "Japanese Grand Prix",
+    "circuit": "Suzuka",
+    "location": "Suzuka",
+    "circuit_key": 46,
+    "n_stops": 1,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 19,
+      "no_time": 2,
+      "thin_baseline": 0,
+      "unstable": 20,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 19,
+    "event": "United States Grand Prix",
+    "circuit": "Austin",
+    "location": "Austin",
+    "circuit_key": 9,
+    "n_stops": 26,
+    "median_loss": 20.615,
+    "q1": 19.328,
+    "q3": 23.499,
+    "sd": 4.236,
+    "rejected": {
+      "neutralised": 10,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 20,
+    "event": "Mexico City Grand Prix",
+    "circuit": "Mexico City",
+    "location": "Mexico City",
+    "circuit_key": 65,
+    "n_stops": 23,
+    "median_loss": 23.401,
+    "q1": 22.789,
+    "q3": 24.414,
+    "sd": 2.017,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 21,
+    "event": "S\u00e3o Paulo Grand Prix",
+    "circuit": "Interlagos",
+    "location": "S\u00e3o Paulo",
+    "circuit_key": 14,
+    "n_stops": 36,
+    "median_loss": 21.571,
+    "q1": 20.943,
+    "q3": 22.868,
+    "sd": 2.403,
+    "rejected": {
+      "neutralised": 8,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2022,
+    "round": 22,
+    "event": "Abu Dhabi Grand Prix",
+    "circuit": "Yas Marina Circuit",
+    "location": "Yas Island",
+    "circuit_key": 70,
+    "n_stops": 27,
+    "median_loss": 23.075,
+    "q1": 22.384,
+    "q3": 24.162,
+    "sd": 1.074,
+    "rejected": {
+      "neutralised": 4,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 1,
+    "event": "Bahrain Grand Prix",
+    "circuit": "Sakhir",
+    "location": "Sakhir",
+    "circuit_key": 63,
+    "n_stops": 41,
+    "median_loss": 24.278,
+    "q1": 23.747,
+    "q3": 26.392,
+    "sd": 4.303,
+    "rejected": {
+      "neutralised": 6,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 3,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 2,
+    "event": "Saudi Arabian Grand Prix",
+    "circuit": "Jeddah",
+    "location": "Jeddah",
+    "circuit_key": 149,
+    "n_stops": 10,
+    "median_loss": 20.708,
+    "q1": 20.013,
+    "q3": 23.161,
+    "sd": 7.1,
+    "rejected": {
+      "neutralised": 14,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 3,
+    "event": "Australian Grand Prix",
+    "circuit": "Melbourne",
+    "location": "Melbourne",
+    "circuit_key": 10,
+    "n_stops": 2,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 63,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 4,
+    "event": "Azerbaijan Grand Prix",
+    "circuit": "Baku",
+    "location": "Baku",
+    "circuit_key": 144,
+    "n_stops": 10,
+    "median_loss": 21.455,
+    "q1": 20.087,
+    "q3": 21.72,
+    "sd": 1.359,
+    "rejected": {
+      "neutralised": 13,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 5,
+    "event": "Miami Grand Prix",
+    "circuit": "Miami",
+    "location": "Miami",
+    "circuit_key": 151,
+    "n_stops": 20,
+    "median_loss": 19.929,
+    "q1": 19.248,
+    "q3": 21.428,
+    "sd": 6.498,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 6,
+    "event": "Monaco Grand Prix",
+    "circuit": "Monte Carlo",
+    "location": "Monaco",
+    "circuit_key": 22,
+    "n_stops": 4,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 22,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 11,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 7,
+    "event": "Spanish Grand Prix",
+    "circuit": "Catalunya",
+    "location": "Barcelona",
+    "circuit_key": 15,
+    "n_stops": 43,
+    "median_loss": 23.861,
+    "q1": 23.096,
+    "q3": 24.772,
+    "sd": 3.712,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 8,
+    "event": "Canadian Grand Prix",
+    "circuit": "Montreal",
+    "location": "Montr\u00e9al",
+    "circuit_key": 23,
+    "n_stops": 13,
+    "median_loss": 20.223,
+    "q1": 19.797,
+    "q3": 20.849,
+    "sd": 4.21,
+    "rejected": {
+      "neutralised": 19,
+      "no_time": 0,
+      "thin_baseline": 1,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 9,
+    "event": "Austrian Grand Prix",
+    "circuit": "Spielberg",
+    "location": "Spielberg",
+    "circuit_key": 19,
+    "n_stops": 27,
+    "median_loss": 21.683,
+    "q1": 20.937,
+    "q3": 27.229,
+    "sd": 3.726,
+    "rejected": {
+      "neutralised": 35,
+      "no_time": 1,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 10,
+    "event": "British Grand Prix",
+    "circuit": "Silverstone",
+    "location": "Silverstone",
+    "circuit_key": 2,
+    "n_stops": 10,
+    "median_loss": 19.731,
+    "q1": 19.15,
+    "q3": 21.844,
+    "sd": 4.39,
+    "rejected": {
+      "neutralised": 14,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 11,
+    "event": "Hungarian Grand Prix",
+    "circuit": "Hungaroring",
+    "location": "Budapest",
+    "circuit_key": 4,
+    "n_stops": 36,
+    "median_loss": 21.389,
+    "q1": 20.765,
+    "q3": 22.81,
+    "sd": 2.039,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 12,
+    "event": "Belgian Grand Prix",
+    "circuit": "Spa-Francorchamps",
+    "location": "Spa-Francorchamps",
+    "circuit_key": 7,
+    "n_stops": 24,
+    "median_loss": 18.11,
+    "q1": 17.667,
+    "q3": 19.93,
+    "sd": 1.59,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 13,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 13,
+    "event": "Dutch Grand Prix",
+    "circuit": "Zandvoort",
+    "location": "Zandvoort",
+    "circuit_key": 55,
+    "n_stops": 34,
+    "median_loss": 31.038,
+    "q1": 22.269,
+    "q3": 40.572,
+    "sd": 12.455,
+    "rejected": {
+      "neutralised": 38,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 28,
+      "implausible": 1
+    }
+  },
+  {
+    "season": 2023,
+    "round": 14,
+    "event": "Italian Grand Prix",
+    "circuit": "Monza",
+    "location": "Monza",
+    "circuit_key": 39,
+    "n_stops": 25,
+    "median_loss": 25.293,
+    "q1": 24.654,
+    "q3": 25.724,
+    "sd": 2.176,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 15,
+    "event": "Singapore Grand Prix",
+    "circuit": "Singapore",
+    "location": "Marina Bay",
+    "circuit_key": 61,
+    "n_stops": 3,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 22,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 16,
+    "event": "Japanese Grand Prix",
+    "circuit": "Suzuka",
+    "location": "Suzuka",
+    "circuit_key": 46,
+    "n_stops": 27,
+    "median_loss": 22.531,
+    "q1": 21.593,
+    "q3": 23.759,
+    "sd": 5.196,
+    "rejected": {
+      "neutralised": 13,
+      "no_time": 2,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 17,
+    "event": "Qatar Grand Prix",
+    "circuit": "Lusail",
+    "location": "Lusail",
+    "circuit_key": 150,
+    "n_stops": 41,
+    "median_loss": 27.811,
+    "q1": 27.147,
+    "q3": 28.753,
+    "sd": 2.701,
+    "rejected": {
+      "neutralised": 13,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 18,
+    "event": "United States Grand Prix",
+    "circuit": "Austin",
+    "location": "Austin",
+    "circuit_key": 9,
+    "n_stops": 34,
+    "median_loss": 20.99,
+    "q1": 20.34,
+    "q3": 21.644,
+    "sd": 1.235,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 2,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 19,
+    "event": "Mexico City Grand Prix",
+    "circuit": "Mexico City",
+    "location": "Mexico City",
+    "circuit_key": 65,
+    "n_stops": 15,
+    "median_loss": 21.664,
+    "q1": 20.972,
+    "q3": 22.722,
+    "sd": 2.74,
+    "rejected": {
+      "neutralised": 22,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 20,
+    "event": "S\u00e3o Paulo Grand Prix",
+    "circuit": "Interlagos",
+    "location": "S\u00e3o Paulo",
+    "circuit_key": 14,
+    "n_stops": 33,
+    "median_loss": 22.182,
+    "q1": 21.389,
+    "q3": 22.655,
+    "sd": 1.204,
+    "rejected": {
+      "neutralised": 32,
+      "no_time": 2,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 21,
+    "event": "Las Vegas Grand Prix",
+    "circuit": "Las Vegas",
+    "location": "Las Vegas",
+    "circuit_key": 152,
+    "n_stops": 14,
+    "median_loss": 24.288,
+    "q1": 22.064,
+    "q3": 27.935,
+    "sd": 4.847,
+    "rejected": {
+      "neutralised": 17,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2023,
+    "round": 22,
+    "event": "Abu Dhabi Grand Prix",
+    "circuit": "Yas Marina Circuit",
+    "location": "Yas Island",
+    "circuit_key": 70,
+    "n_stops": 37,
+    "median_loss": 22.166,
+    "q1": 21.562,
+    "q3": 23.12,
+    "sd": 1.13,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 1,
+    "event": "Bahrain Grand Prix",
+    "circuit": "Sakhir",
+    "location": "Sakhir",
+    "circuit_key": 63,
+    "n_stops": 37,
+    "median_loss": 24.271,
+    "q1": 23.848,
+    "q3": 25.193,
+    "sd": 1.576,
+    "rejected": {
+      "neutralised": 5,
+      "no_time": 1,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 2,
+    "event": "Saudi Arabian Grand Prix",
+    "circuit": "Jeddah",
+    "location": "Jeddah",
+    "circuit_key": 149,
+    "n_stops": 5,
+    "median_loss": 21.816,
+    "q1": 21.217,
+    "q3": 23.746,
+    "sd": 10.163,
+    "rejected": {
+      "neutralised": 14,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 3,
+    "event": "Australian Grand Prix",
+    "circuit": "Melbourne",
+    "location": "Melbourne",
+    "circuit_key": 10,
+    "n_stops": 30,
+    "median_loss": 20.621,
+    "q1": 19.698,
+    "q3": 21.76,
+    "sd": 6.342,
+    "rejected": {
+      "neutralised": 5,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 4,
+    "event": "Japanese Grand Prix",
+    "circuit": "Suzuka",
+    "location": "Suzuka",
+    "circuit_key": 46,
+    "n_stops": 28,
+    "median_loss": 22.101,
+    "q1": 20.756,
+    "q3": 23.775,
+    "sd": 2.053,
+    "rejected": {
+      "neutralised": 19,
+      "no_time": 0,
+      "thin_baseline": 1,
+      "unstable": 6,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 5,
+    "event": "Chinese Grand Prix",
+    "circuit": "Shanghai",
+    "location": "Shanghai",
+    "circuit_key": 49,
+    "n_stops": 22,
+    "median_loss": 23.514,
+    "q1": 22.027,
+    "q3": 24.134,
+    "sd": 4.646,
+    "rejected": {
+      "neutralised": 18,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 6,
+    "event": "Miami Grand Prix",
+    "circuit": "Miami",
+    "location": "Miami",
+    "circuit_key": 151,
+    "n_stops": 12,
+    "median_loss": 19.781,
+    "q1": 19.087,
+    "q3": 22.561,
+    "sd": 4.048,
+    "rejected": {
+      "neutralised": 16,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 7,
+    "event": "Emilia Romagna Grand Prix",
+    "circuit": "Imola",
+    "location": "Imola",
+    "circuit_key": 6,
+    "n_stops": 23,
+    "median_loss": 27.842,
+    "q1": 27.234,
+    "q3": 28.715,
+    "sd": 2.151,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 2,
+      "thin_baseline": 0,
+      "unstable": 2,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 8,
+    "event": "Monaco Grand Prix",
+    "circuit": "Monte Carlo",
+    "location": "Monaco",
+    "circuit_key": 22,
+    "n_stops": 2,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 18,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 3,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 9,
+    "event": "Canadian Grand Prix",
+    "circuit": "Montreal",
+    "location": "Montr\u00e9al",
+    "circuit_key": 23,
+    "n_stops": 1,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 23,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 18,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 10,
+    "event": "Spanish Grand Prix",
+    "circuit": "Catalunya",
+    "location": "Barcelona",
+    "circuit_key": 15,
+    "n_stops": 42,
+    "median_loss": 22.787,
+    "q1": 21.804,
+    "q3": 23.547,
+    "sd": 1.967,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 11,
+    "event": "Austrian Grand Prix",
+    "circuit": "Spielberg",
+    "location": "Spielberg",
+    "circuit_key": 19,
+    "n_stops": 43,
+    "median_loss": 20.82,
+    "q1": 20.151,
+    "q3": 22.121,
+    "sd": 4.859,
+    "rejected": {
+      "neutralised": 1,
+      "no_time": 0,
+      "thin_baseline": 1,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 12,
+    "event": "British Grand Prix",
+    "circuit": "Silverstone",
+    "location": "Silverstone",
+    "circuit_key": 2,
+    "n_stops": 1,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 44,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 13,
+    "event": "Hungarian Grand Prix",
+    "circuit": "Hungaroring",
+    "location": "Budapest",
+    "circuit_key": 4,
+    "n_stops": 38,
+    "median_loss": 20.348,
+    "q1": 19.311,
+    "q3": 21.179,
+    "sd": 1.438,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 2,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 14,
+    "event": "Belgian Grand Prix",
+    "circuit": "Spa-Francorchamps",
+    "location": "Spa-Francorchamps",
+    "circuit_key": 7,
+    "n_stops": 31,
+    "median_loss": 18.274,
+    "q1": 17.66,
+    "q3": 19.274,
+    "sd": 1.094,
+    "rejected": {
+      "neutralised": 2,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 15,
+    "event": "Dutch Grand Prix",
+    "circuit": "Zandvoort",
+    "location": "Zandvoort",
+    "circuit_key": 55,
+    "n_stops": 25,
+    "median_loss": 23.085,
+    "q1": 22.419,
+    "q3": 24.148,
+    "sd": 1.311,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 16,
+    "event": "Italian Grand Prix",
+    "circuit": "Monza",
+    "location": "Monza",
+    "circuit_key": 39,
+    "n_stops": 30,
+    "median_loss": 25.821,
+    "q1": 25.172,
+    "q3": 26.747,
+    "sd": 3.996,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 17,
+    "event": "Azerbaijan Grand Prix",
+    "circuit": "Baku",
+    "location": "Baku",
+    "circuit_key": 144,
+    "n_stops": 17,
+    "median_loss": 21.58,
+    "q1": 20.813,
+    "q3": 23.467,
+    "sd": 4.776,
+    "rejected": {
+      "neutralised": 5,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 18,
+    "event": "Singapore Grand Prix",
+    "circuit": "Singapore",
+    "location": "Marina Bay",
+    "circuit_key": 61,
+    "n_stops": 17,
+    "median_loss": 29.326,
+    "q1": 28.545,
+    "q3": 30.709,
+    "sd": 1.864,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 1,
+      "thin_baseline": 0,
+      "unstable": 5,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 19,
+    "event": "United States Grand Prix",
+    "circuit": "Austin",
+    "location": "Austin",
+    "circuit_key": 9,
+    "n_stops": 21,
+    "median_loss": 21.996,
+    "q1": 20.799,
+    "q3": 22.94,
+    "sd": 2.71,
+    "rejected": {
+      "neutralised": 2,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 20,
+    "event": "Mexico City Grand Prix",
+    "circuit": "Mexico City",
+    "location": "Mexico City",
+    "circuit_key": 65,
+    "n_stops": 19,
+    "median_loss": 23.314,
+    "q1": 21.963,
+    "q3": 24.789,
+    "sd": 5.38,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 2,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 21,
+    "event": "S\u00e3o Paulo Grand Prix",
+    "circuit": "Interlagos",
+    "location": "S\u00e3o Paulo",
+    "circuit_key": 14,
+    "n_stops": 0,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 34,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 22,
+    "event": "Las Vegas Grand Prix",
+    "circuit": "Las Vegas",
+    "location": "Las Vegas",
+    "circuit_key": 152,
+    "n_stops": 37,
+    "median_loss": 22.348,
+    "q1": 21.525,
+    "q3": 23.775,
+    "sd": 3.256,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 2,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 23,
+    "event": "Qatar Grand Prix",
+    "circuit": "Lusail",
+    "location": "Lusail",
+    "circuit_key": 150,
+    "n_stops": 6,
+    "median_loss": 29.896,
+    "q1": 26.691,
+    "q3": 33.397,
+    "sd": 5.307,
+    "rejected": {
+      "neutralised": 52,
+      "no_time": 0,
+      "thin_baseline": 1,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2024,
+    "round": 24,
+    "event": "Abu Dhabi Grand Prix",
+    "circuit": "Yas Marina Circuit",
+    "location": "Yas Island",
+    "circuit_key": 70,
+    "n_stops": 22,
+    "median_loss": 23.462,
+    "q1": 21.863,
+    "q3": 26.001,
+    "sd": 6.794,
+    "rejected": {
+      "neutralised": 6,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 1,
+    "event": "Australian Grand Prix",
+    "circuit": "Melbourne",
+    "location": "Melbourne",
+    "circuit_key": 10,
+    "n_stops": 0,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 82,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 2,
+    "event": "Chinese Grand Prix",
+    "circuit": "Shanghai",
+    "location": "Shanghai",
+    "circuit_key": 49,
+    "n_stops": 22,
+    "median_loss": 22.677,
+    "q1": 21.505,
+    "q3": 23.157,
+    "sd": 5.677,
+    "rejected": {
+      "neutralised": 1,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 2,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 3,
+    "event": "Japanese Grand Prix",
+    "circuit": "Suzuka",
+    "location": "Suzuka",
+    "circuit_key": 46,
+    "n_stops": 20,
+    "median_loss": 23.404,
+    "q1": 22.839,
+    "q3": 25.039,
+    "sd": 1.931,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 4,
+    "event": "Bahrain Grand Prix",
+    "circuit": "Sakhir",
+    "location": "Sakhir",
+    "circuit_key": 63,
+    "n_stops": 27,
+    "median_loss": 23.075,
+    "q1": 22.117,
+    "q3": 24.592,
+    "sd": 3.423,
+    "rejected": {
+      "neutralised": 14,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 5,
+    "event": "Saudi Arabian Grand Prix",
+    "circuit": "Jeddah",
+    "location": "Jeddah",
+    "circuit_key": 149,
+    "n_stops": 15,
+    "median_loss": 20.495,
+    "q1": 19.201,
+    "q3": 21.711,
+    "sd": 1.728,
+    "rejected": {
+      "neutralised": 3,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 6,
+    "event": "Miami Grand Prix",
+    "circuit": "Miami",
+    "location": "Miami",
+    "circuit_key": 151,
+    "n_stops": 9,
+    "median_loss": 18.286,
+    "q1": 18.082,
+    "q3": 19.196,
+    "sd": 0.821,
+    "rejected": {
+      "neutralised": 9,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 7,
+    "event": "Emilia Romagna Grand Prix",
+    "circuit": "Imola",
+    "location": "Imola",
+    "circuit_key": 6,
+    "n_stops": 12,
+    "median_loss": 28.452,
+    "q1": 28.077,
+    "q3": 29.746,
+    "sd": 8.659,
+    "rejected": {
+      "neutralised": 25,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 8,
+    "event": "Monaco Grand Prix",
+    "circuit": "Monte Carlo",
+    "location": "Monaco",
+    "circuit_key": 22,
+    "n_stops": 29,
+    "median_loss": 20.261,
+    "q1": 19.621,
+    "q3": 21.434,
+    "sd": 1.401,
+    "rejected": {
+      "neutralised": 4,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 7,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 9,
+    "event": "Spanish Grand Prix",
+    "circuit": "Catalunya",
+    "location": "Barcelona",
+    "circuit_key": 15,
+    "n_stops": 35,
+    "median_loss": 22.46,
+    "q1": 21.36,
+    "q3": 23.452,
+    "sd": 4.662,
+    "rejected": {
+      "neutralised": 14,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 5,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 10,
+    "event": "Canadian Grand Prix",
+    "circuit": "Montreal",
+    "location": "Montr\u00e9al",
+    "circuit_key": 23,
+    "n_stops": 28,
+    "median_loss": 19.706,
+    "q1": 19.225,
+    "q3": 20.838,
+    "sd": 2.577,
+    "rejected": {
+      "neutralised": 54,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 11,
+    "event": "Austrian Grand Prix",
+    "circuit": "Spielberg",
+    "location": "Spielberg",
+    "circuit_key": 19,
+    "n_stops": 30,
+    "median_loss": 20.984,
+    "q1": 20.488,
+    "q3": 21.947,
+    "sd": 2.46,
+    "rejected": {
+      "neutralised": 2,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 12,
+    "event": "British Grand Prix",
+    "circuit": "Silverstone",
+    "location": "Silverstone",
+    "circuit_key": 2,
+    "n_stops": 2,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 19,
+      "no_time": 0,
+      "thin_baseline": 14,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 13,
+    "event": "Belgian Grand Prix",
+    "circuit": "Spa-Francorchamps",
+    "location": "Spa-Francorchamps",
+    "circuit_key": 7,
+    "n_stops": 6,
+    "median_loss": 20.849,
+    "q1": 18.771,
+    "q3": 21.942,
+    "sd": 1.717,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 20,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 14,
+    "event": "Hungarian Grand Prix",
+    "circuit": "Hungaroring",
+    "location": "Budapest",
+    "circuit_key": 4,
+    "n_stops": 29,
+    "median_loss": 20.998,
+    "q1": 20.233,
+    "q3": 22.577,
+    "sd": 2.795,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 15,
+    "event": "Dutch Grand Prix",
+    "circuit": "Zandvoort",
+    "location": "Zandvoort",
+    "circuit_key": 55,
+    "n_stops": 8,
+    "median_loss": 18.758,
+    "q1": 17.67,
+    "q3": 19.465,
+    "sd": 1.454,
+    "rejected": {
+      "neutralised": 29,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 2
+    }
+  },
+  {
+    "season": 2025,
+    "round": 16,
+    "event": "Italian Grand Prix",
+    "circuit": "Monza",
+    "location": "Monza",
+    "circuit_key": 39,
+    "n_stops": 19,
+    "median_loss": 25.289,
+    "q1": 24.843,
+    "q3": 25.961,
+    "sd": 3.519,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 17,
+    "event": "Azerbaijan Grand Prix",
+    "circuit": "Baku",
+    "location": "Baku",
+    "circuit_key": 144,
+    "n_stops": 15,
+    "median_loss": 21.398,
+    "q1": 20.671,
+    "q3": 21.94,
+    "sd": 1.789,
+    "rejected": {
+      "neutralised": 6,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 18,
+    "event": "Singapore Grand Prix",
+    "circuit": "Singapore",
+    "location": "Marina Bay",
+    "circuit_key": 61,
+    "n_stops": 19,
+    "median_loss": 23.14,
+    "q1": 22.304,
+    "q3": 26.112,
+    "sd": 3.063,
+    "rejected": {
+      "neutralised": 1,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 3,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 19,
+    "event": "United States Grand Prix",
+    "circuit": "Austin",
+    "location": "Austin",
+    "circuit_key": 9,
+    "n_stops": 18,
+    "median_loss": 20.972,
+    "q1": 19.668,
+    "q3": 21.9,
+    "sd": 1.584,
+    "rejected": {
+      "neutralised": 3,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 20,
+    "event": "Mexico City Grand Prix",
+    "circuit": "Mexico City",
+    "location": "Mexico City",
+    "circuit_key": 65,
+    "n_stops": 25,
+    "median_loss": 22.502,
+    "q1": 21.675,
+    "q3": 23.561,
+    "sd": 3.523,
+    "rejected": {
+      "neutralised": 1,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 21,
+    "event": "S\u00e3o Paulo Grand Prix",
+    "circuit": "Interlagos",
+    "location": "S\u00e3o Paulo",
+    "circuit_key": 14,
+    "n_stops": 33,
+    "median_loss": 22.054,
+    "q1": 21.493,
+    "q3": 23.936,
+    "sd": 3.734,
+    "rejected": {
+      "neutralised": 4,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 22,
+    "event": "Las Vegas Grand Prix",
+    "circuit": "Las Vegas",
+    "location": "Las Vegas",
+    "circuit_key": 152,
+    "n_stops": 16,
+    "median_loss": 22.354,
+    "q1": 20.654,
+    "q3": 23.025,
+    "sd": 4.881,
+    "rejected": {
+      "neutralised": 7,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 23,
+    "event": "Qatar Grand Prix",
+    "circuit": "Lusail",
+    "location": "Lusail",
+    "circuit_key": 150,
+    "n_stops": 23,
+    "median_loss": 26.956,
+    "q1": 26.188,
+    "q3": 27.835,
+    "sd": 4.512,
+    "rejected": {
+      "neutralised": 18,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2025,
+    "round": 24,
+    "event": "Abu Dhabi Grand Prix",
+    "circuit": "Yas Marina Circuit",
+    "location": "Yas Island",
+    "circuit_key": 70,
+    "n_stops": 26,
+    "median_loss": 22.591,
+    "q1": 21.43,
+    "q3": 23.509,
+    "sd": 2.317,
+    "rejected": {
+      "neutralised": 0,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 1,
+    "event": "Australian Grand Prix",
+    "circuit": "Melbourne",
+    "location": "Melbourne",
+    "circuit_key": 10,
+    "n_stops": 8,
+    "median_loss": 23.636,
+    "q1": 21.393,
+    "q3": 29.367,
+    "sd": 6.573,
+    "rejected": {
+      "neutralised": 22,
+      "no_time": 1,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 2,
+    "event": "Chinese Grand Prix",
+    "circuit": "Shanghai",
+    "location": "Shanghai",
+    "circuit_key": 49,
+    "n_stops": 4,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 15,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 3,
+    "event": "Japanese Grand Prix",
+    "circuit": "Suzuka",
+    "location": "Suzuka",
+    "circuit_key": 46,
+    "n_stops": 12,
+    "median_loss": 22.755,
+    "q1": 22.373,
+    "q3": 24.86,
+    "sd": 8.506,
+    "rejected": {
+      "neutralised": 15,
+      "no_time": 0,
+      "thin_baseline": 2,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 4,
+    "event": "Miami Grand Prix",
+    "circuit": "Miami",
+    "location": "Miami Gardens",
+    "circuit_key": 151,
+    "n_stops": 19,
+    "median_loss": 19.55,
+    "q1": 18.522,
+    "q3": 20.218,
+    "sd": 1.013,
+    "rejected": {
+      "neutralised": 2,
+      "no_time": 0,
+      "thin_baseline": 1,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 5,
+    "event": "Canadian Grand Prix",
+    "circuit": "Montreal",
+    "location": "Montr\u00e9al",
+    "circuit_key": 23,
+    "n_stops": 13,
+    "median_loss": 27.77,
+    "q1": 24.643,
+    "q3": 32.477,
+    "sd": 4.796,
+    "rejected": {
+      "neutralised": 19,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 2,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 6,
+    "event": "Monaco Grand Prix",
+    "circuit": "Monte Carlo",
+    "location": "Monte Carlo",
+    "circuit_key": 22,
+    "n_stops": 17,
+    "median_loss": 22.264,
+    "q1": 19.927,
+    "q3": 23.158,
+    "sd": 2.816,
+    "rejected": {
+      "neutralised": 67,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 2,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 7,
+    "event": "Barcelona Grand Prix",
+    "circuit": "Catalunya",
+    "location": "Barcelona",
+    "circuit_key": 15,
+    "n_stops": 37,
+    "median_loss": 23.682,
+    "q1": 22.869,
+    "q3": 24.743,
+    "sd": 2.545,
+    "rejected": {
+      "neutralised": 8,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 3,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 8,
+    "event": "Austrian Grand Prix",
+    "circuit": "Spielberg",
+    "location": "Spielberg",
+    "circuit_key": 19,
+    "n_stops": 33,
+    "median_loss": 21.282,
+    "q1": 20.726,
+    "q3": 21.845,
+    "sd": 1.434,
+    "rejected": {
+      "neutralised": 8,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 9,
+    "event": "British Grand Prix",
+    "circuit": "Silverstone",
+    "location": "Silverstone",
+    "circuit_key": 2,
+    "n_stops": 20,
+    "median_loss": 21.212,
+    "q1": 20.053,
+    "q3": 25.711,
+    "sd": 7.354,
+    "rejected": {
+      "neutralised": 29,
+      "no_time": 0,
+      "thin_baseline": 2,
+      "unstable": 0,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 10,
+    "event": "Belgian Grand Prix",
+    "circuit": "Spa-Francorchamps",
+    "location": "Spa-Francorchamps",
+    "circuit_key": 7,
+    "n_stops": 8,
+    "median_loss": 20.615,
+    "q1": 20.353,
+    "q3": 24.713,
+    "sd": 4.134,
+    "rejected": {
+      "neutralised": 18,
+      "no_time": 1,
+      "thin_baseline": 0,
+      "unstable": 1,
+      "implausible": 0
+    }
+  },
+  {
+    "season": 2026,
+    "round": 11,
+    "event": "Hungarian Grand Prix",
+    "circuit": "Hungaroring",
+    "location": "Budapest",
+    "circuit_key": 4,
+    "n_stops": 31,
+    "median_loss": 22.136,
+    "q1": 20.599,
+    "q3": 22.697,
+    "sd": 2.159,
+    "rejected": {
+      "neutralised": 11,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 3,
+      "implausible": 0
+    }
+  }
+]

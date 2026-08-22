@@ -4,6 +4,74 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-22 (later) — Pit loss, and a lookup that had been failing in silence
+
+The last hard-coded constant in the engine was pit loss: a flat 20.0 s ± 1.2 for every circuit,
+carried since Phase 3 because the plan called for a per-circuit measurement and Phase 3 had a
+Monte Carlo engine to build. It is the number the *timing* of every call rests on.
+
+**The measurement.** For each stop, the quantity the simulation actually adds — total time lost
+against staying out, `(in_lap - baseline) + (out_lap - baseline)` — against a *local* per-driver
+baseline of green, accurate, non-pit laps within five laps either side. The local baseline is what
+makes this work without modelling anything else: fuel load, track evolution and the driver's own
+pace are all near-constant across a fifteen-lap window, so they cancel rather than needing
+correction. 89 usable races, 2,066 stops, from the FastF1 cache at no API cost.
+
+**It validates against a number I did not fit.** Spa comes out at 18.40 s raw. `PLAN.md` wrote in
+June, from a published source, that Spa is the cheapest stop of the era at ~18.4 s. Two independent
+routes to the same figure is the only real evidence an estimator of this kind is measuring what it
+claims.
+
+**And the constant really is constant.** Monza across four seasons: 25.23, 25.29, 25.82, 25.29. The
+plan's claim that this is the most stable number in the sport is not rhetoric. Which is precisely
+why one flat value was the wrong model — it is reliable, it is just *different everywhere*, and the
+calendar spans about nine seconds from Spa at 19.5 to Lusail at 25.6.
+
+**Three filters, each removing a way the number would be wrong rather than merely noisy.** Stops
+under a safety car are excluded, because they are genuinely cheaper and the simulation already
+discounts that separately — folding them in would discount it twice. Stops whose reference window
+disagrees with itself by more than 1.5 s are excluded, which is what keeps wet and drying races
+out of a dry constant without needing to know which races were wet. And a race contributes its
+*median*, not its stops: the 2023 Dutch GP alone yields 34 measurable stops at a median of 31 s,
+and pooling stops would have let one chaotic afternoon define Zandvoort's constant.
+
+**Zandvoort: 22.58 s, not 20.0 s.** Tomorrow's race was being simulated with a stop 2.6 s cheaper
+than it is. On the Hungary recording, correcting to Budapest's 21.62 s moves Leclerc's lap-34 call
+from an expected P4.60 to P4.86 and — the part that matters — narrows the margin over the next
+option from +0.30 to +0.18. Same call, honestly less certain. That margin is what the engine uses
+to decide whether to say "marginal" instead of dressing a coin-flip as a decision.
+
+**The bug this uncovered is worse than the gap it fixed.** Building a per-circuit lookup meant
+checking that per-circuit lookups work, and they did not. These models are fitted on FastF1's
+`Location` and queried at runtime with the name the live feed sends, `Meeting.Circuit.ShortName`.
+**Nine of twenty-seven circuits spell those differently.** `circuit_factor.get(name, 1.0)` returned
+the neutral default and nothing reported it — no error, no warning, just the model quietly
+declining to use what it knew.
+
+So the 2026 Hungarian GP — the one race this system has actually run against, the race every number
+in this repo is fitted on — used a safety-car factor of 1.0x when the fitted value was 0.58x. A
+73% overestimate of safety-car risk, in the analysis I have been treating as the baseline. Barcelona,
+Monaco, Montréal, Singapore, São Paulo and Yas Marina were all equally inert, which is to say the
+per-circuit hazard model had been switched off at a third of the calendar since the day it was
+written.
+
+I did not write the alias table from memory, and the reason is that a wrong entry there maps one
+circuit's history onto another and *still* nothing errors — a worse failure than the one being
+fixed, and equally silent. `scripts/circuit_aliases.py` reads both spellings out of F1's own session
+info for every cached race and prints the pairs that disagree, with `Circuit.Key` alongside as the
+one genuinely stable identity. Re-run it when a season is added.
+
+**The lesson worth keeping** is that both of today's findings — the ledger that was never wired up,
+and this — are absences rather than errors. Nothing failed. Nothing logged a warning. Every test
+passed. A `.get(key, default)` with a sensible default is a decision to fail silently, and I had
+written two of them into the parts of the system whose whole purpose is to be checkable.
+
+**Still not done:** the spread is symmetric, and the real stop distribution has a long right tail —
+a botched stop is ten seconds slow, a good one is never ten seconds early. The plan asked for that
+tail explicitly. It is the next thing.
+
+---
+
 ## 2026-08-22 — The night before Zandvoort, and the gap that would have wasted it
 
 Race-day preflight, the day before the first live race. The suite is green, the endpoint still

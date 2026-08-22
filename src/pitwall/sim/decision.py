@@ -23,6 +23,7 @@ import numpy as np
 
 from pitwall.models.attrition import AttritionModel
 from pitwall.models.pace import PaceFit
+from pitwall.models.pit_loss import PitLossModel
 from pitwall.models.safety_car import HazardModel
 from pitwall.sim.race import CarEntry, SimConfig, simulate
 from pitwall.state.models import Compound
@@ -116,6 +117,7 @@ def evaluate_actions(
     pace: PaceFit,
     hazard: HazardModel | None = None,
     attrition: AttritionModel | None = None,
+    pit_loss: PitLossModel | None = None,
     compounds: tuple[Compound, ...] = DEFAULT_COMPOUNDS,
     delays: tuple[int, ...] = DEFAULT_DELAYS,
     config: SimConfig | None = None,
@@ -147,6 +149,7 @@ def evaluate_actions(
                 pace=pace,
                 hazard=hazard,
                 attrition=attrition,
+                pit_loss=pit_loss,
                 config=cfg,
             )
             positions = result.positions[:, index]
@@ -197,6 +200,7 @@ def undercut_threats(
     pace: PaceFit,
     hazard: HazardModel | None = None,
     attrition: AttritionModel | None = None,
+    pit_loss: PitLossModel | None = None,
     window: float = 4.0,
     our_pit_lap: int | None = None,
     config: SimConfig | None = None,
@@ -238,6 +242,7 @@ def undercut_threats(
             pace=pace,
             hazard=hazard,
             attrition=attrition,
+            pit_loss=pit_loss,
             config=cfg,
         )
         threats.append(

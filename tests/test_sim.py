@@ -559,3 +559,119 @@ def test_finished_and_retired_probabilities_are_complementary():
     for entry in grid(4):
         p = result.probability_retired(entry.driver)
         assert result.probability_finished(entry.driver) == pytest.approx(1 - p)
+
+
+# -- per-circuit pit loss ----------------------------------------------
+#
+# Pit loss was a flat 20.0 s everywhere until the calendar was measured and the
+# real spread turned out to be about nine seconds, Spa to Marina Bay. Since the
+# simulation's whole job is weighing time lost in the pits against time gained
+# on fresher tyres, that constant is load-bearing for every call.
+
+from pitwall.models.pit_loss import PitLossModel  # noqa: E402
+
+
+def pit_loss_model(**circuits: float) -> PitLossModel:
+    return PitLossModel(
+        baseline=22.0,
+        circuit_loss=dict(circuits),
+        circuit_raw=dict(circuits),
+        circuit_spread={c: 1.5 for c in circuits},
+        circuit_races={c: 4 for c in circuits},
+        circuit_stops={c: 80 for c in circuits},
+        spread=1.5,
+        n_races=len(circuits) * 4,
+        n_stops=len(circuits) * 80,
+    )
+
+
+def two_cars() -> list[CarEntry]:
+    return [
+        CarEntry(driver="a", tla="AAA", base_pace=90.0, tyre_age=20, elapsed=0.0),
+        CarEntry(driver="b", tla="BBB", base_pace=90.0, tyre_age=20, elapsed=30.0),
+    ]
+
+
+def test_an_expensive_pit_lane_makes_stopping_worse():
+    """The same race at Monza and at Spa should not produce the same call."""
+    cheap = evaluate_actions(
+        two_cars(),
+        our_driver="a",
+        from_lap=20,
+        total_laps=50,
+        circuit="Spa-Francorchamps",
+        pace=pace_fit(),
+        pit_loss=pit_loss_model(**{"Spa-Francorchamps": 18.4}),
+        config=SimConfig(n_sims=400, seed=3),
+    )
+    dear = evaluate_actions(
+        two_cars(),
+        our_driver="a",
+        from_lap=20,
+        total_laps=50,
+        circuit="Lusail",
+        pace=pace_fit(),
+        pit_loss=pit_loss_model(Lusail=27.8),
+        config=SimConfig(n_sims=400, seed=3),
+    )
+    # Identical everything except the cost of the stop, so any difference in the
+    # expected finish is that cost propagating through.
+    assert dear.best.mean_position >= cheap.best.mean_position
+
+
+def test_the_model_overrides_the_flat_config_constant():
+    entries = two_cars()
+    kwargs = dict(
+        our_driver="a",
+        from_lap=20,
+        total_laps=50,
+        circuit="Monza",
+        pace=pace_fit(),
+        config=SimConfig(n_sims=400, seed=11),
+    )
+    flat = evaluate_actions(entries, **kwargs)
+    fitted = evaluate_actions(entries, pit_loss=pit_loss_model(Monza=30.0), **kwargs)
+    assert fitted.best.mean_position != flat.best.mean_position
+
+
+def test_an_unknown_circuit_uses_the_field_median_not_zero():
+    """A circuit missing from the fit must never make stopping free."""
+    model = pit_loss_model(Monza=25.0)
+    assert model.loss("Nowhere") == pytest.approx(22.0)
+
+    result = simulate(
+        two_cars(),
+        from_lap=20,
+        total_laps=50,
+        circuit="Nowhere",
+        pace=pace_fit(),
+        pit_loss=model,
+        config=SimConfig(n_sims=200, seed=5),
+    )
+    assert result is not None
+
+
+def test_no_model_falls_back_to_the_config_value():
+    """Absent history degrades to the old behaviour, not to a broken one."""
+    cfg = SimConfig(n_sims=300, seed=7, pit_loss=25.0)
+    with_none = evaluate_actions(
+        two_cars(),
+        our_driver="a",
+        from_lap=20,
+        total_laps=50,
+        circuit="Anywhere",
+        pace=pace_fit(),
+        pit_loss=None,
+        config=cfg,
+    )
+    explicit = evaluate_actions(
+        two_cars(),
+        our_driver="a",
+        from_lap=20,
+        total_laps=50,
+        circuit="Anywhere",
+        pace=pace_fit(),
+        pit_loss=pit_loss_model(Anywhere=25.0),
+        config=cfg,
+    )
+    assert with_none.best.mean_position == pytest.approx(explicit.best.mean_position, abs=0.25)

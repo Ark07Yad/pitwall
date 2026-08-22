@@ -173,6 +173,7 @@ uv run pitwall replay data/raw/2026-hungary-race.txt      # fold it into race st
 uv run pitwall replay data/raw/2026-hungary-race.txt --speed 60 --follow
 uv run pitwall laps   data/raw/2026-hungary-race.txt      # extract and filter laps
 uv run pitwall hazard                                    # per-circuit safety-car risk
+uv run pitwall pitloss                                   # per-circuit pit loss
 uv run pitwall strategy data/raw/2026-hungary-race.txt --lap 34 --driver LEC
 ```
 
@@ -229,6 +230,9 @@ answer accounts for them covering or attacking.
 The suite asserts textbook dynamics rather than just unit behaviour: starting ahead is worth
 something, a faster car is held up behind a slower one, safety cars erase a large lead, and the
 undercut works. If those break the model is wrong whatever the unit tests say.
+
+The *timing* of a stop rests on how much one costs, and that is now measured per circuit rather
+than assumed — see below.
 
 ⚠️ The *timing* of a stop is on much firmer ground than the *compound*. Compound choice inherits the
 single-race degradation confounding documented in [the logbook](docs/logbook.md) — at Hungary the
@@ -302,9 +306,12 @@ src/pitwall/
 └── models/
     ├── fuel.py       physics fuel correction, usable from lap 1
     ├── pace.py       joint fit: pace, fuel trend, per-compound degradation
+    ├── pit_loss.py   per-circuit green-flag pit loss, shrunk
     └── safety_car.py per-circuit hazard with empirical-Bayes shrinkage
 scripts/record.py     supervised live recorder
 scripts/fetch_history.py  resumable safety-car history fetch
+scripts/fetch_pit_loss.py resumable pit-loss measurement
+scripts/circuit_aliases.py  derive circuit-name aliases from F1's session info
 docs/PLAN.md          the full five-phase plan
 docs/logbook.md       what broke and what the data taught me
 ```
@@ -365,6 +372,54 @@ races per circuit cannot justify a raw ratio.
 
 Note the F1 API allows 500 calls an hour, so a full fetch takes a couple of runs. The script is
 resumable: re-run the same command and it picks up where it stopped.
+
+---
+
+### Pit loss
+
+The time a stop costs is the most stable constant in the sport — it is fixed by pit lane geometry
+and a speed limit, not by car performance. Monza measures 25.2, 25.3, 25.8 and 25.3 seconds across
+four consecutive seasons. That stability is exactly why modelling it as one flat number everywhere
+was expensive: the constant is reliable, it is just *different everywhere*, and the calendar spans
+about nine seconds.
+
+`scripts/fetch_pit_loss.py` measures it from 2022–2026 lap data and `pitwall pitloss` fits it:
+
+```
+Green-flag pit loss from 89 races, 2066 stops
+
+  field median 22.18s  (spread 1.56s)
+
+  per circuit (shrunk, prior weight 2 races):
+    circuit                   shrunk     raw     sd  races  stops
+    Spa-Francorchamps         19.48s  18.40s  1.64s      5    101
+    Miami                     20.47s  19.78s  1.60s      5     74
+    ...
+    Monza                     24.25s  25.29s  1.18s      4     93
+    Lusail                    25.56s  27.81s  1.35s      3     70
+```
+
+What is measured is the quantity the simulation actually adds — total time lost against staying
+out, in-lap delta plus out-lap delta — against a *local* per-driver baseline, so fuel load, track
+evolution and driver pace cancel rather than needing correction. Spa comes out at 18.40 s raw,
+which is independently the number this sport quotes as the cheapest stop of the era.
+
+Green-flag stops only: a stop under a safety car is cheaper because the field is crawling, and the
+simulation discounts that separately. Races contribute their median rather than their stops, so one
+wet afternoon with forty measurable stops cannot outvote three clean ones, and circuits are shrunk
+toward the field median because five races is not enough to justify a raw constant.
+
+### A note on circuit names
+
+These models are fitted on FastF1's `Location` but queried at runtime with the name the live feed
+sends, `Meeting.Circuit.ShortName`. **Nine of twenty-seven circuits spell those differently** —
+Hungaroring/Budapest, Catalunya/Barcelona, Singapore/Marina Bay, Interlagos/São Paulo — and the
+mismatch was silent: the lookup returned the neutral default and nothing reported it. The 2026
+Hungarian GP ran on a 1.0x safety-car factor when the fitted value was 0.58x.
+
+The alias table is *derived*, never recalled — `scripts/circuit_aliases.py` reads both spellings
+out of F1's own session info for every cached race and prints the pairs that disagree. A wrong
+entry here maps one circuit's history onto another and nothing errors.
 
 ---
 

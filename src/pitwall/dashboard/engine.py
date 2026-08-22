@@ -26,7 +26,7 @@ from pitwall.feed.base import RaceFeed
 from pitwall.feed.signalr import SignalRFeed
 from pitwall.laps import LapCollector, filter_laps
 from pitwall.ledger import PredictionLog, prediction_from
-from pitwall.models import AttritionModel, HazardModel, PaceFit, fit_pace
+from pitwall.models import AttritionModel, HazardModel, PaceFit, PitLossModel, fit_pace
 from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
 from pitwall.state.models import RaceState
 
@@ -69,6 +69,7 @@ class Engine:
         *,
         hazard: HazardModel | None = None,
         attrition: AttritionModel | None = None,
+        pit_loss: PitLossModel | None = None,
         driver: str = "",
         sims: int = 1500,
         log: PredictionLog | None = None,
@@ -77,6 +78,7 @@ class Engine:
         self.feed = feed
         self.hazard = hazard
         self.attrition = attrition
+        self.pit_loss = pit_loss
         self.requested_driver = driver.upper()
         self.sims = sims
         self.log = log
@@ -199,6 +201,7 @@ class Engine:
             pace=pace,
             hazard=self.hazard,
             attrition=self.attrition,
+            pit_loss=self.pit_loss,
             config=config,
         )
         threats = undercut_threats(
@@ -210,6 +213,7 @@ class Engine:
             pace=pace,
             hazard=self.hazard,
             attrition=self.attrition,
+            pit_loss=self.pit_loss,
             our_pit_lap=recommendation.best.pit_lap,
             config=config,
         )
@@ -312,9 +316,20 @@ class Engine:
         pace = self._pace
         if pace is None:
             return None
+        stop = None
+        if self.pit_loss is not None:
+            circuit = self.state.circuit
+            stop = {
+                "seconds": round(self.pit_loss.loss(circuit), 2),
+                "spread": round(self.pit_loss.spread_for(circuit), 2),
+                "fitted": self.pit_loss.known_circuit(circuit),
+                "races": self.pit_loss.races_at(circuit),
+            }
+
         return {
             "clean_laps": self._clean_laps,
             "stints": pace.n_stints,
+            "pit_loss": stop,
             "trend": round(pace.race_lap_coef, 4),
             "residual": round(pace.residual_std, 3),
             "r2": round(pace.r_squared, 3),

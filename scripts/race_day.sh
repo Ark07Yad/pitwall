@@ -9,7 +9,10 @@
 #   scripts/race_day.sh "2026-08-23 13:45" 2026-netherlands-race "2026 Dutch GP" LEC 195
 #
 # Arguments: start time (local), recording basename, ledger session name, the
-# TLA to advise (blank = the leader), and minutes to run.
+# TLA to advise (blank = the leader), minutes to run, and the dashboard port.
+#
+# The port defaults to 8010 rather than the CLI's 8000, because this machine has
+# another project's API listening on 8000. Binding is checked before the wait.
 #
 # Deliberately NOT run alongside scripts/record.py. That would open a second
 # connection to an undocumented endpoint from one address, which is exactly the
@@ -25,6 +28,7 @@ BASENAME="${2:?missing recording basename}"
 SESSION="${3:?missing ledger session name}"
 DRIVER="${4:-}"
 MINUTES="${5:-195}"
+PORT="${6:-8010}"
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT="${REPO}/data/raw/${BASENAME}.txt"
@@ -55,6 +59,16 @@ if ! git -C "$REPO" config user.email >/dev/null; then
     exit 1
 fi
 
+# Check the port before the wait, not after it. Uvicorn cannot bind a port that
+# is taken, so a clash means the engine dies the instant it finally starts -
+# hours later, with the race under way and no second chance at it.
+if lsof -ti:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "port $PORT is already in use:" >&2
+    lsof -i:"$PORT" -sTCP:LISTEN >&2
+    echo "pass a free port as the 6th argument" >&2
+    exit 1
+fi
+
 now_epoch=$(date +%s)
 wait_seconds=$(( target_epoch - now_epoch ))
 if (( wait_seconds < 0 )); then
@@ -65,25 +79,42 @@ fi
 caffeinate -ims -w $$ &
 CAFFEINATE_PID=$!
 
+# A trap handler that does not exit only *runs* on a signal - control then
+# resumes wherever it was, so the script survives the Ctrl-C or `kill` that was
+# meant to stop it. That is how a test run of this script outlived its own
+# cleanup, dropped caffeinate, and sat waiting to start a second, unprotected
+# recorder at the same minute as the real one. Disarm first so the handler runs
+# once, then exit for real.
 cleanup() {
+    local code="${1:-0}"
+    trap - EXIT INT TERM
     log "shutting down"
     [[ -n "${ENGINE_PID:-}" ]] && kill "$ENGINE_PID" 2>/dev/null
+    [[ -n "${TIMER_PID:-}" ]] && kill "$TIMER_PID" 2>/dev/null
     kill "$CAFFEINATE_PID" 2>/dev/null
+    exit "$code"
 }
-trap cleanup EXIT INT TERM
+trap 'cleanup 130' INT TERM
+trap 'cleanup $?' EXIT
 
 log "target    : $START_AT (in $(( wait_seconds / 60 )) min)"
 log "recording : $OUTPUT"
 log "ledger    : $SESSION"
 log "advising  : ${DRIVER:-the leader}"
 log "duration  : ${MINUTES} min"
-log "dashboard : http://127.0.0.1:8000"
+log "dashboard : http://127.0.0.1:${PORT}"
 
 # Poll the clock rather than one long sleep: a single `sleep` is suspended if
 # the machine ever naps, so it fires late by however long the nap lasted.
 while (( $(date +%s) < target_epoch )); do
     remaining=$(( target_epoch - $(date +%s) ))
-    if (( remaining > 60 )); then sleep 60; else sleep "$remaining"; fi
+    (( remaining > 60 )) && remaining=60
+    # Background the sleep and `wait` on it. Bash defers trap handling until the
+    # current *foreground* command finishes, so a plain `sleep 60` leaves the
+    # script up to a minute unresponsive to Ctrl-C - a long time to stand there
+    # on a race morning wondering whether it stopped. `wait` is interruptible.
+    sleep "$remaining" &
+    wait $! 2>/dev/null || true
 done
 
 log "starting the engine"
@@ -92,6 +123,7 @@ log "starting the engine"
     --log-predictions \
     --session "$SESSION" \
     --driver "$DRIVER" \
+    --port "$PORT" \
     >>"$LOG" 2>&1 &
 ENGINE_PID=$!
 

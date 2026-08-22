@@ -22,15 +22,20 @@ Qualifying finished 16:00–17:00 CEST on Saturday and the feed already reports 
 ## One command
 
 ```bash
-nohup ./scripts/race_day.sh "2026-08-23 13:45" 2026-netherlands-race "2026 Dutch GP" "" 195 &
+nohup ./scripts/race_day.sh "2026-08-23 13:45" 2026-netherlands-race "2026 Dutch GP" "" 195 8010 &
 ```
 
 Arguments: start time (local), recording basename, ledger session name, TLA to advise (empty = the
-race leader), minutes to run.
+race leader), minutes to run, dashboard port.
 
 That is **one process holding one connection**, which records the raw frames, folds them into race
 state, fits the models, publishes a call every lap, and commits each call to the ledger as it is
-made. The dashboard is at <http://127.0.0.1:8000>.
+made. The dashboard is at <http://127.0.0.1:8010>.
+
+⚠️ **Port 8010, not the CLI's default 8000.** This machine has the SmishingGuard API (the
+`smishing-web` backend) listening on 8000 and has done since 5 August. Uvicorn cannot bind a taken
+port, so on 8000 the engine would die the instant it started — hours after launch, with the race
+under way. The script refuses to start if the port is busy rather than discovering it later.
 
 **Do not also run `scripts/record.py`.** It would open a second connection to an undocumented
 endpoint from one address, which is exactly what this project's disclaimer promises not to do. The
@@ -64,7 +69,7 @@ Check the dashboard in the first few laps:
 | `ledger.written` | rising by one per lap, once calls begin |
 | `ledger.commits_failed` | **0** |
 
-`curl -s http://127.0.0.1:8000/api/state | python -m json.tool` if the browser is inconvenient.
+`curl -s http://127.0.0.1:8010/api/state | python -m json.tool` if the browser is inconvenient.
 
 ### Things that look broken and are not
 
@@ -111,12 +116,15 @@ from a front wing change.
 
 ## If it goes wrong
 
+**Stopping it early.** `kill` the `race_day.sh` PID — it shuts the engine and caffeinate down
+within a second or two. (Ctrl-C works if it is in the foreground.)
+
 **Engine dies.** Restart the same command; it appends to the recording and the ledger.
 The `--session` name must be identical or you get a second ledger file.
 
 ```bash
 .venv/bin/pitwall dashboard --record data/raw/2026-netherlands-race.txt \
-    --log-predictions --session "2026 Dutch GP"
+    --log-predictions --session "2026 Dutch GP" --port 8010
 ```
 
 **Commits failing** (`ledger.commits_failed` climbing). The predictions are still on disk; only the

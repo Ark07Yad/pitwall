@@ -25,6 +25,7 @@ from typing import Any
 from pitwall.feed.base import RaceFeed
 from pitwall.feed.signalr import SignalRFeed
 from pitwall.laps import LapCollector, filter_laps
+from pitwall.ledger import PredictionLog, prediction_from
 from pitwall.models import AttritionModel, HazardModel, PaceFit, fit_pace
 from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
 from pitwall.state.models import RaceState
@@ -70,12 +71,16 @@ class Engine:
         attrition: AttritionModel | None = None,
         driver: str = "",
         sims: int = 1500,
+        log: PredictionLog | None = None,
+        horizon: int = 10,
     ) -> None:
         self.feed = feed
         self.hazard = hazard
         self.attrition = attrition
         self.requested_driver = driver.upper()
         self.sims = sims
+        self.log = log
+        self.horizon = horizon
 
         self.collector = LapCollector()
         self.advice: Advice | None = None
@@ -85,6 +90,13 @@ class Engine:
         self._last_advice_at = 0.0
         self._last_advised_lap = -1
         self._busy = False
+
+        self.logged = 0
+        self.log_failures = 0
+        # Laps already written. `_compute` is gated to one run per lap, but a
+        # reconnection mid-race replays the snapshot and can revisit a lap, and
+        # a ledger that records the same lap twice is not a track record.
+        self._logged_laps: set[int] = set()
 
         # Where each car started, so the screen can show positions gained
         # rather than only where everyone is now. Captured the first time a car
@@ -202,6 +214,8 @@ class Engine:
             config=config,
         )
 
+        self._record(recommendation, state)
+
         return Advice(
             lap=lap,
             driver=target.driver,
@@ -227,6 +241,54 @@ class Engine:
             ],
             computed_at=time.time(),
         )
+
+    def _record(self, recommendation: Any, state: RaceState) -> None:
+        """Write the call to the ledger and commit it, before the lap it covers.
+
+        This runs inside `_compute`, which is already on a worker thread, so the
+        git subprocess cannot stall ingest.
+
+        Three guards keep the ledger honest rather than merely full:
+
+        **A race only.** `total_laps` is set by the `LapCount` topic, which
+        practice and qualifying never send, so a dashboard left running through
+        FP1 records nothing. `session_type` is checked too where the feed gives
+        it.
+
+        **Once per lap.** A mid-race reconnection replays the state snapshot and
+        can walk back over a lap already advised. Logging it twice would double-
+        count that call in every score computed from the file afterwards.
+
+        **Never fatal.** A prediction that cannot be written must not take the
+        race engine down with it; the screen keeps working and the failure is
+        surfaced in the snapshot instead.
+        """
+        if self.log is None:
+            return
+        if state.total_laps <= 0:
+            return
+        if state.session_type and state.session_type.lower() != "race":
+            return
+        if recommendation.lap in self._logged_laps:
+            return
+
+        try:
+            self.log.record(
+                prediction_from(
+                    recommendation,
+                    session=self.log.session,
+                    circuit=state.circuit,
+                    total_laps=state.total_laps,
+                    horizon=self.horizon,
+                )
+            )
+        except Exception:
+            self.log_failures += 1
+            log.exception("could not log prediction at lap %s", recommendation.lap)
+            return
+
+        self._logged_laps.add(recommendation.lap)
+        self.logged += 1
 
     def _recent_laps(self, limit: int = 12) -> dict[str, list[float]]:
         """Last few clean-ish lap times per car, for the trend sparklines.
@@ -281,6 +343,23 @@ class Engine:
             "known_circuit": self.hazard.known_circuit(circuit),
             "windows": windows,
             "remaining": round(self.hazard.probability_within(circuit, lap + 1, total, total), 3),
+        }
+
+    def _ledger_summary(self) -> dict[str, Any] | None:
+        """Whether calls are being committed, so the screen can show it.
+
+        A silently disabled ledger during the one race it exists for is the
+        expensive failure here - the race is not re-runnable - so this is on the
+        dashboard rather than only in a log file.
+        """
+        if self.log is None:
+            return None
+        return {
+            "path": str(self.log.path),
+            "written": self.logged,
+            "commits_failed": self.log.commit_failures,
+            "write_failures": self.log_failures,
+            "committing": self.log.commit_enabled,
         }
 
     def snapshot(self) -> dict[str, Any]:
@@ -379,5 +458,6 @@ class Engine:
             "model": self._model_summary(),
             "risk": self._risk(),
             "feed": feed_stats,
+            "ledger": self._ledger_summary(),
             "computing": self._busy,
         }

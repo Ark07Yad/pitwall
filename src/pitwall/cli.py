@@ -483,7 +483,37 @@ def _dashboard(args: argparse.Namespace) -> int:
         hazard = fit_hazard(history, kind=EventKind.ANY)
         attrition = fit_attrition(history)
 
-    engine = Engine(feed, hazard=hazard, attrition=attrition, driver=args.driver, sims=args.sims)
+    log = None
+    if args.log_predictions:
+        # A replayed race is a rehearsal, and its calls are made with the result
+        # already on disk. Committing them into the same ledger as live ones
+        # would destroy the only thing that makes the ledger worth anything -
+        # that a commit timestamp proves the call preceded the outcome. So a
+        # replay may be logged, but never committed.
+        if args.replay and not args.no_commit:
+            print(
+                "refusing to commit predictions from a replay: the recording already "
+                "contains the outcome.\n"
+                "re-run with --no-commit to rehearse the ledger, or drop --replay to go live.",
+                file=sys.stderr,
+            )
+            return 1
+        log = PredictionLog(
+            args.session or f"{args.replay.stem if args.replay else 'live'}",
+            directory=args.out,
+            commit=not args.no_commit,
+        )
+        print(f"  ledger -> {log.path}" + ("" if log.commit_enabled else " (not committing)"))
+
+    engine = Engine(
+        feed,
+        hazard=hazard,
+        attrition=attrition,
+        driver=args.driver,
+        sims=args.sims,
+        log=log,
+        horizon=args.horizon,
+    )
     print(f"pitwall dashboard - {source}")
     print(f"  http://{args.host}:{args.port}")
     serve(engine, host=args.host, port=args.port)
@@ -596,6 +626,17 @@ def main(argv: list[str] | None = None) -> int:
     dashboard.add_argument("--port", type=int, default=8000)
     dashboard.add_argument("--record", type=Path, help="also write raw frames (live only)")
     dashboard.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
+    dashboard.add_argument(
+        "--log-predictions",
+        action="store_true",
+        help="write each call to the prediction ledger and commit it as it is made",
+    )
+    dashboard.add_argument("--out", type=Path, default=Path("predictions"), help="ledger directory")
+    dashboard.add_argument("--session", default="", help="ledger session name")
+    dashboard.add_argument("--horizon", type=int, default=10, help="laps a call is claimed for")
+    dashboard.add_argument(
+        "--no-commit", action="store_true", help="write the ledger but do not git commit"
+    )
 
     args = parser.parse_args(argv)
     if args.command == "replay":

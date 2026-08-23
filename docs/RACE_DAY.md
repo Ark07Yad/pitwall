@@ -22,11 +22,16 @@ Qualifying finished 16:00–17:00 CEST on Saturday and the feed already reports 
 ## One command
 
 ```bash
-nohup ./scripts/race_day.sh "2026-08-23 13:45" 2026-netherlands-race "2026 Dutch GP" "" 195 &
+nohup ./scripts/race_day.sh "2026-08-23 13:45" 2026-netherlands-race "2026 Dutch GP" "" 210 &
 ```
 
 Arguments: start time (local), recording basename, ledger session name, TLA to advise (empty = the
 race leader), minutes to run, dashboard port.
+
+210 minutes from 13:45 runs to 17:15. F1's regulations cap a race at three hours of total elapsed
+time including suspensions, so a red-flagged race cannot finish later than 17:00 — the window
+covers the worst case rather than the scheduled one, and over-running costs nothing but a few MB of
+snapshots.
 
 That is **one process holding one connection**, which records the raw frames, folds them into race
 state, fits the models, publishes a call every lap, and commits each call to the ledger as it is

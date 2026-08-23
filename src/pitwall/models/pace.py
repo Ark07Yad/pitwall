@@ -9,7 +9,7 @@ What separates them is the *stint structure*. Fuel depends on the race lap and
 falls monotonically all afternoon; tyre age resets to zero at every pit stop. Fit
 both at once against laps spanning multiple stints and the two are identified:
 
-    lap_time = pace(driver) + β·race_lap + Σ_c δ_c + Σ_c α_c·tyre_age + ε
+    lap_time = pace(driver) + β·race_lap + Σ_c δ_c + Σ_c α_c·age + Σ_c γ_c·age² + ε
 
 `β` is negative - cars get faster. It absorbs everything that trends with race
 lap, which is fuel burn *plus* track evolution as rubber goes down, so it is not
@@ -25,6 +25,28 @@ module did exactly that and reported the hard degrading faster than the soft -
 a plausible-looking number that was pure misspecification. Offsets are measured
 against a reference compound, since one of them is collinear with the driver
 intercepts.
+
+`γ_c` is the cliff. Degradation is not linear - a tyre wears gently and then
+falls away - and a purely linear fit cannot say so. It matters because the
+simulation asks what a tyre will be doing twenty laps from now, and a straight
+line extrapolated from the gentle part promises a tyre that lasts forever. At
+Zandvoort the medium's median lap loss went +0.93s, +1.44s, +2.42s across
+successive five-lap age buckets; that acceleration is the whole strategic
+question and a linear model reports it as a constant.
+
+**`γ_c` is constrained to be non-negative.** A negative quadratic describes a
+tyre that gets faster the longer it runs, which is not a thing, and extrapolating
+one is worse than having no curvature at all - it actively rewards never
+stopping. Where the unconstrained fit wants a negative γ, that compound is refit
+without the term rather than clamped afterwards, so its α is not left carrying
+the bias.
+
+**What this still cannot do is see past the data.** Teams pit before the cliff,
+so the steepest part of the curve is barely observed - the longest hard stint at
+Zandvoort was 36 laps, and nothing says what lap 50 would have looked like. That
+is truncation of the covariate, not noise, and no amount of curve-fitting fixes
+it. `observed_max_age` records where the evidence stops so a caller can tell an
+interpolation from a guess.
 """
 
 from __future__ import annotations
@@ -50,6 +72,14 @@ PHASE_SEPARATION_LIMIT = 0.35
 MAX_PACE_SPREAD = 10.0
 # Even a tyre falling off a cliff does not lose a second a lap, every lap.
 MAX_DEGRADATION = 1.0
+# A compound needs this many laps, spanning this much tyre age, before a
+# quadratic is worth fitting. Below it the curvature is noise wearing a cliff's
+# clothes, and it extrapolates violently.
+MIN_LAPS_FOR_CLIFF = 40
+MIN_AGE_SPAN_FOR_CLIFF = 12
+# Curvature above this is not a tyre. At 0.01 a thirty-lap stint would already
+# have lost nine seconds to the quadratic term alone.
+MAX_CURVATURE = 0.01
 
 
 @dataclass(frozen=True)
@@ -66,6 +96,12 @@ class PaceFit:
     n_stints: int
     residual_std: float
     r_squared: float
+    # The cliff, per compound. Absent or zero means no curvature was
+    # identifiable and the compound is modelled as linear.
+    degradation_curvature: dict[Compound, float] = field(default_factory=dict)
+    # Longest tyre age actually observed on each compound. Beyond it the model
+    # is extrapolating, which is a different claim from interpolating.
+    observed_max_age: dict[Compound, int] = field(default_factory=dict)
     warnings: tuple[str, ...] = field(default=())
 
     @property
@@ -87,6 +123,22 @@ class PaceFit:
 
     def degradation_for(self, compound: Compound) -> float | None:
         return self.degradation.get(compound)
+
+    def degradation_at(self, compound: Compound, age: float) -> float:
+        """Seconds lost to tyre wear at this age, cliff included."""
+        linear = self.degradation.get(compound, 0.0)
+        curvature = self.degradation_curvature.get(compound, 0.0)
+        return linear * age + curvature * age * age
+
+    def extrapolating(self, compound: Compound, age: float) -> bool:
+        """Whether this age is past anything actually observed on this compound.
+
+        Teams pit before the cliff, so the long-stint end of the curve is barely
+        in the data. A caller asking about lap 50 of a compound never run past 36
+        is not reading a measurement, and should be able to tell.
+        """
+        seen = self.observed_max_age.get(compound)
+        return seen is not None and age > seen
 
     @property
     def unusable_reasons(self) -> tuple[str, ...]:
@@ -137,7 +189,14 @@ class PaceFit:
         ]
         for compound, rate in sorted(self.degradation.items(), key=lambda kv: -kv[1]):
             offset = self.compound_offset.get(compound, 0.0)
-            lines.append(f"    {compound.short}  {rate:+.4f} s/lap   baseline {offset:+.3f} s")
+            curvature = self.degradation_curvature.get(compound, 0.0)
+            seen = self.observed_max_age.get(compound)
+            cliff = f"  cliff {curvature:+.5f} s/lap²" if curvature else "  no cliff term"
+            at_seen = f", {self.degradation_at(compound, seen):+.2f}s by age {seen}" if seen else ""
+            lines.append(
+                f"    {compound.short}  {rate:+.4f} s/lap   baseline {offset:+.3f} s"
+                f"{cliff}{at_seen}"
+            )
         for warning in self.warnings:
             lines.append(f"  ! {warning}")
         for reason in self.unusable_reasons:
@@ -178,32 +237,82 @@ def fit_pace(laps: list[LapRecord]) -> PaceFit | None:
     reference = usage.most_common(1)[0][0]
     offset_compounds = [c for c in compounds if c is not reference]
 
+    # How far the evidence actually reaches, per compound. Everything the model
+    # says beyond this is extrapolation.
+    observed_max_age = {
+        c: max(lap.tyre_age for lap in usable if lap.compound is c) for c in compounds
+    }
+
+    # Which compounds have enough spread in tyre age to support a cliff term.
+    # Fitting curvature on a narrow age range does not find a cliff, it finds
+    # noise - and then extrapolates it hard.
+    def supports_cliff(compound: Compound) -> bool:
+        ages = [lap.tyre_age for lap in usable if lap.compound is compound]
+        if len(ages) < MIN_LAPS_FOR_CLIFF:
+            return False
+        return (max(ages) - min(ages)) >= MIN_AGE_SPAN_FOR_CLIFF
+
+    curved = [c for c in compounds if supports_cliff(c)]
+
     driver_index = {d: i for i, d in enumerate(drivers)}
     lap_col = len(drivers)
-    age_index = {c: lap_col + 1 + i for i, c in enumerate(compounds)}
-    offset_index = {c: lap_col + 1 + len(compounds) + i for i, c in enumerate(offset_compounds)}
-    n_cols = lap_col + 1 + len(compounds) + len(offset_compounds)
 
-    x = np.zeros((len(usable), n_cols))
-    y = np.empty(len(usable))
+    def solve(with_curvature: list[Compound]):
+        age_index = {c: lap_col + 1 + i for i, c in enumerate(compounds)}
+        base = lap_col + 1 + len(compounds)
+        offset_index = {c: base + i for i, c in enumerate(offset_compounds)}
+        base += len(offset_compounds)
+        curve_index = {c: base + i for i, c in enumerate(with_curvature)}
+        n_cols = base + len(with_curvature)
 
-    for row, lap in enumerate(usable):
-        x[row, driver_index[lap.driver]] = 1.0
-        x[row, lap_col] = lap.lap
-        age_column = age_index.get(lap.compound)
-        if age_column is not None:
-            x[row, age_column] = lap.tyre_age
-        offset_column = offset_index.get(lap.compound)
-        if offset_column is not None:
-            x[row, offset_column] = 1.0
-        y[row] = lap.lap_time
+        x = np.zeros((len(usable), n_cols))
+        y = np.empty(len(usable))
+        for row, lap in enumerate(usable):
+            x[row, driver_index[lap.driver]] = 1.0
+            x[row, lap_col] = lap.lap
+            age_column = age_index.get(lap.compound)
+            if age_column is not None:
+                x[row, age_column] = lap.tyre_age
+            offset_column = offset_index.get(lap.compound)
+            if offset_column is not None:
+                x[row, offset_column] = 1.0
+            curve_column = curve_index.get(lap.compound)
+            if curve_column is not None:
+                # Scaled by 100 so the quadratic column sits on the same order as
+                # the linear ones. Squared tyre age reaches ~2,300 where lap
+                # number reaches 72, and that conditioning alone is enough to
+                # trip the rank check into a spurious warning.
+                x[row, curve_column] = (lap.tyre_age**2) / 100.0
+            y[row] = lap.lap_time
 
-    coefficients, _, rank, _ = np.linalg.lstsq(x, y, rcond=None)
+        coefficients, _, rank, _ = np.linalg.lstsq(x, y, rcond=None)
+        return coefficients, age_index, offset_index, curve_index, rank, n_cols, x, y
+
+    coefficients, age_index, offset_index, curve_index, rank, n_cols, x, y = solve(curved)
+
+    # A negative quadratic is a tyre that gets faster the longer it runs.
+    # Extrapolating one actively rewards never stopping, which is the exact
+    # failure this term exists to prevent. Refit without it rather than clamping
+    # after the fact, so the linear rate is not left carrying the bias.
+    negative = [c for c, i in curve_index.items() if coefficients[i] < 0]
+    if negative:
+        curved = [c for c in curved if c not in negative]
+        coefficients, age_index, offset_index, curve_index, rank, n_cols, x, y = solve(curved)
+
     if rank < n_cols:
         warnings.append(
             f"design matrix is rank deficient ({rank} of {n_cols}) - "
             "some effects are not separately identified"
         )
+
+    degradation_curvature = {c: float(coefficients[i]) / 100.0 for c, i in curve_index.items()}
+    for compound, curvature in list(degradation_curvature.items()):
+        if curvature > MAX_CURVATURE:
+            warnings.append(
+                f"{compound.short} curvature of {curvature:+.5f} s/lap² is not physical; "
+                "dropping the cliff term for it"
+            )
+            degradation_curvature[compound] = 0.0
 
     predicted = x @ coefficients
     residuals = y - predicted
@@ -255,6 +364,8 @@ def fit_pace(laps: list[LapRecord]) -> PaceFit | None:
         compound_phase=phase,
         driver_pace={d: float(coefficients[i]) for d, i in driver_index.items()},
         n_laps=len(usable),
+        degradation_curvature=degradation_curvature,
+        observed_max_age=observed_max_age,
         n_stints=len(stints),
         residual_std=float(np.std(residuals, ddof=min(n_cols, len(usable) - 1))),
         r_squared=(1.0 - ss_res / ss_tot) if ss_tot > 0 else 0.0,

@@ -275,3 +275,122 @@ def test_absurd_degradation_is_refused():
 def test_refusal_explains_itself():
     reasons = unusable_fit(race_lap_coef=+0.03).unusable_reasons
     assert reasons and "positive" in reasons[0]
+
+
+# -- the cliff term -----------------------------------------------------
+#
+# PLAN.md specified `deg(age) = α·age + β·age²` from the start; the quadratic
+# term is what lets a tyre fall away rather than wear at a constant rate. The
+# implementation was linear-only, so it could not express a cliff at all.
+
+import numpy as np  # noqa: E402
+
+from pitwall.models.pace import MAX_CURVATURE  # noqa: E402
+
+
+def synthetic_laps(
+    *,
+    truth: dict[Compound, tuple[float, float]],
+    max_age: int,
+    noise: float = 0.15,
+    race_lap_coef: float = -0.04,
+    seed: int = 0,
+) -> list[LapRecord]:
+    """Laps generated from a known quadratic, to test recovery against."""
+    rng = np.random.default_rng(seed)
+    laps: list[LapRecord] = []
+    lap_no = 0
+    for driver in range(12):
+        base = 90.0 + driver * 0.08
+        for stint, compound in enumerate(truth, start=1):
+            linear, curvature = truth[compound]
+            for age in range(1, max_age + 1):
+                lap_no = (lap_no % 70) + 1
+                laps.append(
+                    LapRecord(
+                        driver=str(driver),
+                        tla=f"D{driver}",
+                        team="T",
+                        lap=lap_no,
+                        lap_time=(
+                            base
+                            + race_lap_coef * lap_no
+                            + linear * age
+                            + curvature * age * age
+                            + rng.normal(0, noise)
+                        ),
+                        compound=compound,
+                        tyre_age=age,
+                        stint=stint,
+                        position=1,
+                        interval=None,
+                        gap_to_leader=None,
+                        track_statuses=frozenset("1"),
+                        entered_pit=False,
+                        exited_pit=False,
+                        retired=False,
+                        session_time=None,
+                    )
+                )
+    return laps
+
+
+def test_recovers_a_cliff_that_is_really_there():
+    truth = {
+        Compound.SOFT: (0.05, 0.0030),
+        Compound.MEDIUM: (0.04, 0.0015),
+        Compound.HARD: (0.03, 0.0),
+    }
+    fit = fit_pace(synthetic_laps(truth=truth, max_age=40))
+
+    assert fit.degradation[Compound.SOFT] == pytest.approx(0.05, abs=0.01)
+    assert fit.degradation_curvature[Compound.SOFT] == pytest.approx(0.0030, abs=0.0005)
+    assert fit.degradation_curvature[Compound.MEDIUM] == pytest.approx(0.0015, abs=0.0005)
+    # A genuinely linear compound must not acquire a spurious cliff.
+    assert fit.degradation_curvature.get(Compound.HARD, 0.0) < 0.0005
+
+
+def test_a_linear_tyre_gets_no_curvature():
+    truth = {c: (0.05, 0.0) for c in (Compound.SOFT, Compound.MEDIUM, Compound.HARD)}
+    fit = fit_pace(synthetic_laps(truth=truth, max_age=35))
+    for compound in truth:
+        assert fit.degradation_curvature.get(compound, 0.0) < 0.0003
+
+
+def test_curvature_is_never_negative():
+    """A negative quadratic is a tyre that gets faster the longer it runs.
+
+    Extrapolating one actively rewards never stopping - the precise failure the
+    cliff term exists to prevent - so it is refit without the term instead.
+    """
+    truth = {c: (0.05, 0.0) for c in (Compound.SOFT, Compound.MEDIUM, Compound.HARD)}
+    for seed in range(5):
+        fit = fit_pace(synthetic_laps(truth=truth, max_age=30, noise=0.9, seed=seed))
+        for compound in truth:
+            assert fit.degradation_curvature.get(compound, 0.0) >= 0.0
+
+
+def test_degradation_at_composes_both_terms():
+    fit = fit_pace(synthetic_laps(truth={Compound.SOFT: (0.05, 0.003)}, max_age=40))
+    at_30 = fit.degradation_at(Compound.SOFT, 30)
+    # 0.05*30 + 0.003*900 = 1.5 + 2.7
+    assert at_30 == pytest.approx(4.2, abs=0.4)
+    # And it must curve, not run straight.
+    assert fit.degradation_at(Compound.SOFT, 40) > 2 * fit.degradation_at(Compound.SOFT, 20)
+
+
+def test_absurd_curvature_is_rejected():
+    assert MAX_CURVATURE == 0.01
+
+
+def test_knows_where_the_evidence_stops():
+    """Teams pit before the cliff, so the long-stint end is barely observed.
+
+    A caller asking about lap 50 of a compound never run past 30 is not reading a
+    measurement and has to be able to tell.
+    """
+    fit = fit_pace(synthetic_laps(truth={Compound.SOFT: (0.05, 0.002)}, max_age=30))
+    assert fit.observed_max_age[Compound.SOFT] == 30
+    assert not fit.extrapolating(Compound.SOFT, 25)
+    assert not fit.extrapolating(Compound.SOFT, 30)
+    assert fit.extrapolating(Compound.SOFT, 31)

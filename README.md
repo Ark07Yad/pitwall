@@ -234,6 +234,32 @@ undercut works. If those break the model is wrong whatever the unit tests say.
 The *timing* of a stop rests on how much one costs, and that is now measured per circuit rather
 than assumed — see below.
 
+### Tyre degradation, and where the evidence stops
+
+Degradation is fitted as `α_c·age + γ_c·age²` — the quadratic being the cliff, the point where a
+tyre stops wearing and starts falling away. `γ` is constrained non-negative, because a negative
+quadratic describes a tyre that gets *faster* the longer it runs, and extrapolating one would
+actively reward never stopping.
+
+On synthetic data the estimator recovers a true cliff of 0.00300 as 0.00297. **On real races it
+fits essentially zero** — Zandvoort's hard tyre 0.00000, Hungary's 0.00008 — and that is not the
+estimator being too weak: regenerated at the real 0.88 s residual, a cliff of that size still comes
+back. Within the stint lengths teams actually run, degradation at these circuits really is close to
+linear.
+
+The cliff is real; it just lives past the point anyone runs a tyre. Which is the more important
+limitation:
+
+> **The model cannot see past its own data, and now says so.** The longest hard stint at Zandvoort
+> was 36 laps. Asked what lap 50 looks like, a straight line promises a tyre that lasts forever —
+> and staying out is precisely the option that benefits from that optimism. Teams pit *before* the
+> cliff, so the steep part of the curve is missing *because* it is steep.
+
+Every fit therefore records `observed_max_age` per compound, and any option needing a tyre older
+than that is flagged. Of the 49 calls made live at the 2026 Dutch GP, **31 rest on tyre ages never
+observed** — and the flag separates them properly: staying out on lap 71 needs a 23-lap tyre where
+33 were seen, while staying out on lap 26 needs 49. Same call, entirely different standing.
+
 ⚠️ The *timing* of a stop is on much firmer ground than the *compound*. Compound choice inherits the
 single-race degradation confounding documented in [the logbook](docs/logbook.md) — at Hungary the
 compounds were used in separate phases of the race, so their degradation rates are not separately

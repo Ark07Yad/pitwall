@@ -4,6 +4,77 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-23 (later) — The cliff term, and a hypothesis the data refused
+
+Yesterday's post-mortem blamed the 47-of-49 "stay out" calls on a degradation
+model that was linear where `PLAN.md` §5.2 specified `α·age + β·age²`. The
+quadratic term is now implemented. It did not help, and finding out *why* was
+worth more than the fix.
+
+**The term is there and it works.** Fitted with a non-negativity constraint,
+because a negative quadratic is a tyre that gets faster the longer it runs and
+extrapolating one actively rewards never stopping - the exact failure the term
+exists to prevent. Where the unconstrained fit wants a negative γ the compound
+is refit without it rather than clamped, so its α is not left carrying the bias.
+
+**On synthetic data it recovers the truth to three decimals**: a true γ of
+0.00300 comes back as 0.00297, and a genuinely linear compound picks up no
+spurious curvature.
+
+**On real races it fits ≈ zero.** Zandvoort: hard 0.00000, medium 0.00000, soft
+0.00031. Hungary: hard 0.00008, the rest zero.
+
+So I tested the obvious objection - that the estimator is simply too weak
+against a 0.88 s residual. It is not. Regenerating the synthetic data at the
+*real* noise level and real stint lengths, a true cliff of 0.0030 still comes
+back as 0.0032. An effect of the size that would matter is comfortably
+detectable; the data says it is not there.
+
+**The honest conclusion is that within the stint lengths teams actually run,
+degradation at these two circuits really is close to linear.** The cliff is a
+real phenomenon, but it lives past the point where anyone runs a tyre, and my
+hypothesis about why the engine wants to stay out was wrong.
+
+**What was actually wrong is that the model cannot see past its own data**, and
+was not saying so. Over 46 laps the fitted linear rate gives the hard tyre 2.0
+seconds against a 22.57 s stop, so stopping can never win - but no hard stint at
+Zandvoort ran past 36 laps, and nothing in the data says what lap 50 looks like.
+That is truncation of the covariate, not noise, and no curve-fitting fixes it.
+Teams pit before the cliff, so the steep part is absent *because* it is steep.
+
+So the fit now records `observed_max_age` per compound, and an option is flagged
+when it needs a tyre older than anything seen. Re-running the 49 Dutch GP calls:
+**31 of them, 63%, rest on tyre ages never observed.** And the flag discriminates
+exactly where it should:
+
+| lap | call | tyre age needed | ever seen | |
+|---|---|---|---|---|
+| 26 | stay out | 49 | 21 | guessing |
+| 71 | stay out | 23 | 33 | supported |
+
+Which reframes yesterday's +59.1% skill properly. The late-race stay-out calls -
+the ones that carry the score - are well inside the evidence. The mid-race ones,
+where staying out means running 46 laps on one set, were never supported by
+anything and are now marked as such rather than quietly averaged in with the
+rest.
+
+**The methodological point, which is the part I want to remember.** Both
+yesterday and today the failure was a model answering a question outside the
+range it had any evidence for, and answering it in a confident voice. The
+decision layer did it by having no "whether" option; the pace model did it by
+extrapolating a straight line into tyre ages nobody has run. A fit that reports
+`observed_max_age` alongside its coefficients is making a smaller claim than one
+that reports coefficients alone, and the smaller claim is the true one.
+
+**Still open, and now clearly the next thing.** Identifying a cliff needs stints
+long enough to contain one, which no single race provides. `PLAN.md` §5.2 already
+called for hierarchical priors pooled across races, and the pit-loss model showed
+the pattern works - 87 races out of the local FastF1 cache at no API cost. That
+is how the extrapolation range gets extended honestly, rather than by assuming a
+curve.
+
+---
+
 ## 2026-08-23 — First live race: it worked, it lost to the baseline, and why
 
 Zandvoort. The system ran unattended for three and a half hours and did what it

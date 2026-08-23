@@ -803,3 +803,55 @@ def test_staying_out_loses_to_stopping_on_dead_tyres():
         config=SimConfig(n_sims=1200, seed=4),
     )
     assert rec.best.stop, "40 laps of tyre with 40 to run should still be a stop"
+
+
+def test_options_needing_unobserved_tyre_life_are_flagged():
+    """Staying out is the option that most often needs the model to guess, and
+    the one that benefits most from the guess being optimistic."""
+    pace = pace_fit()
+    object.__setattr__(
+        pace,
+        "observed_max_age",
+        {Compound.HARD: 25, Compound.MEDIUM: 25, Compound.SOFT: 25},
+    )
+    entries = [
+        CarEntry(
+            driver="a",
+            tla="AAA",
+            base_pace=90.0,
+            tyre_age=20,
+            elapsed=0.0,
+            stops=1,
+            compound=Compound.HARD,
+        ),
+        CarEntry(
+            driver="b",
+            tla="BBB",
+            base_pace=90.2,
+            tyre_age=20,
+            elapsed=9.0,
+            stops=1,
+            compound=Compound.HARD,
+        ),
+    ]
+    rec = evaluate_actions(
+        entries,
+        our_driver="a",
+        from_lap=50,
+        total_laps=60,
+        circuit="Zandvoort",
+        pace=pace,
+        config=SimConfig(n_sims=400, seed=2),
+    )
+
+    # Staying out carries a 20-lap tyre another 10 laps, to an age of 30 - past
+    # the 25 ever observed, so the model is guessing.
+    stay = next(o for o in rec.outcomes if not o.stop)
+    assert stay.extrapolated
+    assert "beyond observed tyre life" in stay.caveat
+
+    # Stopping now starts a fresh tyre that is only 10 laps old at the flag,
+    # which is squarely inside the evidence.
+    now = next(o for o in rec.outcomes if o.stop and o.delay == 0)
+    assert not now.extrapolated
+    assert now.caveat == ""

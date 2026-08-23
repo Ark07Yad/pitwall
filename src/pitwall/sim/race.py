@@ -158,12 +158,19 @@ def _compound_index(compound: Compound) -> int:
 
 def _lap_time_terms(
     entries: list[CarEntry], pace: PaceFit
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Base pace per car, plus degradation slope and offset per compound."""
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Base pace per car, plus degradation slope, cliff and offset per compound.
+
+    The cliff is zero for any compound the fit could not identify one for, which
+    reduces exactly to the linear behaviour this had before.
+    """
     base = np.array([e.base_pace for e in entries], dtype=float)
     degradation = np.array([pace.degradation.get(c, 0.05) for c in RACING_COMPOUNDS], dtype=float)
+    curvature = np.array(
+        [pace.degradation_curvature.get(c, 0.0) for c in RACING_COMPOUNDS], dtype=float
+    )
     offset = np.array([pace.compound_offset.get(c, 0.0) for c in RACING_COMPOUNDS], dtype=float)
-    return base, degradation, offset
+    return base, degradation, curvature, offset
 
 
 def _apply_track_position(
@@ -248,7 +255,7 @@ def simulate(
     rng = np.random.default_rng(cfg.seed)
     n_sims, n_cars = cfg.n_sims, len(entries)
 
-    base, degradation, offset = _lap_time_terms(entries, pace)
+    base, degradation, curvature, offset = _lap_time_terms(entries, pace)
 
     # Pit loss is circuit-specific and varies by about nine seconds across the
     # calendar, which is far more than the margin most pit calls turn on. A
@@ -313,6 +320,7 @@ def simulate(
             + lap_trend[lap - from_lap]
             + offset[compound]
             + degradation[compound] * age
+            + curvature[compound] * age * age
         )
         lap_time = green_pace + rng.normal(0.0, cfg.lap_noise, size=(n_sims, n_cars))
         lap_time[sc_active] += cfg.sc_lap_penalty

@@ -1,6 +1,6 @@
-# 2026 Dutch GP rescored — Zandvoort
+# 2026 Dutch GP rescored v2 — Zandvoort
 
-*Generated 2026-08-23 19:01 UTC from 49 logged predictions.*
+*Generated 2026-08-23 20:00 UTC from 49 logged predictions.*
 
 ## Verdict
 
@@ -24,7 +24,7 @@ means the model added nothing over assuming the order holds.
 |---|---|---|---|
 | 40%–60% | 1 | 48.9% | 0.0% |
 | 60%–80% | 7 | 63.8% | 14.3% |
-| 80%–100% | 41 | 95.6% | 100.0% |
+| 80%–100% | 41 | 95.7% | 100.0% |
 
 A well-calibrated model matches the last two columns. Consistently saying more
 than happens is overconfidence, and it is a separate failure from being wrong.
@@ -35,12 +35,12 @@ than happens is overconfidence, and it is a separate failure from being wrong.
 |---|---|---|---|---|---|
 | 21 | ANT | pit lap 21 on HAR | P3.96 | P2 | lap 31 |
 | 25 | HAM | pit lap 25 on HAR | P4.68 | P4 | lap 35 |
-| 26 | ANT | stay out on HAR | P2.36 | P2 | lap 36 |
+| 26 | ANT | stay out on HAR | P2.33 | P2 | lap 36 |
 | 27 | ANT | stay out on HAR | P2.60 | P2 | lap 37 |
 | 28 | ANT | stay out on HAR | P2.27 | P2 | lap 38 |
 | 29 | ANT | stay out on HAR | P2.07 | P2 | lap 39 |
 | 30 | ANT | stay out on HAR | P2.33 | P2 | lap 40 |
-| 31 | ANT | stay out on HAR | P2.36 | P2 | lap 41 |
+| 31 | ANT | stay out on HAR | P2.38 | P2 | lap 41 |
 | 32 | ANT | stay out on HAR | P2.28 | P2 | lap 42 |
 | 33 | ANT | stay out on HAR | P2.39 | P2 | lap 43 |
 | 34 | ANT | stay out on HAR | P2.51 | P2 | lap 44 |
@@ -74,7 +74,7 @@ than happens is overconfidence, and it is a separate failure from being wrong.
 | 62 | NOR | stay out on HAR | P1.15 | P1 | lap 72 |
 | 63 | NOR | stay out on HAR | P1.10 | P1 | lap 72 |
 | 64 | NOR | stay out on HAR | P1.10 | P1 | lap 72 |
-| 65 | NOR | stay out on HAR | P1.12 | P1 | lap 72 |
+| 65 | NOR | stay out on HAR | P1.13 | P1 | lap 72 |
 | 66 | NOR | stay out on HAR | P1.12 | P1 | lap 72 |
 | 67 | NOR | stay out on HAR | P1.10 | P1 | lap 72 |
 | 68 | NOR | stay out on HAR | P1.08 | P1 | lap 72 |

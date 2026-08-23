@@ -66,6 +66,11 @@ class Prediction:
     # this the log cannot tell "pit on the last lap" from "do not pit again",
     # which are opposite calls that happen to share a lap number.
     stop: bool = True
+    # True when the call depends on running a tyre older than anything observed
+    # on that compound in this race. Recorded so the scorecard can separate
+    # calls the evidence supports from calls that rest on extrapolation - they
+    # are different claims and grading them together hides which is which.
+    extrapolated: bool = False
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     note: str = ""
@@ -197,5 +202,6 @@ def prediction_from(
         n_sims=recommendation.n_sims,
         horizon_lap=min(recommendation.lap + horizon, total_laps),
         stop=best.stop,
+        extrapolated=getattr(best, "extrapolated", False),
         note=note,
     )

@@ -59,6 +59,13 @@ class Outcome:
     p_points: float
     p_gain: float
     p_retire: float = 0.0
+    # True when the option requires running a tyre older than anything observed
+    # on that compound in this race. The model is then guessing, not measuring:
+    # teams pit before the cliff, so the long-stint end of the curve is barely in
+    # the data, and a linear rate extrapolated through it promises a tyre that
+    # lasts forever. Staying out is the option that most often needs this, and it
+    # is exactly the option that benefits from the optimism.
+    extrapolated: bool = False
     # False for the option of not stopping again. `pit_lap` is then the flag,
     # which is where a car that never stops "pits" as far as the sim is
     # concerned - but the two are different calls and must not read alike.
@@ -75,6 +82,10 @@ class Outcome:
             return "stay out"
         when = "now" if self.delay == 0 else f"lap +{self.delay}"
         return f"{when} on {self.compound.short}"
+
+    @property
+    def caveat(self) -> str:
+        return " (beyond observed tyre life)" if self.extrapolated else ""
 
 
 @dataclass(frozen=True)
@@ -104,9 +115,9 @@ class Recommendation:
     def __str__(self) -> str:
         head = f"{self.tla} P{self.current_position}, lap {self.lap} ({self.n_sims:,} sims)"
         verdict = (
-            f"  → PIT {self.best.label}"
+            f"  → PIT {self.best.label}{self.best.caveat}"
             if self.decisive
-            else f"  → {self.best.label} marginally ahead; no clear call"
+            else f"  → {self.best.label} marginally ahead; no clear call{self.best.caveat}"
         )
         lines = [
             head,
@@ -120,6 +131,7 @@ class Recommendation:
             lines.append(
                 f"  {outcome.label:<18} {outcome.mean_position:>9.2f} "
                 f"{outcome.p_top3:>6.1%} {outcome.p_points:>7.1%} {outcome.p_gain:>7.1%}"
+                f"{'  ?' if outcome.extrapolated else ''}"
             )
         return "\n".join(lines)
 
@@ -148,6 +160,14 @@ def evaluate_actions(
     start_position = sorted(range(len(entries)), key=lambda i: entries[i].elapsed).index(index) + 1
 
     def evaluate(*, planned_pit: int | None, compound: Compound, delay: int, stop: bool) -> Outcome:
+        # How old the tyre this option finishes on will be at the flag. Staying
+        # out carries the current tyre all the way; stopping starts a fresh one.
+        if stop and planned_pit is not None:
+            final_age = total_laps - planned_pit
+        else:
+            final_age = entries[index].tyre_age + (total_laps - from_lap)
+        extrapolated = pace.extrapolating(compound, final_age)
+
         ours = replace(entries[index], planned_pit=planned_pit, planned_compound=compound)
         grid = list(entries)
         grid[index] = ours
@@ -180,6 +200,7 @@ def evaluate_actions(
             p_points=float((positions <= 10).mean()),
             p_gain=float((positions < start_position).mean()),
             p_retire=result.probability_retired(our_driver),
+            extrapolated=extrapolated,
             stop=stop,
         )
 

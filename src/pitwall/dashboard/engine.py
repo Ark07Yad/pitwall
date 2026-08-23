@@ -58,6 +58,7 @@ class Advice:
     distribution: dict[int, float] = field(default_factory=dict)
     computed_at: float = 0.0
     refused: str = ""
+    extrapolated: bool = False
 
 
 class Engine:
@@ -239,6 +240,7 @@ class Engine:
                 for o in recommendation.outcomes[:6]
             ],
             distribution=recommendation.best.distribution,
+            extrapolated=recommendation.best.extrapolated,
             threats=[
                 {"tla": t.tla, "gap": round(t.gap, 1), "probability": round(t.probability, 3)}
                 for t in threats
@@ -448,6 +450,7 @@ class Engine:
                 "expected": round(self.advice.expected_position, 2),
                 "margin": round(self.advice.margin, 2),
                 "options": self.advice.options,
+                "extrapolated": self.advice.extrapolated,
                 "threats": self.advice.threats,
                 "distribution": {str(k): round(v, 4) for k, v in self.advice.distribution.items()},
                 "age": round(time.time() - self.advice.computed_at, 1)

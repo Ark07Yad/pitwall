@@ -3,11 +3,22 @@
 The simulation answers "what happens if". This turns that into "so do this",
 which is the only output a pit wall actually wants.
 
-The question is deliberately framed as *when*, not *whether*. "Should we pit?"
-has no meaningful answer in a race with a mandatory tyre change - the stop is
-happening. What matters is whether it happens now or in five laps, and on what.
-So every option here is a (delay, compound) pair, and staying out is just a stop
-with a larger delay, evaluated on exactly the same footing.
+The question is mostly framed as *when*, not *whether*. "Should we pit?" has no
+meaningful answer while a mandatory tyre change is still outstanding - the stop
+is happening, and what matters is whether it happens now or in five laps, and on
+what. So options are (delay, compound) pairs, evaluated on identical footing.
+
+**But once the car has made its stop, "whether" becomes a real question**, and
+treating staying out as "a stop with a larger delay" stops being harmless. Every
+delay clamps at the flag, so late in a race all twelve options collapse onto the
+same lap and the engine recommends a stop nobody would make. At the 2026 Dutch
+GP it advised pitting the leader on lap 71 of 72 and put his expected finish at
+P4.90; he won. Across 49 logged calls that cost it 167% negative skill against
+a baseline of assuming nothing changes.
+
+So a `stay out` option is offered whenever the car has already stopped at least
+once - which is exactly the condition under which it is legal, and the condition
+under which the old framing's premise expires.
 
 Options are compared on expected finishing position rather than expected race
 time. Time is what the model computes, but position is what scores points, and
@@ -48,6 +59,10 @@ class Outcome:
     p_points: float
     p_gain: float
     p_retire: float = 0.0
+    # False for the option of not stopping again. `pit_lap` is then the flag,
+    # which is where a car that never stops "pits" as far as the sim is
+    # concerned - but the two are different calls and must not read alike.
+    stop: bool = True
     # P(finishing at each position). The simulation computes a whole
     # distribution and reporting only its mean throws away the part that says
     # how *uncertain* the call is - a tight spread around P4 and a coin-flip
@@ -56,6 +71,8 @@ class Outcome:
 
     @property
     def label(self) -> str:
+        if not self.stop:
+            return "stay out"
         when = "now" if self.delay == 0 else f"lap +{self.delay}"
         return f"{when} on {self.compound.short}"
 
@@ -130,46 +147,64 @@ def evaluate_actions(
 
     start_position = sorted(range(len(entries)), key=lambda i: entries[i].elapsed).index(index) + 1
 
+    def evaluate(*, planned_pit: int | None, compound: Compound, delay: int, stop: bool) -> Outcome:
+        ours = replace(entries[index], planned_pit=planned_pit, planned_compound=compound)
+        grid = list(entries)
+        grid[index] = ours
+
+        # Same seed for every option: the candidates then face identical
+        # safety cars and identical rival scatter, so the difference between
+        # them is the decision rather than the luck of the draw.
+        result = simulate(
+            grid,
+            from_lap=from_lap,
+            total_laps=total_laps,
+            circuit=circuit,
+            pace=pace,
+            hazard=hazard,
+            attrition=attrition,
+            pit_loss=pit_loss,
+            config=cfg,
+        )
+        positions = result.positions[:, index]
+        values, counts = np.unique(positions, return_counts=True)
+        return Outcome(
+            distribution={
+                int(v): float(c / len(positions)) for v, c in zip(values, counts, strict=False)
+            },
+            delay=delay,
+            compound=compound,
+            pit_lap=planned_pit if planned_pit is not None else total_laps,
+            mean_position=float(positions.mean()),
+            p_top3=float((positions <= 3).mean()),
+            p_points=float((positions <= 10).mean()),
+            p_gain=float((positions < start_position).mean()),
+            p_retire=result.probability_retired(our_driver),
+            stop=stop,
+        )
+
     outcomes: list[Outcome] = []
     for delay in delays:
         pit_lap = min(from_lap + delay, total_laps)
         for compound in compounds:
-            ours = replace(entries[index], planned_pit=pit_lap, planned_compound=compound)
-            grid = list(entries)
-            grid[index] = ours
-
-            # Same seed for every option: the candidates then face identical
-            # safety cars and identical rival scatter, so the difference between
-            # them is the decision rather than the luck of the draw.
-            result = simulate(
-                grid,
-                from_lap=from_lap,
-                total_laps=total_laps,
-                circuit=circuit,
-                pace=pace,
-                hazard=hazard,
-                attrition=attrition,
-                pit_loss=pit_loss,
-                config=cfg,
-            )
-            positions = result.positions[:, index]
-            values, counts = np.unique(positions, return_counts=True)
             outcomes.append(
-                Outcome(
-                    distribution={
-                        int(v): float(c / len(positions))
-                        for v, c in zip(values, counts, strict=False)
-                    },
-                    delay=delay,
-                    compound=compound,
-                    pit_lap=pit_lap,
-                    mean_position=float(positions.mean()),
-                    p_top3=float((positions <= 3).mean()),
-                    p_points=float((positions <= 10).mean()),
-                    p_gain=float((positions < start_position).mean()),
-                    p_retire=result.probability_retired(our_driver),
-                )
+                evaluate(planned_pit=pit_lap, compound=compound, delay=delay, stop=True)
             )
+
+    # Running to the flag on the current tyre. Only offered once the car has
+    # stopped at least once: before that the tyre-change requirement makes it
+    # illegal, and offering an option the car cannot take is worse than not
+    # modelling it. `planned_pit=None` is how the simulation already expresses
+    # "not planning to stop", so this needs no new machinery underneath.
+    if entries[index].stops > 0:
+        outcomes.append(
+            evaluate(
+                planned_pit=None,
+                compound=entries[index].compound,
+                delay=0,
+                stop=False,
+            )
+        )
 
     outcomes.sort(key=lambda o: o.mean_position)
     return Recommendation(

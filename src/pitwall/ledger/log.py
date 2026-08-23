@@ -62,12 +62,18 @@ class Prediction:
     n_sims: int
 
     horizon_lap: int
+    # False when the call is to run to the flag on the current tyre. Without
+    # this the log cannot tell "pit on the last lap" from "do not pit again",
+    # which are opposite calls that happen to share a lap number.
+    stop: bool = True
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     note: str = ""
 
     @property
     def call(self) -> str:
+        if not self.stop:
+            return f"stay out on {self.compound}"
         when = "now" if self.pit_lap <= self.lap else f"lap {self.pit_lap}"
         return f"pit {when} on {self.compound}"
 
@@ -190,5 +196,6 @@ def prediction_from(
         p_gain=best.p_gain,
         n_sims=recommendation.n_sims,
         horizon_lap=min(recommendation.lap + horizon, total_laps),
+        stop=best.stop,
         note=note,
     )

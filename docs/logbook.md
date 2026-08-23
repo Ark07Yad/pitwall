@@ -4,6 +4,91 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-23 — First live race: it worked, it lost to the baseline, and why
+
+Zandvoort. The system ran unattended for three and a half hours and did what it
+was built to do: 14 MB and 80,535 lines captured, one mid-race feed drop
+reconnected without a gap, **49 pit calls committed to git before the laps they
+referred to**. `git log predictions/` shows commits landing at 16:04, 16:05,
+16:07 while the race was still running. That artifact now exists and cannot be
+manufactured after the fact, which was the entire point.
+
+Then it lost to the baseline by 167%.
+
+**Brier (top 3) 0.3820 against a baseline 0.1429. Mean position error 2.50
+against 0.76.** The baseline is "everyone finishes where they are now". Track
+position is sticky in F1, so that is a strong benchmark — but negative skill of
+that size is not a near miss, it is a systematic error.
+
+**The cause, and it was in a docstring the whole time.** The decision layer
+frames the question as *when* to stop, never *whether*: "staying out is just a
+stop with a larger delay, evaluated on exactly the same footing." That is sound
+while a mandatory tyre change is outstanding. It expires the moment the car has
+stopped, and nothing in the code noticed. Every delay clamps at the flag, so by
+lap 71 all twelve options had collapsed onto lap 72 — which is why those entries
+carry `margin +0.00`, twelve identical answers dressed as a decision. It advised
+pitting the race leader on lap 71 of 72 and put his expected finish at P4.90.
+Norris won.
+
+Fixed by offering a real `stay out` option, gated on the car having stopped at
+least once — which is exactly when it becomes legal, and exactly when the old
+framing's premise runs out. `planned_pit=None` already meant "not planning to
+stop" in the simulation, so no new machinery underneath.
+
+**Re-scored, matched lap-for-lap and car-for-car against the live ledger** — same
+lap, same driver, same state, one variable changed. Post-hoc and labelled as
+such, in `reports/rescore/`; the live 49 stand untouched, because a ledger you
+rewrite when it embarrasses you is not evidence.
+
+| | live | rescored |
+|---|---|---|
+| Brier (top 3) | 0.3820 | **0.0585** |
+| skill vs baseline | −167.4% | **+59.1%** |
+| mean position error | 2.50 | **0.48** |
+
+It now beats the baseline it lost to, and mean expected position across the 49
+calls moves from P4.26 to P2.08. The two calls that still say *pit* are laps 21
+and 25 — the only two where the car had not yet made its mandatory stop, so the
+guard held.
+
+**But 47 of 49 now say "stay out", and that is not a victory.** At lap 26 that
+means running 46 laps on one set of tyres, which no team would do. So I checked
+the arithmetic the model is actually doing, and it is damning: fitted degradation
+is **+0.044 s/lap on the hard**, so 46 laps of tyre age costs **2.0 seconds**,
+against **22.57 s** for a pit stop. Once the mandatory stop is done, stopping can
+never be worth it. The engine is not choosing to stay out; it has no arithmetic
+under which stopping wins.
+
+Two reasons, and both were foreseeable:
+
+- **The degradation model is linear in tyre age.** `PLAN.md` §5.2 specified
+  `α·age + β·age²`, the quadratic term explicitly there to capture the cliff.
+  The implementation has only `α_c · tyre_age`. A model with no cliff term cannot
+  represent a cliff.
+- **The data is censored, and censored in exactly the wrong direction.** Teams
+  pit *before* the tyre falls off. The steep part of the curve is therefore
+  almost absent from the observations, and a linear fit through the flat part
+  extrapolates a tyre that lasts forever.
+
+So today's headline is honest but narrow: a real bug was found and fixed, and the
+forecast stopped being dragged down by a phantom stop. The *strategy* logic
+underneath is now biased the other way, for a different reason, and the improved
+Brier score does not test it — the ledger grades finishing-position forecasts,
+not whether the call was the right call. Worth stating plainly before anyone
+quotes +59.1% at me, including me.
+
+**What the scoreboard was for.** The plan said the first live race would break
+somewhere and that a public post-mortem beats a suspiciously clean debut. It
+broke in the decision layer, the ledger caught it within hours, and the fix is a
+regression test that fails on the exact lap-71 case. That is the machinery
+working, not the machinery being embarrassed.
+
+Next: the cliff term, and censoring-aware degradation. Until then the engine's
+late-race calls should be read as "the forecast is sound, the recommendation is
+not yet".
+
+---
+
 ## 2026-08-22 (later still) — The fat tail, and two ways to get it wrong
 
 Pit loss was measured this afternoon but still drawn from a symmetric normal. That gets the shape

@@ -113,8 +113,11 @@ def race_report(
             driver = str(entry.get("driver", ""))
             tla = entry.get("tla") or names.get(driver, driver)
             actual = finishing.get(driver)
-            when = entry.get("pit_lap", entry.get("lap", 0))
-            call = f"pit lap {when} on {entry.get('compound', '?')}"
+            if entry.get("stop", True):
+                when = entry.get("pit_lap", entry.get("lap", 0))
+                call = f"pit lap {when} on {entry.get('compound', '?')}"
+            else:
+                call = f"stay out on {entry.get('compound', '?')}"
             lines.append(
                 f"| {entry.get('lap', '?')} | {tla} | {call} "
                 f"| P{float(entry.get('expected_position', 0)):.2f} "

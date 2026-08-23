@@ -717,3 +717,89 @@ def test_no_model_falls_back_to_the_config_value():
         config=cfg,
     )
     assert with_none.best.mean_position == pytest.approx(explicit.best.mean_position, abs=0.25)
+
+
+# -- the stay-out option ------------------------------------------------
+#
+# Framing every option as (delay, compound) meant the engine could only ever say
+# "pit". Late in a race every delay clamps at the flag, so all twelve options
+# collapse onto the same lap and it recommends a stop nobody would make. At the
+# 2026 Dutch GP it advised pitting the leader on lap 71 of 72 and put his
+# expected finish at P4.90; he won.
+
+
+def test_a_car_that_has_stopped_may_run_to_the_flag():
+    entries = contested_field()
+    entries[0] = replace(entries[0], stops=1)
+    rec = evaluate_actions(
+        entries,
+        our_driver="a",
+        from_lap=45,
+        total_laps=50,
+        circuit="Zandvoort",
+        pace=pace_fit(),
+        config=SimConfig(n_sims=800, seed=3),
+    )
+    labels = [o.label for o in rec.outcomes]
+    assert "stay out" in labels
+    assert sum(1 for o in rec.outcomes if not o.stop) == 1
+
+
+def test_no_stay_out_before_the_mandatory_stop():
+    """Offering an option the car is not allowed to take is worse than not
+    modelling it: a dry race requires two compounds, so a car yet to stop cannot
+    run to the flag."""
+    entries = contested_field()
+    entries[0] = replace(entries[0], stops=0)
+    rec = evaluate_actions(
+        entries,
+        our_driver="a",
+        from_lap=20,
+        total_laps=50,
+        circuit="Zandvoort",
+        pace=pace_fit(),
+        config=SimConfig(n_sims=400, seed=3),
+    )
+    assert all(o.stop for o in rec.outcomes)
+    assert "stay out" not in [o.label for o in rec.outcomes]
+
+
+def test_late_in_a_race_a_leader_is_told_to_stay_out():
+    """The regression this exists for. On the penultimate lap, a car leading on
+    a serviceable tyre should not be sent to the pits."""
+    entries = [
+        CarEntry(driver="a", tla="AAA", base_pace=90.0, tyre_age=20, elapsed=0.0, stops=2),
+        CarEntry(driver="b", tla="BBB", base_pace=90.2, tyre_age=18, elapsed=12.0, stops=2),
+        CarEntry(driver="c", tla="CCC", base_pace=90.3, tyre_age=18, elapsed=25.0, stops=2),
+    ]
+    rec = evaluate_actions(
+        entries,
+        our_driver="a",
+        from_lap=71,
+        total_laps=72,
+        circuit="Zandvoort",
+        pace=pace_fit(),
+        config=SimConfig(n_sims=1200, seed=9),
+    )
+    assert not rec.best.stop, f"recommended {rec.best.label} on the penultimate lap"
+    # And it should expect to hold the lead, not finish mid-pack.
+    assert rec.best.mean_position < 1.5
+
+
+def test_staying_out_loses_to_stopping_on_dead_tyres():
+    """The option must be evaluated, not preferred. A car far from the flag on a
+    worn tyre should still be told to pit."""
+    entries = [
+        CarEntry(driver="a", tla="AAA", base_pace=90.0, tyre_age=40, elapsed=0.0, stops=1),
+        CarEntry(driver="b", tla="BBB", base_pace=90.0, tyre_age=5, elapsed=8.0, stops=1),
+    ]
+    rec = evaluate_actions(
+        entries,
+        our_driver="a",
+        from_lap=20,
+        total_laps=60,
+        circuit="Zandvoort",
+        pace=pace_fit(degradation={Compound.SOFT: 0.3, Compound.MEDIUM: 0.25, Compound.HARD: 0.2}),
+        config=SimConfig(n_sims=1200, seed=4),
+    )
+    assert rec.best.stop, "40 laps of tyre with 40 to run should still be a stop"

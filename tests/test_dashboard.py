@@ -193,6 +193,7 @@ class FakeOutcome:
     p_top3: float = 0.61
     p_points: float = 0.98
     p_gain: float = 0.4
+    stop: bool = True
 
     def __post_init__(self):
         if self.compound is None:
@@ -330,3 +331,21 @@ def test_live_calls_are_committed_as_they_are_made(tmp_path):
         check=True,
     ).stdout.strip()
     assert count == "2", "one commit per call, not one at the end"
+
+
+def test_a_stay_out_call_is_logged_as_one(tmp_path):
+    """ "Pit on the last lap" and "do not pit again" share a lap number and are
+    opposite calls. The ledger has to tell them apart or it grades the wrong
+    claim."""
+    engine = engine_with_log(tmp_path)
+    rec = FakeRecommendation(lap=60)
+    rec.best = FakeOutcome(pit_lap=72, stop=False, compound=FakeCompound("MED"))
+    engine._record(rec, race_state(lap=60))
+
+    entry = engine.log.entries()[0]
+    assert entry["stop"] is False
+
+    from pitwall.ledger import Prediction
+
+    call = Prediction(**{k: v for k, v in entry.items() if k in Prediction.__dataclass_fields__})
+    assert call.call == "stay out on MED"

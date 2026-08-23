@@ -4,8 +4,19 @@ This is the workhorse of development. A live race happens once a fortnight and
 never the same way twice; a recording can be replayed a hundred times an hour and
 always behaves identically, which is what makes real regression tests possible.
 
-The on-disk format is whatever `fastf1.livetiming` wrote: one Python-repr list per
-line, `[topic, data, timestamp]`.
+Two on-disk formats are read, because this project writes one and FastF1 writes
+the other, and a recording is useless if the replay path cannot read what the
+live path produced:
+
+- **FastF1's**, one Python-repr list per line: `[topic, data, timestamp]`.
+- **Raw SignalR frames**, which is what `SignalRFeed(record_to=...)` writes -
+  the wire format verbatim, one JSON object per line. `{"type": 1, "arguments":
+  [topic, data, timestamp]}` carries the same triple; `{"type": 3, ...}` is the
+  initial snapshot holding every topic at once; `{"type": 6}` is a keepalive.
+
+Recording the raw frames is deliberate - it is the only faithful capture of what
+F1 actually sent, and re-deriving it from a normalised file is impossible - so
+the reader meets it rather than the recorder compromising.
 """
 
 from __future__ import annotations
@@ -69,12 +80,20 @@ def parse_line(line: str) -> tuple[str, Any, datetime | None] | None:
             log.debug("undecodable line: %.120s", line)
             return None
 
+    if isinstance(parsed, dict):
+        frames = _from_signalr(parsed)
+        return frames[0] if len(frames) == 1 else None
+
     if not isinstance(parsed, (list, tuple)) or len(parsed) < 2:
         return None
 
-    topic = str(parsed[0])
-    data = parsed[1]
-    timestamp = parse_timestamp(str(parsed[2])) if len(parsed) > 2 else None
+    return _normalise(parsed[0], parsed[1], parsed[2] if len(parsed) > 2 else None)
+
+
+def _normalise(topic: Any, data: Any, timestamp: Any) -> tuple[str, Any, datetime | None] | None:
+    """Turn one raw triple into the form the reducer expects."""
+    topic = str(topic)
+    stamp = parse_timestamp(str(timestamp)) if timestamp else None
 
     # The initial snapshot arrives with its payload as a JSON *string*.
     if isinstance(data, str) and topic and not topic.endswith(".z"):
@@ -90,7 +109,70 @@ def parse_line(line: str) -> tuple[str, Any, datetime | None] | None:
                 log.debug("failed to inflate %s payload", topic)
                 return None
 
-    return topic, data, timestamp
+    return topic, data, stamp
+
+
+def _from_signalr(frame: dict) -> list[tuple[str, Any, datetime | None]]:
+    """Unwrap a raw SignalR frame into zero or more triples.
+
+    Type 1 is a feed update whose `arguments` are already `[topic, data,
+    timestamp]` - the same triple FastF1 writes to disk, which is why both
+    formats converge here. Type 3 is the completion carrying the full state
+    snapshot, one entry per topic and no timestamps. Type 6 is a keepalive and
+    carries nothing.
+    """
+    kind = frame.get("type")
+
+    if kind == 1:
+        arguments = frame.get("arguments") or []
+        if len(arguments) < 2:
+            return []
+        found = _normalise(arguments[0], arguments[1], arguments[2] if len(arguments) > 2 else None)
+        return [found] if found else []
+
+    if kind == 3:
+        result = frame.get("result") or {}
+        if not isinstance(result, dict):
+            return []
+        out = []
+        for topic, data in result.items():
+            found = _normalise(topic, data, None)
+            if found:
+                out.append(found)
+        return out
+
+    return []
+
+
+def parse_frames(line: str) -> list[tuple[str, Any, datetime | None]]:
+    """Every triple carried by one recorded line.
+
+    A FastF1 line is always one event, but a raw SignalR snapshot frame holds the
+    whole session state at once - seventeen topics on a single line - so the
+    reader cannot assume one line means one event.
+    """
+    line = line.strip()
+    if not line:
+        return []
+
+    parsed: Any = None
+    try:
+        parsed = ast.literal_eval(line)
+    except (ValueError, SyntaxError):
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            log.debug("undecodable line: %.120s", line)
+            return []
+
+    if isinstance(parsed, dict):
+        return _from_signalr(parsed)
+
+    if not isinstance(parsed, (list, tuple)) or len(parsed) < 2:
+        return []
+
+    found = _normalise(parsed[0], parsed[1], parsed[2] if len(parsed) > 2 else None)
+    return [found] if found else []
 
 
 def read_events(path: Path | str) -> Iterator[FeedEvent]:
@@ -100,23 +182,19 @@ def read_events(path: Path | str) -> Iterator[FeedEvent]:
 
     with path.open("r", encoding="utf-8", errors="replace") as handle:
         for line in handle:
-            parsed = parse_line(line)
-            if parsed is None:
-                continue
-            topic, data, timestamp = parsed
+            for topic, data, timestamp in parse_frames(line):
+                session_time: timedelta | None = None
+                if timestamp is not None:
+                    if session_start is None:
+                        session_start = timestamp
+                    session_time = timestamp - session_start
 
-            session_time: timedelta | None = None
-            if timestamp is not None:
-                if session_start is None:
-                    session_start = timestamp
-                session_time = timestamp - session_start
-
-            yield FeedEvent(
-                topic=topic,
-                data=data,
-                timestamp=timestamp,
-                session_time=session_time,
-            )
+                yield FeedEvent(
+                    topic=topic,
+                    data=data,
+                    timestamp=timestamp,
+                    session_time=session_time,
+                )
 
 
 class ReplayFeed(RaceFeed):

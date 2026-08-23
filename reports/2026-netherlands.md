@@ -1,0 +1,90 @@
+# 2026 Dutch GP — Zandvoort
+
+*Generated 2026-08-23 18:56 UTC from 49 logged predictions.*
+
+## Verdict
+
+Did not beat the baseline of assuming nothing changes (skill -167.4%). Track position is sticky and the model did not add information here.
+
+## Scores
+
+| metric | model | baseline | skill |
+|---|---|---|---|
+| Brier (top 3) | 0.3820 | 0.1429 | -167.4% |
+| Brier (points) | 0.0010 | 0.0000 | worse* |
+| Mean position error | 2.50 | 0.76 | — |
+
+The baseline forecasts that every car finishes where it currently runs. In Formula 1
+that is a strong benchmark, not a straw man — track position is sticky. Negative skill
+means the model added nothing over assuming the order holds.
+
+## Calibration
+
+| confidence band | n | said | happened |
+|---|---|---|---|
+| 0%–20% | 16 | 10.2% | 87.5% |
+| 20%–40% | 7 | 22.3% | 42.9% |
+| 40%–60% | 20 | 52.6% | 95.0% |
+| 60%–80% | 6 | 69.1% | 100.0% |
+
+A well-calibrated model matches the last two columns. Consistently saying more
+than happens is overconfidence, and it is a separate failure from being wrong.
+
+## Every call
+
+| lap | driver | call | expected | actual | horizon |
+|---|---|---|---|---|---|
+| 21 | ANT | pit lap 21 on HAR | P3.96 | P2 | lap 31 |
+| 25 | HAM | pit lap 25 on HAR | P4.68 | P4 | lap 35 |
+| 26 | ANT | pit lap 36 on HAR | P3.23 | P2 | lap 36 |
+| 27 | ANT | pit lap 27 on HAR | P4.16 | P2 | lap 37 |
+| 28 | ANT | pit lap 28 on HAR | P4.23 | P2 | lap 38 |
+| 29 | ANT | pit lap 39 on SOF | P4.05 | P2 | lap 39 |
+| 30 | ANT | pit lap 30 on HAR | P4.18 | P2 | lap 40 |
+| 31 | ANT | pit lap 41 on HAR | P4.19 | P2 | lap 41 |
+| 32 | ANT | pit lap 35 on HAR | P4.17 | P2 | lap 42 |
+| 33 | ANT | pit lap 39 on HAR | P4.24 | P2 | lap 43 |
+| 34 | ANT | pit lap 34 on MED | P4.37 | P2 | lap 44 |
+| 35 | ANT | pit lap 35 on MED | P4.02 | P2 | lap 45 |
+| 36 | ANT | pit lap 36 on MED | P3.99 | P2 | lap 46 |
+| 37 | ANT | pit lap 40 on MED | P3.92 | P2 | lap 47 |
+| 38 | ANT | pit lap 38 on MED | P3.96 | P2 | lap 48 |
+| 39 | ANT | pit lap 39 on HAR | P4.05 | P2 | lap 49 |
+| 40 | ANT | pit lap 40 on HAR | P3.95 | P2 | lap 50 |
+| 41 | NOR | pit lap 41 on HAR | P4.01 | P1 | lap 51 |
+| 42 | NOR | pit lap 45 on HAR | P3.93 | P1 | lap 52 |
+| 43 | NOR | pit lap 43 on HAR | P3.77 | P1 | lap 53 |
+| 44 | NOR | pit lap 44 on HAR | P3.55 | P1 | lap 54 |
+| 45 | NOR | pit lap 45 on HAR | P3.03 | P1 | lap 55 |
+| 46 | NOR | pit lap 46 on HAR | P3.14 | P1 | lap 56 |
+| 47 | NOR | pit lap 47 on HAR | P3.16 | P1 | lap 57 |
+| 48 | NOR | pit lap 48 on HAR | P3.62 | P1 | lap 58 |
+| 49 | HAM | pit lap 49 on HAR | P4.69 | P4 | lap 59 |
+| 50 | HAM | pit lap 50 on HAR | P4.61 | P4 | lap 60 |
+| 51 | HAM | pit lap 51 on MED | P4.58 | P4 | lap 61 |
+| 52 | HAM | pit lap 52 on MED | P4.56 | P4 | lap 62 |
+| 53 | HAM | pit lap 53 on MED | P4.61 | P4 | lap 63 |
+| 54 | HAM | pit lap 54 on MED | P4.67 | P4 | lap 64 |
+| 55 | NOR | pit lap 55 on MED | P4.57 | P1 | lap 65 |
+| 56 | NOR | pit lap 56 on MED | P4.48 | P1 | lap 66 |
+| 57 | NOR | pit lap 57 on MED | P3.71 | P1 | lap 67 |
+| 58 | NOR | pit lap 58 on MED | P4.27 | P1 | lap 68 |
+| 59 | NOR | pit lap 59 on MED | P4.56 | P1 | lap 69 |
+| 60 | NOR | pit lap 60 on MED | P4.52 | P1 | lap 70 |
+| 61 | NOR | pit lap 61 on MED | P4.51 | P1 | lap 71 |
+| 62 | NOR | pit lap 62 on MED | P4.48 | P1 | lap 72 |
+| 63 | NOR | pit lap 63 on MED | P4.56 | P1 | lap 72 |
+| 64 | NOR | pit lap 64 on MED | P4.65 | P1 | lap 72 |
+| 65 | NOR | pit lap 65 on MED | P4.69 | P1 | lap 72 |
+| 66 | NOR | pit lap 66 on MED | P4.81 | P1 | lap 72 |
+| 67 | NOR | pit lap 67 on MED | P4.88 | P1 | lap 72 |
+| 68 | NOR | pit lap 68 on MED | P4.92 | P1 | lap 72 |
+| 69 | NOR | pit lap 69 on MED | P4.97 | P1 | lap 72 |
+| 70 | NOR | pit lap 70 on MED | P5.00 | P1 | lap 72 |
+| 71 | NOR | pit lap 71 on MED | P4.90 | P1 | lap 72 |
+| 72 | NOR | pit lap 72 on SOF | P4.95 | P1 | lap 72 |
+
+---
+
+Every prediction above was committed to this repository before the lap it refers to.
+Commit timestamps are the evidence; `git log predictions/` shows them.

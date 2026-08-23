@@ -151,8 +151,12 @@ arrived, that is the guard doing its job on bad state, not a bug to override mid
 
 ```bash
 uv run pitwall report data/raw/2026-netherlands-race.txt \
-    --log predictions/2026-dutch-gp.jsonl > reports/2026-netherlands.md
+    --log predictions/2026-dutch-gp.jsonl --out reports/2026-netherlands.md
 ```
+
+Use `--out`, not a shell redirect: stdout carries only the summary, and the report itself is written
+to the file (defaulting to `reports/race.md`). Redirecting gets you the summary under the report's
+name and the real report somewhere you did not look.
 
 Then the honest part: `git log predictions/` is the evidence. Read the calls it got wrong first,
 and write the logbook entry the same evening while it is still uncomfortable.

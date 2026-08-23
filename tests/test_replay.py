@@ -118,3 +118,91 @@ async def test_skip_to_drops_earlier_events(recording: Path):
 
     assert events, "expected some events after the skip point"
     assert all(e.session_time is None or e.session_time >= timedelta(seconds=180) for e in events)
+
+
+# -- raw SignalR recordings ---------------------------------------------
+#
+# `SignalRFeed(record_to=...)` writes the wire format verbatim, which is not what
+# FastF1 writes. Until this was handled, the Dutch GP recording - 14 MB and
+# 80,535 lines of a complete race - folded to *zero* events. Nothing errored:
+# `parse_line` required a list, every line was a dict, and each one was skipped
+# as undecodable. The race was captured and unreplayable at the same time.
+
+from pitwall.feed.replay import parse_frames  # noqa: E402
+
+
+def signalr_update(topic: str, data: object, timestamp: str = "2026-08-23T14:18:22.878Z") -> str:
+    return json.dumps({"type": 1, "target": "feed", "arguments": [topic, data, timestamp]})
+
+
+def test_reads_a_raw_signalr_feed_frame():
+    line = signalr_update("TimingData", {"Lines": {"55": {"Position": "3"}}})
+    frames = parse_frames(line)
+    assert len(frames) == 1
+    topic, data, timestamp = frames[0]
+    assert topic == "TimingData"
+    assert data == {"Lines": {"55": {"Position": "3"}}}
+    assert timestamp is not None
+
+
+def test_a_snapshot_frame_carries_every_topic_at_once():
+    """One line, seventeen events - so the reader cannot assume line == event."""
+    line = json.dumps(
+        {
+            "type": 3,
+            "invocationId": "0",
+            "result": {
+                "Heartbeat": {"Utc": "2026-08-23T12:45:00Z"},
+                "LapCount": {"CurrentLap": 1, "TotalLaps": 72},
+                "TrackStatus": {"Status": "1"},
+            },
+        }
+    )
+    frames = parse_frames(line)
+    assert {topic for topic, _, _ in frames} == {"Heartbeat", "LapCount", "TrackStatus"}
+    lap_count = next(data for topic, data, _ in frames if topic == "LapCount")
+    assert lap_count["TotalLaps"] == 72
+
+
+def test_keepalives_carry_nothing():
+    assert parse_frames('{"type":6}') == []
+    assert parse_frames("") == []
+
+
+def test_compressed_topics_inflate_in_signalr_frames():
+    from tests.conftest import compress
+
+    payload = {"Entries": [{"Utc": "2026-08-23T14:00:00Z"}]}
+    frames = parse_frames(signalr_update("CarData.z", compress(payload)))
+    assert len(frames) == 1
+    topic, data, _ = frames[0]
+    assert topic == "CarData"
+    assert data == payload
+
+
+def test_both_formats_fold_to_the_same_state(tmp_path: Path):
+    """The replay path must read what the live path writes.
+
+    A recording the engine cannot replay is a recording that cannot be
+    backtested, scored, or turned into a race report - which is most of what it
+    is for.
+    """
+    events = [
+        ("SessionInfo", {"Name": "Race", "Type": "Race"}),
+        ("LapCount", {"CurrentLap": 5, "TotalLaps": 72}),
+        ("TrackStatus", {"Status": "1"}),
+    ]
+    stamp = "2026-08-23T14:00:00.000Z"
+
+    fastf1_file = tmp_path / "fastf1.txt"
+    fastf1_file.write_text(
+        "\n".join(repr([topic, data, stamp]) for topic, data in events), encoding="utf-8"
+    )
+    signalr_file = tmp_path / "signalr.txt"
+    signalr_file.write_text(
+        "\n".join(signalr_update(topic, data, stamp) for topic, data in events), encoding="utf-8"
+    )
+
+    from_fastf1 = [(e.topic, e.data) for e in read_events(fastf1_file)]
+    from_signalr = [(e.topic, e.data) for e in read_events(signalr_file)]
+    assert from_fastf1 == from_signalr

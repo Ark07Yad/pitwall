@@ -4,6 +4,100 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-24 — Pooling 95 races, and what survivorship does to a tyre curve
+
+`PLAN.md` §5.2 asked for hierarchical degradation priors pooled across races, on
+the argument that one race cannot identify a cliff. Built it: 95 races, 85,587
+laps, tyre ages out to 78, entirely from the local FastF1 cache at no API cost.
+
+**Pooling lap times is meaningless, so what pools is the part attributable to
+tyre age.** A lap at Monaco and a lap at Monza share no scale. Each race is fitted
+for its nuisance structure - driver pace, the fuel-and-evolution trend, each
+compound's baseline - and subtracting it leaves degradation plus noise, in
+seconds, which means the same thing everywhere.
+
+**A bug I nearly shipped, and the synthetic test that caught it.** My first
+version put only a *linear* age term in the nuisance fit, reasoning that the
+residual keeps whatever the line missed so the delta still holds the whole age
+effect. That reasoning is wrong, because a quadratic in tyre age is partly
+collinear with the things being subtracted: its mean goes into the compound
+offset, and the part trending with race lap goes into the fuel term. Measured
+against synthetic data with a known cliff of 0.00250, the linear-only nuisance
+fit recovered **0.00098 - 61% of the curvature eaten** - and inflated the linear
+rate from 0.040 to 0.093 to compensate. Carrying `age²` through the nuisance and
+zeroing both age columns recovers 0.00214. Without a known answer to check
+against I would have shipped the first version and believed it.
+
+**And then the pooled cliff still came out zero.** Which is where it got
+interesting, because with 95 races the answer is not "not enough data". So I
+looked at the curve instead of fitting it:
+
+| compound | age 0-4 | 10-14 | 20-24 | 30-34 | 40-44 | 50-54 |
+|---|---|---|---|---|---|---|
+| HAR | +0.10 | +0.48 | +0.81 | +0.84 | +0.82 | +1.55 |
+| MED | +0.11 | +0.44 | +0.62 | +0.66 | +1.76 | — |
+| SOF | −0.29 | +0.21 | +0.21 | **−0.61** | — | — |
+
+The soft is the tell. A tyre thirty laps old cannot be *faster* than one fifteen
+laps old. What that measures is **survivorship**: a car whose tyres are going
+away gets pitted, so the sample still circulating at age 30 is made of precisely
+the stints that were not degrading. The selection strengthens with age, and
+pooling more races sharpens the artifact rather than removing it.
+
+So the observed curve is *concave* where physics says convex. An unconstrained
+quadratic fitted to it comes back **negative** - a tyre improving with age - and
+the non-negativity constraint I added yesterday floors it at zero. The zero was
+never "no cliff exists"; it was the constraint refusing to encode a nonsense, and
+I had been reading it as a finding.
+
+**What the model does about it.** The shape is fitted only up to the age at which
+the binned curve stops rising - found per compound, not assumed: soft turns at
+19, hard at 29 - and **continued linearly beyond rather than flattening**.
+Flattening is the artifact; a straight line is the smallest claim that is not
+knowingly wrong, and it does not tell the engine a tyre lasts forever. Fitting
+through the plateau is what had made the pooled soft look like it degraded at a
+fifth the rate of the hard.
+
+**A second sign error, laundered by shrinkage.** Melbourne came out at 0.06x the
+field average - essentially "tyres do not wear here" - and the raw scale behind
+it was **−0.64**. Lusail and Mexico City were negative too. Shrinking a negative
+number toward 1.0 turns it into a small positive one that looks entirely
+plausible, which is a good description of how a sign error survives review. Those
+circuits are now rejected rather than shrunk, and fall back to the field average
+with a warning naming them.
+
+**Circuit factors that survive the fix rank the way a tyre engineer would
+expect**: Sakhir 2.48x, Spa 2.27x, Barcelona 2.19x, Budapest 1.41x at the top;
+Zandvoort 0.50x, Montréal 0.39x at the bottom. Zandvoort being genuinely
+low-degradation is consistent with the near-flat hard-tyre wear measured directly
+from Sunday's race.
+
+**What it bought, and what it did not.** Re-running the 49 Dutch GP calls with
+the prior, matched lap-for-lap:
+
+| | Brier (top 3) | skill | on unobserved tyre ages |
+|---|---|---|---|
+| live | 0.3820 | −167.4% | 31 / 49 |
+| stay-out option | 0.0585 | +59.1% | 31 / 49 |
+| + pooled prior | 0.0837 | +41.4% | **0 / 49** |
+
+The prior scores *worse* on this race and is still the better model. Its value is
+the last column: two thirds of the calls used to rest on tyre ages nobody had
+ever run, and now none do, because the evidence reaches to 78 laps instead of 36.
+Forty-nine calls from one afternoon, all advising a leader who won comfortably,
+cannot separate +59% from +41% and I am not going to pretend otherwise in either
+direction.
+
+**The honest summary of three days.** The engine's late-race preference for
+staying out is not the modelling error I took it for on Sunday. Measured
+degradation over the stint lengths teams actually run is genuinely small - one to
+three seconds - against a 22.5-second stop. Once the mandatory change is done,
+staying out often *is* right, and real teams stop for track position, the tyre
+rule and safety cars rather than raw wear. What was wrong was never saying which
+calls it could support.
+
+---
+
 ## 2026-08-23 (later) — The cliff term, and a hypothesis the data refused
 
 Yesterday's post-mortem blamed the 47-of-49 "stay out" calls on a degradation

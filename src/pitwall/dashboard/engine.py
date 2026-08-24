@@ -26,7 +26,14 @@ from pitwall.feed.base import RaceFeed
 from pitwall.feed.signalr import SignalRFeed
 from pitwall.laps import LapCollector, filter_laps
 from pitwall.ledger import PredictionLog, prediction_from
-from pitwall.models import AttritionModel, HazardModel, PaceFit, PitLossModel, fit_pace
+from pitwall.models import (
+    AttritionModel,
+    DegradationPrior,
+    HazardModel,
+    PaceFit,
+    PitLossModel,
+    fit_pace,
+)
 from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
 from pitwall.state.models import RaceState
 
@@ -71,6 +78,7 @@ class Engine:
         hazard: HazardModel | None = None,
         attrition: AttritionModel | None = None,
         pit_loss: PitLossModel | None = None,
+        degradation: DegradationPrior | None = None,
         driver: str = "",
         sims: int = 1500,
         log: PredictionLog | None = None,
@@ -80,6 +88,7 @@ class Engine:
         self.hazard = hazard
         self.attrition = attrition
         self.pit_loss = pit_loss
+        self.degradation = degradation
         self.requested_driver = driver.upper()
         self.sims = sims
         self.log = log
@@ -156,7 +165,7 @@ class Engine:
         state = self.state
         clean, _ = filter_laps(self.collector.laps)
         self._clean_laps = len(clean)
-        pace: PaceFit | None = fit_pace(clean)
+        pace: PaceFit | None = fit_pace(clean, prior=self.degradation, circuit=state.circuit)
         self._pace = pace if (pace and pace.usable) else None
 
         if pace is None:

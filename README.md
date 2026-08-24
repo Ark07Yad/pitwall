@@ -174,6 +174,7 @@ uv run pitwall replay data/raw/2026-hungary-race.txt --speed 60 --follow
 uv run pitwall laps   data/raw/2026-hungary-race.txt      # extract and filter laps
 uv run pitwall hazard                                    # per-circuit safety-car risk
 uv run pitwall pitloss                                   # per-circuit pit loss
+uv run pitwall degradation                               # pooled tyre-degradation prior
 uv run pitwall strategy data/raw/2026-hungary-race.txt --lap 34 --driver LEC
 ```
 
@@ -255,10 +256,56 @@ limitation:
 > and staying out is precisely the option that benefits from that optimism. Teams pit *before* the
 > cliff, so the steep part of the curve is missing *because* it is steep.
 
-Every fit therefore records `observed_max_age` per compound, and any option needing a tyre older
+### Pooling across races, and survivorship
+
+A cliff needs stints long enough to contain one, which no single race provides. `scripts/
+fetch_degradation.py` pools **95 races and 85,587 laps** out of the local FastF1 cache — no API
+calls — by stripping each race down to the part of a lap attributable to tyre age and pooling
+those deltas, which mean the same thing at Monaco and Monza.
+
+Pooling did not reveal a cliff, and why is the more useful result:
+
+| compound | age 0–4 | 10–14 | 20–24 | 30–34 | 50–54 |
+|---|---|---|---|---|---|
+| HAR | +0.10 | +0.48 | +0.81 | +0.84 | +1.55 |
+| SOF | −0.29 | +0.21 | +0.21 | **−0.61** | — |
+
+A thirty-lap-old soft cannot be faster than a fifteen-lap-old one. That is **survivorship**: a car
+whose tyres are going away gets pitted, so the sample still circulating at high age is made of
+exactly the stints that were *not* degrading. The selection strengthens with age, and more races
+sharpen the artifact rather than removing it — which is why the observed curve is concave where
+physics says convex, and why an unconstrained quadratic through it comes back negative.
+
+So the shape is fitted only up to where the binned curve stops rising — found per compound, soft at
+19, hard at 29 — and **continued linearly beyond rather than flattening**. Flattening is the
+artifact; a straight line is the smallest claim that is not knowingly wrong.
+
+```
+uv run pitwall degradation
+
+  compound       linear       cliff  trusted  seen     @20     @40     @55
+  HAR          +0.0369   +0.00000       29    78  +0.74s  +1.48s  +2.03s
+  MED          +0.0307   +0.00000       29    77  +0.61s  +1.23s  +1.69s
+  SOF          -0.0148   +0.00228       19    54  +0.61s  +2.05s  +3.12s
+
+  circuit factor (shrunk toward 1.0):
+    Sakhir 2.48x   Spa 2.27x   Barcelona 2.19x   ...   Zandvoort 0.50x   Montréal 0.39x
+```
+
+Circuits whose fitted scale comes out *negative* are rejected rather than shrunk — Melbourne's raw
+scale was −0.64, and shrinking that toward 1.0 produced a plausible-looking 0.06x, which is how a
+sign error survives review. They fall back to the field average with a warning.
+
+The in-session fit is blended toward this prior in proportion to how many laps back it, so a
+well-observed compound keeps its own rate and a thin one borrows the pooled shape.
+
+Every fit records `observed_max_age` per compound, and any option needing a tyre older
 than that is flagged. Of the 49 calls made live at the 2026 Dutch GP, **31 rest on tyre ages never
 observed** — and the flag separates them properly: staying out on lap 71 needs a 23-lap tyre where
-33 were seen, while staying out on lap 26 needs 49. Same call, entirely different standing.
+33 were seen, while staying out on lap 26 needs 49. Same call, entirely different standing. With
+the pooled prior supplying evidence out to 78 laps, **none of the 49 still rest on unobserved tyre
+ages**; see [the re-scores](reports/rescore/README.md), which are post-hoc and kept well away from
+the live ledger.
 
 ⚠️ The *timing* of a stop is on much firmer ground than the *compound*. Compound choice inherits the
 single-race degradation confounding documented in [the logbook](docs/logbook.md) — at Hungary the
@@ -332,11 +379,13 @@ src/pitwall/
 └── models/
     ├── fuel.py       physics fuel correction, usable from lap 1
     ├── pace.py       joint fit: pace, fuel trend, per-compound degradation
+    ├── degradation.py  pooled tyre wear, selection-aware
     ├── pit_loss.py   per-circuit green-flag pit loss, shrunk
     └── safety_car.py per-circuit hazard with empirical-Bayes shrinkage
 scripts/record.py     supervised live recorder
 scripts/fetch_history.py  resumable safety-car history fetch
 scripts/fetch_pit_loss.py resumable pit-loss measurement
+scripts/fetch_degradation.py  pooled degradation history
 scripts/circuit_aliases.py  derive circuit-name aliases from F1's session info
 docs/PLAN.md          the full five-phase plan
 docs/logbook.md       what broke and what the data taught me

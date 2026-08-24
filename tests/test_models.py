@@ -394,3 +394,75 @@ def test_knows_where_the_evidence_stops():
     assert not fit.extrapolating(Compound.SOFT, 25)
     assert not fit.extrapolating(Compound.SOFT, 30)
     assert fit.extrapolating(Compound.SOFT, 31)
+
+
+# -- blending with the pooled prior -------------------------------------
+
+
+def test_a_prior_extends_how_far_the_evidence_reaches():
+    """The whole point of pooling: a 49-lap tyre is extrapolation against one
+    afternoon and interpolation against five seasons."""
+    from pitwall.models.degradation import fit_degradation
+
+    laps = synthetic_laps(
+        truth={Compound.SOFT: (0.05, 0.0), Compound.HARD: (0.03, 0.0)}, max_age=25
+    )
+    prior = fit_degradation(
+        [
+            {
+                "circuit": "Monza",
+                "buckets": [
+                    {"compound": "SOF", "age": age, "n": 60, "mean": 0.05 * age}
+                    for age in range(1, 61)
+                ],
+            }
+            for _ in range(5)
+        ]
+    )
+
+    bare = fit_pace(laps)
+    assert bare.observed_max_age[Compound.SOFT] == 25
+    assert bare.extrapolating(Compound.SOFT, 45)
+
+    informed = fit_pace(laps, prior=prior, circuit="Monza")
+    assert informed.observed_max_age[Compound.SOFT] >= 55
+    assert not informed.extrapolating(Compound.SOFT, 45)
+
+
+def test_a_well_observed_compound_keeps_its_own_rate():
+    """Blending is weighted by evidence, so a race with plenty of laps on a
+    compound is not overruled by the pooled average."""
+    from pitwall.models.degradation import fit_degradation
+
+    laps = synthetic_laps(
+        truth={Compound.SOFT: (0.08, 0.0), Compound.HARD: (0.03, 0.0)}, max_age=40
+    )
+    prior = fit_degradation(
+        [
+            {
+                "circuit": "Monza",
+                "buckets": [
+                    {"compound": "SOF", "age": age, "n": 60, "mean": 0.01 * age}
+                    for age in range(1, 41)
+                ],
+            }
+            for _ in range(5)
+        ]
+    )
+    bare = fit_pace(laps)
+    informed = fit_pace(laps, prior=prior, circuit="Monza")
+
+    # Pulled toward the prior, but nowhere near it - the race has 480 laps on
+    # the soft against a prior weight of 200.
+    assert informed.degradation[Compound.SOFT] < bare.degradation[Compound.SOFT]
+    assert informed.degradation[Compound.SOFT] > 0.05
+
+
+def test_no_prior_changes_nothing():
+    laps = synthetic_laps(
+        truth={Compound.SOFT: (0.05, 0.0), Compound.HARD: (0.03, 0.0)}, max_age=30
+    )
+    bare = fit_pace(laps)
+    same = fit_pace(laps, prior=None, circuit="Monza")
+    assert bare.degradation == same.degradation
+    assert bare.observed_max_age == same.observed_max_age

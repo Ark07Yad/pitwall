@@ -26,13 +26,16 @@ from pitwall.ledger import (
     score_predictions,
 )
 from pitwall.models import (
+    DegradationPrior,
     EventKind,
     FuelModel,
     PitLossModel,
     fit_attrition,
+    fit_degradation,
     fit_hazard,
     fit_pace,
     fit_pit_loss,
+    load_degradation,
     load_history,
     load_pit_loss,
 )
@@ -215,6 +218,41 @@ def _hazard(args: argparse.Namespace) -> int:
     return 0
 
 
+def _degradation(args: argparse.Namespace) -> int:
+    """Fit and report the pooled degradation prior."""
+    if not args.file.exists():
+        print(f"no degradation history: {args.file}", file=sys.stderr)
+        print(
+            "build one first:  python scripts/fetch_degradation.py --from 2022 --to 2026",
+            file=sys.stderr,
+        )
+        return 1
+
+    fit = fit_degradation(load_degradation(args.file))
+    if fit is None:
+        print("not enough history to fit a degradation prior", file=sys.stderr)
+        return 1
+
+    if args.circuit:
+        name = args.circuit
+        known = "" if fit.known_circuit(name) else "  (unknown here - unscaled)"
+        factor = fit.circuit_factor.get(name, 1.0)
+        print(f"{name}: {factor:.2f}x the field average{known}")
+        print(f"  {'compound':<10} {'@20':>8} {'@40':>8} {'@55':>8}  evidence to age")
+        for compound in sorted(fit.linear, key=lambda c: c.short):
+            print(
+                f"  {compound.short:<10}"
+                f" {fit.degradation_at(compound, 20, name):>+7.2f}s"
+                f" {fit.degradation_at(compound, 40, name):>+7.2f}s"
+                f" {fit.degradation_at(compound, 55, name):>+7.2f}s"
+                f"  {fit.observed_max_age(compound):>14}"
+            )
+        return 0
+
+    print(fit)
+    return 0
+
+
 def _pitloss(args: argparse.Namespace) -> int:
     """Fit and report per-circuit green-flag pit loss."""
     if not args.file.exists():
@@ -259,7 +297,8 @@ def _strategy(args: argparse.Namespace) -> int:
 
     state = collector.state
     clean, _ = filter_laps(collector.laps)
-    pace = fit_pace(clean)
+    prior = _load_degradation(args.degradation_history)
+    pace = fit_pace(clean, prior=prior, circuit=state.circuit)
     if pace is None:
         print("not enough clean laps to fit a pace model", file=sys.stderr)
         return 1
@@ -385,6 +424,7 @@ def _backtest(args: argparse.Namespace) -> int:
         hazard = fit_hazard(history, kind=EventKind.ANY)
         attrition = fit_attrition(history)
     pit_loss = _load_pit_loss(args.pit_loss_history)
+    prior = _load_degradation(args.degradation_history)
 
     laps = [int(x) for x in args.laps.split(",") if x.strip()]
     wanted = {d.strip().upper() for d in args.drivers.split(",") if d.strip()}
@@ -402,7 +442,7 @@ def _backtest(args: argparse.Namespace) -> int:
             continue
 
         clean, _ = filter_laps(collector.laps)
-        pace = fit_pace(clean)
+        pace = fit_pace(clean, prior=prior, circuit=state.circuit)
         if pace is None:
             print(f"lap {lap}: too few clean laps to fit yet, skipping", file=sys.stderr)
             continue
@@ -494,6 +534,17 @@ def _report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_degradation(path: Path) -> DegradationPrior | None:
+    """The pooled degradation prior, or None if the history is not built.
+
+    Absence is not fatal: the in-session fit runs alone, which is what it did
+    before the prior existed.
+    """
+    if not path.exists():
+        return None
+    return fit_degradation(load_degradation(path))
+
+
 def _load_pit_loss(path: Path) -> PitLossModel | None:
     """Per-circuit pit loss, or None if the history has not been built.
 
@@ -530,6 +581,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         hazard = fit_hazard(history, kind=EventKind.ANY)
         attrition = fit_attrition(history)
     pit_loss = _load_pit_loss(args.pit_loss_history)
+    prior = _load_degradation(args.degradation_history)
 
     log = None
     if args.log_predictions:
@@ -558,6 +610,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         hazard=hazard,
         attrition=attrition,
         pit_loss=pit_loss,
+        degradation=prior,
         driver=args.driver,
         sims=args.sims,
         log=log,
@@ -626,6 +679,12 @@ def main(argv: list[str] | None = None) -> int:
     hazard.add_argument("--circuit", help="report window probabilities for one circuit")
     hazard.add_argument("--laps", type=int, default=60, help="race length for --circuit")
 
+    degradation = sub.add_parser("degradation", help="fit the pooled tyre-degradation prior")
+    degradation.add_argument(
+        "file", type=Path, nargs="?", default=Path("data/history/degradation.json")
+    )
+    degradation.add_argument("--circuit", default="", help="scale to one circuit")
+
     pitloss = sub.add_parser("pitloss", help="fit per-circuit green-flag pit loss")
     pitloss.add_argument("file", type=Path, nargs="?", default=Path("data/history/pit_loss.json"))
     pitloss.add_argument("--shrinkage", type=float, default=PIT_LOSS_SHRINKAGE)
@@ -637,6 +696,12 @@ def main(argv: list[str] | None = None) -> int:
     strategy.add_argument("--driver", required=True, help="TLA or car number")
     strategy.add_argument("--sims", type=int, default=3000)
     strategy.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
+    strategy.add_argument(
+        "--degradation-history",
+        type=Path,
+        default=Path("data/history/degradation.json"),
+        help="pooled tyre-degradation prior; a single race cannot identify a cliff",
+    )
     strategy.add_argument(
         "--pit-loss-history",
         type=Path,
@@ -666,6 +731,12 @@ def main(argv: list[str] | None = None) -> int:
     backtest.add_argument("--no-commit", action="store_true")
     backtest.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
     backtest.add_argument(
+        "--degradation-history",
+        type=Path,
+        default=Path("data/history/degradation.json"),
+        help="pooled tyre-degradation prior; a single race cannot identify a cliff",
+    )
+    backtest.add_argument(
         "--pit-loss-history",
         type=Path,
         default=Path("data/history/pit_loss.json"),
@@ -692,6 +763,12 @@ def main(argv: list[str] | None = None) -> int:
     dashboard.add_argument("--port", type=int, default=8000)
     dashboard.add_argument("--record", type=Path, help="also write raw frames (live only)")
     dashboard.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
+    dashboard.add_argument(
+        "--degradation-history",
+        type=Path,
+        default=Path("data/history/degradation.json"),
+        help="pooled tyre-degradation prior; a single race cannot identify a cliff",
+    )
     dashboard.add_argument(
         "--pit-loss-history",
         type=Path,
@@ -721,6 +798,8 @@ def main(argv: list[str] | None = None) -> int:
         return _hazard(args)
     if args.command == "pitloss":
         return _pitloss(args)
+    if args.command == "degradation":
+        return _degradation(args)
     if args.command == "strategy":
         return _strategy(args)
     if args.command == "live":

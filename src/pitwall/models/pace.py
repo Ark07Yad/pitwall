@@ -53,10 +53,12 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
 from pitwall.laps.records import LapRecord
+from pitwall.models.safety_car import normalise_circuit
 from pitwall.state.models import Compound
 
 # Below this many laps the fit is not worth reporting; coefficients swing wildly.
@@ -204,11 +206,88 @@ class PaceFit:
         return "\n".join(lines)
 
 
-def fit_pace(laps: list[LapRecord]) -> PaceFit | None:
+def _blend_with_prior(
+    *,
+    degradation: dict[Compound, float],
+    curvature: dict[Compound, float],
+    observed_max_age: dict[Compound, int],
+    laps_per_compound: Counter,
+    prior: Any,
+    circuit: str,
+) -> tuple[dict[Compound, float], dict[Compound, float], dict[Compound, int], list[str]]:
+    """Shrink an in-race fit toward the pooled prior, in units of laps.
+
+    The weight is the compound's own lap count against the prior's, so a
+    compound with three hundred clean laps keeps its own rate and one with thirty
+    borrows most of the pooled shape. The alternative - a fixed blend - would
+    either drown a well-observed race or leave a thin one on noise.
+
+    Curvature is treated differently from the slope. A single race almost never
+    identifies a cliff, so where the in-race fit found none the prior's is taken
+    outright rather than averaged with a zero that means "could not tell" rather
+    than "is not there".
+    """
+    notes: list[str] = []
+    blend_laps = float(getattr(prior, "blend_laps", 200.0))
+    blended = dict(degradation)
+    blended_curve = dict(curvature)
+    extended = dict(observed_max_age)
+
+    for compound, rate in degradation.items():
+        prior_rate = prior.linear.get(compound)
+        if prior_rate is None:
+            continue
+        # The prior's linear rate at this circuit. Taken directly rather than
+        # via `degradation_at(1.0)`, which is the slope at age one and not the
+        # same thing once curvature is present.
+        factor = prior.circuit_factor.get(normalise_circuit(circuit), 1.0)
+        scaled = prior_rate * factor
+        n = float(laps_per_compound.get(compound, 0))
+        blended[compound] = (n * rate + blend_laps * scaled) / (n + blend_laps)
+
+        own_curve = curvature.get(compound, 0.0)
+        prior_curve = prior.curvature.get(compound, 0.0) * prior.circuit_factor.get(
+            normalise_circuit(circuit), 1.0
+        )
+        if own_curve <= 0.0:
+            blended_curve[compound] = prior_curve
+        else:
+            blended_curve[compound] = (n * own_curve + blend_laps * prior_curve) / (n + blend_laps)
+
+        # The prior's evidence reaches further than this race's, which is the
+        # whole reason for having it.
+        pooled_age = prior.observed_max_age(compound)
+        if pooled_age > extended.get(compound, 0):
+            extended[compound] = pooled_age
+
+    if not prior.known_circuit(circuit):
+        notes.append(
+            f"no pooled degradation history for {circuit or 'this circuit'}; "
+            "the prior is applied unscaled"
+        )
+    return blended, blended_curve, extended, notes
+
+
+def fit_pace(
+    laps: list[LapRecord],
+    *,
+    prior: Any = None,
+    circuit: str = "",
+) -> PaceFit | None:
     """Fit the decomposition. Returns None if there is not enough to fit.
 
     Expects laps that have already been through the clean-lap filter; feeding it
     in-laps or safety-car laps produces confident nonsense.
+
+    `prior` is an optional pooled `DegradationPrior`. One race cannot identify a
+    cliff - teams pit before a tyre falls away, so the steep part is missing
+    precisely because it is steep - and the prior supplies the shape that many
+    races can see. Each compound's in-race estimate is blended toward it in
+    proportion to how many laps back it, so a well-observed compound keeps its
+    own number and a thin one borrows.
+
+    It also extends `observed_max_age`: a 49-lap tyre is extrapolation against
+    one afternoon and ordinary interpolation against five seasons.
     """
     usable = [lap for lap in laps if lap.lap_time is not None and lap.lap >= 1]
     if len(usable) < MIN_LAPS:
@@ -355,6 +434,17 @@ def fit_pace(laps: list[LapRecord]) -> PaceFit | None:
                 f"{compound.short} degradation is negative ({rate:+.4f} s/lap) - "
                 "usually too few laps on that compound"
             )
+
+    if prior is not None:
+        degradation, degradation_curvature, observed_max_age, prior_notes = _blend_with_prior(
+            degradation=degradation,
+            curvature=degradation_curvature,
+            observed_max_age=observed_max_age,
+            laps_per_compound=Counter(lap.compound for lap in usable),
+            prior=prior,
+            circuit=circuit,
+        )
+        warnings.extend(prior_notes)
 
     return PaceFit(
         race_lap_coef=race_lap_coef,

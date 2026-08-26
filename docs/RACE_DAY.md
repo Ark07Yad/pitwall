@@ -76,6 +76,8 @@ Check the dashboard in the first few laps:
 | `ledger.written` | rising by one per lap, once calls begin |
 | `ledger.commits_failed` | **0** |
 | `ledger.forecasts` | rising by ~22 per lap — the whole field |
+| `feed.sims` | ramping from 600 toward 1500; drops if decisions run long |
+| `feed.sims_floor` | **false** — true means the budget is being missed at 300 sims |
 
 `curl -s http://127.0.0.1:8000/api/state | python -m json.tool` if the browser is inconvenient.
 
@@ -84,6 +86,11 @@ Check the dashboard in the first few laps:
 **No call for the first ~20 laps.** The pace model refuses to publish until the design is
 identified. It says so in the refusal line. On the Hungary recording the first usable call was lap
 24. Refusing is the feature; a confident number from a degenerate fit is the failure.
+
+**The simulation count moving around.** It adapts to hold a p99 ≤ 2 s budget, starting at 600 and
+ramping toward 1500 when there is headroom. Falling is the controller working, not a fault. Only
+`sims_floor: true` is a problem, and it means the model is too expensive rather than the machine
+too slow.
 
 **The screen is quiet between laps.** A recomputation is throttled to one per 8 seconds, and laps
 at Zandvoort are ~72 s. One call per lap is the intended rate.

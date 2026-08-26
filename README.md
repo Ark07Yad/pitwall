@@ -328,6 +328,46 @@ laps 1–24 — no leak from the finish into a forecast of it. The report grades
 actual classification, and is generated rather than written so the bad weekends cannot be quietly
 skipped.
 
+### Latency, with a budget it can miss
+
+`PLAN.md` §6.4 asks for this specifically: F1 teams hire for real-time systems, and a latency
+budget with evidence behind it is a stronger signal than any accuracy number. An accuracy number
+can be got by running a notebook overnight; a p99 cannot.
+
+The budget is **p99 ≤ 2 s from a packet landing to a recommendation existing**, and it is checked
+against the samples rather than asserted. Measured over the 2026 Dutch GP, at a fixed 1,500
+simulations, it was **missed** — so the simulation count now adapts, which `PLAN.md` §10 named as
+the mitigation before any of this was built:
+
+| | fixed 1,500 sims | adaptive |
+|---|---|---|
+| p50 | 1250 ms | 1158 ms |
+| p95 | 2814 ms | **1306 ms** |
+| p99 | 3222 ms | **1505 ms** |
+| over budget | 13 / 49 | **0 / 49** |
+
+```
+  packet arrival -> recommendation, distribution:
+         50-100 ms     1   2.0%  #
+        100-250 ms     3   6.1%  ####
+        250-500 ms     6  12.2%  ########
+       500-1000 ms     7  14.3%  #########
+      1000-2000 ms    32  65.3%  ########################################
+```
+
+Cost is near-linear in the number of simulations, so the controller is a damped ratio — undamped,
+one slow lap halves the count and the next doubles it back. It starts *below* the configured
+ceiling and earns its way up, because the first decision is the one it cannot correct and with
+fifty decisions in a race a single uncorrected outlier **is** the p99. It never goes below 300
+simulations: past that the margin between two options is sampling error, and the honest response
+is to report the miss rather than keep degrading quietly.
+
+Two measurement notes, both of which flattered the number before they were fixed. Cycles where the
+pace fit is refused run no simulation and cost microseconds; counting them as decisions put a fifth
+of the samples in the sub-millisecond bucket and nearly halved the reported median. And `lag` —
+the age of a message on arrival — is reported separately and never folded into the total, because
+it measures F1's pipeline and the internet rather than this engine.
+
 ### Forecasting the whole field
 
 A recommendation log cannot be calibrated. The engine advises **one** car — a pit wall only has one

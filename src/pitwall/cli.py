@@ -19,6 +19,7 @@ from pathlib import Path
 from pitwall.feed.replay import ReplayFeed, read_events
 from pitwall.feed.signalr import SignalRFeed
 from pitwall.laps import CleanLapConfig, LapCollector, filter_laps, fold_to_lap
+from pitwall.latency import LatencyLog, load_samples, report_from
 from pitwall.ledger import (
     ForecastLog,
     PredictionLog,
@@ -500,6 +501,15 @@ def _backtest(args: argparse.Namespace) -> int:
     return 0
 
 
+def _sibling_latency(log_path: Path) -> str | None:
+    """Pipeline timings written alongside a prediction log, if any."""
+    candidate = log_path.with_name(log_path.stem + "-latency.jsonl")
+    if not candidate.exists():
+        return None
+    rows = load_samples(candidate)
+    return report_from(rows).summary() if rows else None
+
+
 def _sibling_forecasts(log_path: Path) -> list[dict] | None:
     """Field forecasts written alongside a prediction log, if any.
 
@@ -551,6 +561,7 @@ def _report(args: argparse.Namespace) -> int:
         circuit=state.circuit,
         tla_by_driver={n: c.tla for n, c in state.cars.items()},
         forecasts=_sibling_forecasts(args.log),
+        latency=_sibling_latency(args.log),
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(text, encoding="utf-8")
@@ -607,7 +618,7 @@ def _dashboard(args: argparse.Namespace) -> int:
     pit_loss = _load_pit_loss(args.pit_loss_history)
     prior = _load_degradation(args.degradation_history)
 
-    log = forecasts = None
+    log = forecasts = latency = None
     if args.log_predictions:
         # A replayed race is a rehearsal, and its calls are made with the result
         # already on disk. Committing them into the same ledger as live ones
@@ -625,9 +636,11 @@ def _dashboard(args: argparse.Namespace) -> int:
         name = args.session or f"{args.replay.stem if args.replay else 'live'}"
         log = PredictionLog(name, directory=args.out, commit=not args.no_commit)
         forecasts = ForecastLog(name, directory=args.out, commit=not args.no_commit)
+        latency = LatencyLog(path=args.out / f"{log.path.stem}-latency.jsonl")
         suffix = "" if log.commit_enabled else " (not committing)"
         print(f"  ledger    -> {log.path}{suffix}")
         print(f"  forecasts -> {forecasts.path}{suffix}")
+        print(f"  latency   -> {latency.path}")
 
     engine = Engine(
         feed,
@@ -639,6 +652,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         sims=args.sims,
         log=log,
         forecasts=forecasts,
+        latency=latency,
         horizon=args.horizon,
     )
     print(f"pitwall dashboard - {source}")

@@ -409,3 +409,72 @@ def test_forecasts_only_during_a_race(tmp_path):
     engine = Engine(ReplayFeed(tmp_path / "x.txt"), forecasts=flog)
     engine._forecast([], race_state(total_laps=0, session_type="Practice"), SimConfigStub())
     assert flog.entries() == []
+
+
+# -- the latency controller ---------------------------------------------
+#
+# Measured on the Dutch GP recording: at a fixed 1,500 simulations the engine ran
+# p50 1.25s and p99 3.22s against a 2s budget, missing it on 13 of 49 decisions.
+# PLAN.md §10 names reducing N adaptively as the mitigation.
+
+
+def engine_with_latency(tmp_path, sims=1500):
+    from pitwall.latency import LatencyLog
+
+    return Engine(ReplayFeed(tmp_path / "x.txt"), sims=sims, latency=LatencyLog(budget=2.0))
+
+
+def test_it_starts_below_the_ceiling(tmp_path):
+    """The first decision is the one the controller cannot correct, and with
+    fifty decisions in a race one uncorrected outlier *is* the p99."""
+    engine = engine_with_latency(tmp_path, sims=1500)
+    assert engine.max_sims == 1500
+    assert engine.sims < 1500
+
+
+def test_a_slow_decision_reduces_the_simulation_count(tmp_path):
+    engine = engine_with_latency(tmp_path)
+    before = engine.sims
+    engine._adapt_sims(4.0)  # double the budget
+    assert engine.sims < before
+
+
+def test_headroom_ramps_back_up_but_never_past_the_ceiling(tmp_path):
+    engine = engine_with_latency(tmp_path, sims=1500)
+    for _ in range(20):
+        engine._adapt_sims(0.05)
+    assert engine.sims == 1500, "should climb to the configured count"
+    for _ in range(5):
+        engine._adapt_sims(0.05)
+    assert engine.sims == 1500, "and never past it"
+
+
+def test_it_will_not_degrade_below_a_usable_sample(tmp_path):
+    """Below the floor the margin between two options is sampling error, so the
+    honest response is to flag the miss rather than keep cutting."""
+    from pitwall.dashboard.engine import MIN_SIMS
+
+    engine = engine_with_latency(tmp_path)
+    for _ in range(50):
+        engine._adapt_sims(30.0)
+    assert engine.sims == MIN_SIMS
+    assert engine.sims_floor_hit
+    assert engine.snapshot()["feed"]["sims_floor"] is True
+
+
+def test_damping_stops_it_oscillating(tmp_path):
+    """Undamped, one slow lap halves the count and the next doubles it back."""
+    engine = engine_with_latency(tmp_path)
+    seen = []
+    for took in (4.0, 0.05, 4.0, 0.05, 4.0, 0.05):
+        engine._adapt_sims(took)
+        seen.append(engine.sims)
+    swings = [abs(b - a) / a for a, b in zip(seen, seen[1:], strict=False)]
+    assert max(swings) < 1.5, f"simulation count is oscillating: {seen}"
+
+
+def test_no_latency_log_means_no_adaptation(tmp_path):
+    engine = Engine(ReplayFeed(tmp_path / "x.txt"), sims=1500)
+    before = engine.sims
+    engine._adapt_sims(10.0)
+    assert engine.sims == before

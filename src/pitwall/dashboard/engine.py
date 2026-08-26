@@ -20,11 +20,13 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from pitwall.feed.base import RaceFeed
 from pitwall.feed.signalr import SignalRFeed
 from pitwall.laps import LapCollector, filter_laps
+from pitwall.latency import LatencyLog, LatencySample
 from pitwall.ledger import Forecast, ForecastLog, PredictionLog, prediction_from
 from pitwall.models import (
     AttritionModel,
@@ -55,6 +57,23 @@ def _is_gap(value: object) -> bool:
 # Recompute at most this often. A decision costs a second or two of CPU, and the
 # answer does not move meaningfully between consecutive laps.
 MIN_SECONDS_BETWEEN_ADVICE = 8.0
+
+# Below this the finishing distribution is too noisy to publish a margin from -
+# the difference between two options would be sampling error. If the budget
+# cannot be met at this many simulations, the honest response is to say so rather
+# than to keep degrading quietly.
+MIN_SIMS = 300
+# Aim here rather than at the budget itself. Controlling on the last decision
+# while being judged on p99 means leaving headroom for the slow ones.
+BUDGET_TARGET = 0.65
+# Move this fraction of the way to the new estimate each time. Undamped, one slow
+# decision halves the simulation count and the next doubles it back.
+ADAPT_DAMPING = 0.5
+# The first decision is the one the controller cannot correct, because it has no
+# measurement yet - and with fifty decisions in a race, one uncorrected outlier
+# *is* the p99. So start below the ceiling and let the loop earn its way up,
+# rather than spending the budget on the one lap that has no evidence behind it.
+WARMUP_SIMS = 600
 
 
 @dataclass
@@ -89,6 +108,7 @@ class Engine:
         sims: int = 1500,
         log: PredictionLog | None = None,
         forecasts: ForecastLog | None = None,
+        latency: LatencyLog | None = None,
         horizon: int = 10,
     ) -> None:
         self.feed = feed
@@ -97,9 +117,13 @@ class Engine:
         self.pit_loss = pit_loss
         self.degradation = degradation
         self.requested_driver = driver.upper()
-        self.sims = sims
+        # The ceiling. The controller ramps toward it and never past it.
+        self.max_sims = sims
+        self.sims = min(sims, WARMUP_SIMS)
+        self.sims_floor_hit = False
         self.log = log
         self.forecasts = forecasts
+        self.latency = latency
         self.horizon = horizon
 
         self.collector = LapCollector()
@@ -134,14 +158,26 @@ class Engine:
     async def run(self) -> None:
         """Consume the feed until it ends. Intended as a background task."""
         async for event in self.feed:
+            # The clock starts when the packet lands, not when the decision
+            # begins - the question the budget answers is how stale a published
+            # recommendation is, and folding is part of that even though it is
+            # microseconds against the simulation's seconds.
+            arrived = time.perf_counter()
             self.collector.apply(event)
+            fold = time.perf_counter() - arrived
             self.events += 1
             for number, car in self.collector.state.cars.items():
                 if car.position is not None and number not in self._grid:
                     self._grid[number] = car.position
-            await self._maybe_advise()
+            await self._maybe_advise(arrived=arrived, fold=fold, event=event)
 
-    async def _maybe_advise(self) -> None:
+    async def _maybe_advise(
+        self,
+        *,
+        arrived: float | None = None,
+        fold: float = 0.0,
+        event: Any = None,
+    ) -> None:
         state = self.state
         now = time.monotonic()
         if self._busy or state.lap <= 0 or not state.cars:
@@ -154,14 +190,102 @@ class Engine:
         self._busy = True
         self._last_advice_at = now
         self._last_advised_lap = state.lap
+        started = time.perf_counter()
         try:
             # Off the event loop: ingest keeps flowing while this runs, so the
             # screen stays live through the seconds a decision takes.
             self.advice = await asyncio.to_thread(self._compute, state.lap)
         except Exception:
             log.exception("advice failed on lap %s", state.lap)
+        else:
+            self._record_latency(
+                state.lap, arrived=arrived, fold=fold, started=started, event=event
+            )
         finally:
             self._busy = False
+
+    def _record_latency(
+        self,
+        lap: int,
+        *,
+        arrived: float | None,
+        fold: float,
+        started: float,
+        event: Any,
+    ) -> None:
+        """One trip through the pipeline, timed end to end.
+
+        `lag` is kept separate and never folded into the total: it measures F1's
+        pipeline and the internet, not this engine, and adding it would produce a
+        flattering-sounding number that this machine cannot be held to.
+        """
+        if self.latency is None:
+            return
+
+        # A refused cycle - no usable pace fit yet - runs no simulation and costs
+        # microseconds. Counting those as decisions would put a fifth of the
+        # samples in the sub-millisecond bucket and halve the reported median
+        # with work that never happened. The budget is about published calls.
+        advice = self.advice
+        if advice is None or advice.refused or not advice.call:
+            return
+
+        finished = time.perf_counter()
+
+        # Lag only means something against a live feed. On a replay the
+        # timestamps are days old, so the "lag" is the age of the recording - a
+        # spectacular-looking number measuring nothing.
+        lag: float | None = None
+        stamp = getattr(event, "timestamp", None)
+        if stamp is not None and isinstance(self.feed, SignalRFeed):
+            try:
+                lag = max(0.0, (datetime.now(UTC) - stamp.replace(tzinfo=UTC)).total_seconds())
+            except (TypeError, ValueError, AttributeError):
+                lag = None
+        self._adapt_sims(finished - started)
+        self.latency.record(
+            LatencySample(
+                lap=lap,
+                fold=fold,
+                decide=finished - started,
+                total=(finished - arrived) if arrived is not None else (finished - started),
+                lag=lag,
+            )
+        )
+
+    def _adapt_sims(self, took: float) -> None:
+        """Scale the simulation count to hold the latency budget.
+
+        `PLAN.md` §10 names this as the mitigation for the simulation being too
+        slow to run live, with the instruction to measure before optimising.
+        Measured: at a fixed 1,500 simulations the Dutch GP ran p50 1.25s and p99
+        3.22s against a 2s budget, missing it on 13 of 49 decisions.
+
+        Cost is close to linear in the number of simulations, so the correction
+        is just a ratio - damped, because controlling on the last decision while
+        being judged on the tail otherwise oscillates: one slow lap halves the
+        count and the next doubles it straight back.
+
+        It never exceeds the configured count: a budget is not a licence to spend
+        more than was asked for.
+        """
+        if self.latency is None or took <= 0:
+            return
+        budget = self.latency.budget
+        if budget <= 0:
+            return
+
+        wanted = self.sims * (budget * BUDGET_TARGET) / took
+        wanted = min(wanted, float(self.max_sims))
+        adjusted = self.sims + ADAPT_DAMPING * (wanted - self.sims)
+        target = int(max(MIN_SIMS, min(self.max_sims, round(adjusted))))
+
+        if target < self.sims:
+            log.info("latency %.2fs over budget - simulations %d -> %d", took, self.sims, target)
+        self.sims = target
+        # Flag rather than hide it: at the floor the budget is being missed by
+        # the model being too expensive, not by the controller being slow.
+        self.sims_floor_hit = self.sims_floor_hit or (target == MIN_SIMS and took > budget)
 
     def _pick_driver(self, entries: list) -> Any:
         wanted = self.requested_driver
@@ -513,7 +637,11 @@ class Engine:
                 }
             )
 
-        feed_stats: dict[str, Any] = {"events": self.events}
+        feed_stats: dict[str, Any] = {
+            "events": self.events,
+            "sims": self.sims,
+            "sims_floor": self.sims_floor_hit,
+        }
         if isinstance(self.feed, SignalRFeed):
             summary = self.feed.latency.summary()
             feed_stats.update(

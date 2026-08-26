@@ -4,6 +4,67 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-26 (later) — A latency budget, missed, then met
+
+`PLAN.md` §6.4 wanted p50/p99 from packet arrival to published recommendation,
+with a stated budget and a published histogram, on the argument that F1 teams
+hire for real-time systems and a p99 is harder to fake than an accuracy number.
+The feed had been tracking two things that sound like this and are not: `lag`,
+the age of a message when it arrives, and `decode`, turning a frame into events.
+Neither is the pipeline.
+
+**The first measurement was flattering, twice over, and both had the same shape
+as everything else found this week.**
+
+Fourteen of seventy-two samples landed in the sub-millisecond bucket. Those were
+cycles where the pace fit was refused - no usable model yet, so no simulation
+ran. Counting a decision that never happened as a fast decision moved the median
+from 1250ms to 677ms, nearly halving it. And the feed lag came out at a mean of
+**278,345 seconds**, which is not a network problem: replaying a recording made
+three days earlier, the "lag" is the age of the recording. Lag is now taken only
+against a live feed, and never folded into the total, because it measures F1's
+pipeline and the internet rather than this engine.
+
+**Then the honest number, and it missed.** Over 49 real decisions at a fixed
+1,500 simulations: p50 1250ms, p95 2814ms, **p99 3222ms against a 2s budget, over
+on 13 of 49**. The budget was written down before the measurement and stayed
+written down after it.
+
+**§10 had already named the fix**, in June, under "simulation too slow for live
+use": vectorise, reduce N adaptively, measure before optimising. Measured, so:
+cost is near-linear in simulation count, which makes the correction a ratio.
+Damped, because controlling on the last decision while being judged on the tail
+oscillates - one slow lap halves the count and the next doubles it straight back,
+and the test for that asserts the swing rather than the level.
+
+First attempt: 13 misses down to 1. The one remaining was the *first* decision,
+which the controller by definition cannot correct, and with 49 samples one
+uncorrected outlier is the entire p99. So it now starts below the ceiling and
+earns its way up rather than spending the budget on the single lap with no
+evidence behind it.
+
+| | fixed 1,500 | adaptive |
+|---|---|---|
+| p50 | 1250ms | 1158ms |
+| p95 | 2814ms | 1306ms |
+| p99 | 3222ms | **1505ms** |
+| over budget | 13/49 | **0/49** |
+
+A floor of 300 simulations, below which the margin between two options is
+sampling error rather than a decision - and hitting it sets a flag that shows on
+the dashboard, because at that point the budget is being missed by the model
+being too expensive, not by the controller being slow. Degrading quietly would be
+the worst of the available behaviours.
+
+**What I actually like about this one** is that it is the first thing this week
+where the loop closed inside a day: a number was written down, the system missed
+it, the plan's own mitigation was implemented, and the number was met - with the
+before and after both in the repository. The three findings before it were all
+"the measurement was wrong". This one is "the measurement was right and the
+system wasn't", which is a much more comfortable kind of problem to have.
+
+---
+
 ## 2026-08-26 — The scorecard could not be read, and why
 
 Sunday's report has a row that says `Brier (points) 0.0010 / 0.0000 / worse*`. A

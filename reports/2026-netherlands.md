@@ -1,6 +1,6 @@
 # 2026 Dutch GP — Zandvoort
 
-*Generated 2026-08-26 19:26 UTC from 49 logged predictions.*
+*Generated 2026-08-26 19:47 UTC from 49 logged predictions.*
 
 ## Verdict
 
@@ -83,6 +83,24 @@ than happens is overconfidence, and it is a separate failure from being wrong.
 | 70 | NOR | pit lap 70 on MED | P5.00 | P1 | lap 72 |
 | 71 | NOR | pit lap 71 on MED | P4.90 | P1 | lap 72 |
 | 72 | NOR | pit lap 72 on SOF | P4.95 | P1 | lap 72 |
+
+## Feed
+
+```
+Pipeline latency over 49 decisions
+
+  fold     n=49    p50     0.01ms  p95     0.01ms  p99     0.02ms  max     0.02ms
+  decide   n=49    p50  1157.98ms  p95  1305.57ms  p99  1504.66ms  max  1504.66ms
+  total    n=49    p50  1157.99ms  p95  1305.57ms  p99  1504.67ms  max  1504.67ms
+           budget p99 <= 2000ms: within (0 of 49 samples over)
+
+  packet arrival -> recommendation, distribution:
+         50-100 ms     1   2.0%  #
+        100-250 ms     3   6.1%  ####
+        250-500 ms     6  12.2%  ########
+       500-1000 ms     7  14.3%  #########
+      1000-2000 ms    32  65.3%  ########################################
+```
 
 ## Field forecast
 

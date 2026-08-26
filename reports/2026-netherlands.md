@@ -1,6 +1,6 @@
 # 2026 Dutch GP — Zandvoort
 
-*Generated 2026-08-23 18:56 UTC from 49 logged predictions.*
+*Generated 2026-08-26 19:26 UTC from 49 logged predictions.*
 
 ## Verdict
 
@@ -83,6 +83,31 @@ than happens is overconfidence, and it is a separate failure from being wrong.
 | 70 | NOR | pit lap 70 on MED | P5.00 | P1 | lap 72 |
 | 71 | NOR | pit lap 71 on MED | P4.90 | P1 | lap 72 |
 | 72 | NOR | pit lap 72 on SOF | P4.95 | P1 | lap 72 |
+
+## Field forecast
+
+Alongside each pit call the engine forecasts **every car**, which costs one simulation rather than one per car. That is what makes a calibration curve possible: 1,078 claims across 22 cars, against 49 recommendations concentrated on the car being advised.
+
+| metric | model | baseline | skill |
+|---|---|---|---|
+| Brier (win) | 0.0210 | 0.0427 | +50.8% |
+| Brier (top 3) | 0.0412 | 0.0390 | -5.6% |
+| Brier (points) | 0.0554 | 0.0705 | +21.5% |
+| Mean position error | 1.53 | 1.13 | — |
+
+### Reliability
+
+When it says 70%, does it happen seven times in ten?
+
+| confidence band | n | said | happened |
+|---|---|---|---|
+| 0%–20% | 872 | 1.0% | 1.8% |
+| 20%–40% | 51 | 29.0% | 33.3% |
+| 40%–60% | 24 | 48.8% | 16.7% |
+| 60%–80% | 47 | 73.0% | 59.6% |
+| 80%–100% | 84 | 91.8% | 97.6% |
+
+The model is **overconfident** in the 40%–60%, 60%–80% band(s). Bands with fewer than fifteen forecasts are not judged here; they move too much to read.
 
 ---
 

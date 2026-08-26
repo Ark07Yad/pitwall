@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 import time
 from collections import Counter
@@ -19,6 +20,7 @@ from pitwall.feed.replay import ReplayFeed, read_events
 from pitwall.feed.signalr import SignalRFeed
 from pitwall.laps import CleanLapConfig, LapCollector, filter_laps, fold_to_lap
 from pitwall.ledger import (
+    ForecastLog,
     PredictionLog,
     finishing_positions,
     prediction_from,
@@ -498,6 +500,27 @@ def _backtest(args: argparse.Namespace) -> int:
     return 0
 
 
+def _sibling_forecasts(log_path: Path) -> list[dict] | None:
+    """Field forecasts written alongside a prediction log, if any.
+
+    Found by convention rather than asked for on the command line: they are
+    written by the same run, and a report that silently omitted them because a
+    flag was missed would be the wrong default.
+    """
+    candidate = log_path.with_name(log_path.stem + "-forecasts" + log_path.suffix)
+    if not candidate.exists():
+        return None
+    rows = []
+    for line in candidate.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return rows or None
+
+
 def _report(args: argparse.Namespace) -> int:
     """Score a prediction log against the finish and write a markdown report."""
     if not args.log.exists():
@@ -527,6 +550,7 @@ def _report(args: argparse.Namespace) -> int:
         session=str(session),
         circuit=state.circuit,
         tla_by_driver={n: c.tla for n, c in state.cars.items()},
+        forecasts=_sibling_forecasts(args.log),
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(text, encoding="utf-8")
@@ -583,7 +607,7 @@ def _dashboard(args: argparse.Namespace) -> int:
     pit_loss = _load_pit_loss(args.pit_loss_history)
     prior = _load_degradation(args.degradation_history)
 
-    log = None
+    log = forecasts = None
     if args.log_predictions:
         # A replayed race is a rehearsal, and its calls are made with the result
         # already on disk. Committing them into the same ledger as live ones
@@ -598,12 +622,12 @@ def _dashboard(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 1
-        log = PredictionLog(
-            args.session or f"{args.replay.stem if args.replay else 'live'}",
-            directory=args.out,
-            commit=not args.no_commit,
-        )
-        print(f"  ledger -> {log.path}" + ("" if log.commit_enabled else " (not committing)"))
+        name = args.session or f"{args.replay.stem if args.replay else 'live'}"
+        log = PredictionLog(name, directory=args.out, commit=not args.no_commit)
+        forecasts = ForecastLog(name, directory=args.out, commit=not args.no_commit)
+        suffix = "" if log.commit_enabled else " (not committing)"
+        print(f"  ledger    -> {log.path}{suffix}")
+        print(f"  forecasts -> {forecasts.path}{suffix}")
 
     engine = Engine(
         feed,
@@ -614,6 +638,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         driver=args.driver,
         sims=args.sims,
         log=log,
+        forecasts=forecasts,
         horizon=args.horizon,
     )
     print(f"pitwall dashboard - {source}")
@@ -778,7 +803,10 @@ def main(argv: list[str] | None = None) -> int:
     dashboard.add_argument(
         "--log-predictions",
         action="store_true",
-        help="write each call to the prediction ledger and commit it as it is made",
+        help=(
+            "write each call to the prediction ledger and commit it as it is made, "
+            "and forecast the whole field alongside it"
+        ),
     )
     dashboard.add_argument("--out", type=Path, default=Path("predictions"), help="ledger directory")
     dashboard.add_argument("--session", default="", help="ledger session name")

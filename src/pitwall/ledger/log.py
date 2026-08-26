@@ -86,6 +86,133 @@ class Prediction:
         return json.dumps(asdict(self), separators=(",", ":"), sort_keys=True)
 
 
+@dataclass(frozen=True)
+class Forecast:
+    """Where one car is expected to finish, as of one lap.
+
+    A *different claim* from a pit call, and kept in a different file for that
+    reason. A recommendation says "do this"; a forecast says "this is where the
+    race is heading" and is settled at the flag with no judgement required.
+
+    Forecasts exist because a recommendation log cannot be calibrated. The engine
+    advises one car - the pit wall only has one to advise - so a race yields
+    around fifty calls, nearly all on a leader who was never going to move. Every
+    `p_points` sits at 0.98, the baseline scores a perfect zero, and the
+    reliability diagram has one populated bucket. Nothing about that is
+    measurable.
+
+    Forecasting the whole field costs one simulation instead of one per car
+    (0.16s against 37s) because the field is simulated jointly anyway, and turns
+    fifty concentrated claims into roughly a thousand spread across cars whose
+    outcomes genuinely differ.
+    """
+
+    session: str
+    circuit: str
+    lap: int
+    total_laps: int
+    driver: str
+    tla: str
+    position: int
+
+    expected_position: float
+    p_win: float
+    p_top3: float
+    p_points: float
+    p_retire: float
+    n_sims: int
+
+    id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    @property
+    def horizon_lap(self) -> int:
+        """A finishing-position claim is settled by the flag, and only then."""
+        return self.total_laps
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self), separators=(",", ":"), sort_keys=True)
+
+
+class ForecastLog:
+    """Append-only field forecasts, committed one lap at a time.
+
+    A lap's worth of forecasts is one commit, not twenty-two. The timestamp is
+    the evidence and every row in a lap shares it, so a commit per row would add
+    nothing but noise to `git log`.
+    """
+
+    def __init__(
+        self,
+        session: str,
+        *,
+        directory: Path | str = DEFAULT_DIR,
+        commit: bool = True,
+        repo: Path | str | None = None,
+    ) -> None:
+        self.session = session
+        self.directory = Path(directory)
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.path = self.directory / f"{_slug(session)}-forecasts.jsonl"
+        self.commit_enabled = commit
+        self.repo = Path(repo) if repo else Path.cwd()
+        self.written = 0
+        self.commit_failures = 0
+
+    def record_lap(self, forecasts: list[Forecast]) -> int:
+        """Append a lap's forecasts and commit them together."""
+        if not forecasts:
+            return 0
+        with self.path.open("a", encoding="utf-8") as handle:
+            for forecast in forecasts:
+                handle.write(forecast.to_json() + "\n")
+        self.written += len(forecasts)
+
+        if self.commit_enabled:
+            self._commit(forecasts)
+        return len(forecasts)
+
+    def entries(self) -> list[dict[str, Any]]:
+        if not self.path.exists():
+            return []
+        out = []
+        for line in self.path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    out.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        return out
+
+    def _commit(self, forecasts: list[Forecast]) -> None:
+        lap = forecasts[0].lap
+        leader = min(forecasts, key=lambda f: f.expected_position)
+        message = (
+            f"forecast: lap {lap} - {len(forecasts)} cars\n\n"
+            f"{leader.tla} expected P{leader.expected_position:.2f} "
+            f"({leader.p_win:.0%} win, {leader.n_sims:,} sims).\n"
+            f"Settled at the flag, lap {forecasts[0].total_laps}."
+        )
+        try:
+            subprocess.run(
+                ["git", "add", "--", str(self.path)],
+                cwd=self.repo,
+                check=True,
+                capture_output=True,
+                timeout=20,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", message, "--only", "--", str(self.path)],
+                cwd=self.repo,
+                check=True,
+                capture_output=True,
+                timeout=20,
+            )
+        except (subprocess.SubprocessError, OSError):
+            self.commit_failures += 1
+
+
 class PredictionLog:
     """Writes predictions to a JSONL file and commits each one."""
 

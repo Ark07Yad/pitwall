@@ -206,3 +206,152 @@ def score_predictions(
 def finishing_positions(state: Any) -> dict[str, int]:
     """Final classification from folded race state."""
     return {car.number: car.position for car in state.running_order() if car.position is not None}
+
+
+# -- field forecasts ----------------------------------------------------
+
+
+@dataclass
+class ForecastScore:
+    """Calibration of whole-field forecasts.
+
+    Separate from `Scorecard` because it grades a different claim. A pit call is
+    a recommendation; a forecast is a statement about where the race is heading,
+    settled at the flag. Mixing them would let a thousand easy forecasts bury
+    fifty hard recommendations, or the reverse.
+    """
+
+    n: int = 0
+    n_laps: int = 0
+    n_cars: int = 0
+    brier_win: float = 0.0
+    brier_top3: float = 0.0
+    brier_points: float = 0.0
+    baseline_win: float = 0.0
+    baseline_top3: float = 0.0
+    baseline_points: float = 0.0
+    position_error: float = 0.0
+    baseline_position_error: float = 0.0
+    reliability: list[CalibrationBin] = field(default_factory=list)
+    warnings: tuple[str, ...] = field(default=())
+
+    @staticmethod
+    def _skill(model: float, baseline: float) -> float:
+        if baseline <= 0:
+            return float("-inf") if model > 0 else 0.0
+        return (baseline - model) / baseline
+
+    @property
+    def skill_top3(self) -> float:
+        return self._skill(self.brier_top3, self.baseline_top3)
+
+    @property
+    def skill_win(self) -> float:
+        return self._skill(self.brier_win, self.baseline_win)
+
+    @property
+    def skill_points(self) -> float:
+        return self._skill(self.brier_points, self.baseline_points)
+
+    def __str__(self) -> str:
+        def pct(value: float) -> str:
+            if value == float("-inf"):
+                return "  worse"
+            return f"{value:+.1%}"
+
+        lines = [
+            f"{self.n:,} forecasts over {self.n_laps} laps, {self.n_cars} cars",
+            "",
+            f"  {'metric':<22} {'model':>8} {'baseline':>10} {'skill':>8}",
+            f"  {'Brier (win)':<22} {self.brier_win:>8.4f} "
+            f"{self.baseline_win:>10.4f} {pct(self.skill_win):>8}",
+            f"  {'Brier (top 3)':<22} {self.brier_top3:>8.4f} "
+            f"{self.baseline_top3:>10.4f} {pct(self.skill_top3):>8}",
+            f"  {'Brier (points)':<22} {self.brier_points:>8.4f} "
+            f"{self.baseline_points:>10.4f} {pct(self.skill_points):>8}",
+            f"  {'Mean position error':<22} {self.position_error:>8.2f} "
+            f"{self.baseline_position_error:>10.2f}",
+        ]
+        if self.reliability:
+            lines += ["", "  reliability (P(top 3) against observed):", ""]
+            lines.append(f"  {'band':<12} {'n':>6} {'said':>8} {'happened':>10}   ")
+            for b in self.reliability:
+                width = round(b.observed * 40)
+                bar = "#" * width + "." * (40 - width)
+                marker = round(b.predicted * 40)
+                bar = bar[:marker] + "|" + bar[marker + 1 :] if marker < 40 else bar
+                lines.append(
+                    f"  {b.low:>4.0%}-{b.high:<6.0%} {b.n:>6} {b.predicted:>7.1%}"
+                    f" {b.observed:>9.1%}   {bar}"
+                )
+            lines.append("")
+            lines.append("  # = observed, | = claimed. They should coincide.")
+        for warning in self.warnings:
+            lines.append(f"  ! {warning}")
+        return "\n".join(lines)
+
+
+def score_forecasts(
+    entries: list[dict[str, Any]],
+    finishing: dict[str, int],
+    *,
+    bins: tuple[float, ...] = DEFAULT_BINS,
+) -> ForecastScore:
+    """Grade field forecasts against the classification.
+
+    The baseline is the same one the recommendations are held to - every car
+    finishes where it was running - which for a whole-field forecast is a much
+    fairer fight than it was for leader-only calls, because mid-field cars
+    genuinely move.
+    """
+    win: list[tuple[float, float]] = []
+    top3: list[tuple[float, float]] = []
+    points: list[tuple[float, float]] = []
+    base_win: list[tuple[float, float]] = []
+    base_top3: list[tuple[float, float]] = []
+    base_points: list[tuple[float, float]] = []
+    errors: list[float] = []
+    base_errors: list[float] = []
+    laps: set[int] = set()
+    cars: set[str] = set()
+
+    for entry in entries:
+        driver = str(entry.get("driver", ""))
+        actual = finishing.get(driver)
+        if actual is None:
+            continue
+        laps.add(int(entry.get("lap", 0)))
+        cars.add(driver)
+        held = int(entry.get("position") or 0)
+
+        win.append((float(entry.get("p_win", 0.0)), 1.0 if actual == 1 else 0.0))
+        top3.append((float(entry.get("p_top3", 0.0)), 1.0 if actual <= 3 else 0.0))
+        points.append((float(entry.get("p_points", 0.0)), 1.0 if actual <= 10 else 0.0))
+
+        base_win.append((1.0 if held == 1 else 0.0, 1.0 if actual == 1 else 0.0))
+        base_top3.append((1.0 if held and held <= 3 else 0.0, 1.0 if actual <= 3 else 0.0))
+        base_points.append((1.0 if held and held <= 10 else 0.0, 1.0 if actual <= 10 else 0.0))
+
+        errors.append(abs(float(entry.get("expected_position", 0.0)) - actual))
+        if held:
+            base_errors.append(abs(held - actual))
+
+    warnings: list[str] = []
+    if len(top3) < MIN_FOR_CONFIDENCE:
+        warnings.append(f"only {len(top3)} forecasts scored; too few to read much into")
+
+    return ForecastScore(
+        n=len(top3),
+        n_laps=len(laps),
+        n_cars=len(cars),
+        brier_win=_brier(win),
+        brier_top3=_brier(top3),
+        brier_points=_brier(points),
+        baseline_win=_brier(base_win),
+        baseline_top3=_brier(base_top3),
+        baseline_points=_brier(base_points),
+        position_error=(sum(errors) / len(errors)) if errors else 0.0,
+        baseline_position_error=(sum(base_errors) / len(base_errors)) if base_errors else 0.0,
+        reliability=calibration_bins([(p, o) for p, o in top3], bins=bins),
+        warnings=tuple(warnings),
+    )

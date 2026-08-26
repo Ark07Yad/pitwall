@@ -75,6 +75,7 @@ Check the dashboard in the first few laps:
 | cars | 22 |
 | `ledger.written` | rising by one per lap, once calls begin |
 | `ledger.commits_failed` | **0** |
+| `ledger.forecasts` | rising by ~22 per lap — the whole field |
 
 `curl -s http://127.0.0.1:8000/api/state | python -m json.tool` if the browser is inconvenient.
 
@@ -153,6 +154,10 @@ arrived, that is the guard doing its job on bad state, not a bug to override mid
 uv run pitwall report data/raw/2026-netherlands-race.txt \
     --log predictions/2026-dutch-gp.jsonl --out reports/2026-netherlands.md
 ```
+
+The field forecasts written alongside the calls are picked up automatically from
+`<log>-forecasts.jsonl`; they are what the reliability diagram is built from, since fifty
+leader-only calls cannot be calibrated.
 
 Use `--out`, not a shell redirect: stdout carries only the summary, and the report itself is written
 to the file (defaulting to `reports/race.md`). Redirecting gets you the summary under the report's

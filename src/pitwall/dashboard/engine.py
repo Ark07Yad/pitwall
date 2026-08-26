@@ -25,7 +25,7 @@ from typing import Any
 from pitwall.feed.base import RaceFeed
 from pitwall.feed.signalr import SignalRFeed
 from pitwall.laps import LapCollector, filter_laps
-from pitwall.ledger import PredictionLog, prediction_from
+from pitwall.ledger import Forecast, ForecastLog, PredictionLog, prediction_from
 from pitwall.models import (
     AttritionModel,
     DegradationPrior,
@@ -34,7 +34,13 @@ from pitwall.models import (
     PitLossModel,
     fit_pace,
 )
-from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
+from pitwall.sim import (
+    SimConfig,
+    entries_from_state,
+    evaluate_actions,
+    simulate,
+    undercut_threats,
+)
 from pitwall.state.models import RaceState
 
 log = logging.getLogger(__name__)
@@ -82,6 +88,7 @@ class Engine:
         driver: str = "",
         sims: int = 1500,
         log: PredictionLog | None = None,
+        forecasts: ForecastLog | None = None,
         horizon: int = 10,
     ) -> None:
         self.feed = feed
@@ -92,6 +99,7 @@ class Engine:
         self.requested_driver = driver.upper()
         self.sims = sims
         self.log = log
+        self.forecasts = forecasts
         self.horizon = horizon
 
         self.collector = LapCollector()
@@ -104,11 +112,13 @@ class Engine:
         self._busy = False
 
         self.logged = 0
+        self.forecast_rows = 0
         self.log_failures = 0
         # Laps already written. `_compute` is gated to one run per lap, but a
         # reconnection mid-race replays the snapshot and can revisit a lap, and
         # a ledger that records the same lap twice is not a track record.
         self._logged_laps: set[int] = set()
+        self._forecast_laps: set[int] = set()
 
         # Where each car started, so the screen can show positions gained
         # rather than only where everyone is now. Captured the first time a car
@@ -229,6 +239,7 @@ class Engine:
         )
 
         self._record(recommendation, state)
+        self._forecast(entries, state, config)
 
         return Advice(
             lap=lap,
@@ -305,6 +316,72 @@ class Engine:
         self._logged_laps.add(recommendation.lap)
         self.logged += 1
 
+    def _forecast(self, entries: list, state: RaceState, config: SimConfig) -> None:
+        """Log where every car is heading, not just the one being advised.
+
+        One simulation covers the whole field - they are simulated jointly
+        anyway - so this costs about a sixth of a second against the ~37 it would
+        take to run a full recommendation for each car. That difference is the
+        entire reason the calibration curve can exist: fifty leader-only calls
+        cannot be calibrated, and a thousand spread across the grid can.
+
+        Cars already out are skipped. "Where will a retired car finish" is not a
+        forecast, and scoring it would pad the log with free correct answers.
+        """
+        if self.forecasts is None or state.total_laps <= 0:
+            return
+        if state.session_type and state.session_type.lower() != "race":
+            return
+        if state.lap in self._forecast_laps:
+            return
+
+        try:
+            result = simulate(
+                entries,
+                from_lap=state.lap,
+                total_laps=state.total_laps,
+                circuit=state.circuit,
+                pace=self._pace,
+                hazard=self.hazard,
+                attrition=self.attrition,
+                pit_loss=self.pit_loss,
+                config=config,
+            )
+            order = {
+                entry.driver: i + 1
+                for i, entry in enumerate(sorted(entries, key=lambda e: e.elapsed))
+            }
+            rows: list[Forecast] = []
+            for index, entry in enumerate(result.drivers):
+                column = result.positions[:, index]
+                retired = (
+                    float(result.retired[:, index].mean()) if result.retired is not None else 0.0
+                )
+                rows.append(
+                    Forecast(
+                        session=self.forecasts.session,
+                        circuit=state.circuit,
+                        lap=state.lap,
+                        total_laps=state.total_laps,
+                        driver=entry,
+                        tla=result.tlas[index],
+                        position=order.get(entry, 0),
+                        expected_position=float(column.mean()),
+                        p_win=float((column == 1).mean()),
+                        p_top3=float((column <= 3).mean()),
+                        p_points=float((column <= 10).mean()),
+                        p_retire=retired,
+                        n_sims=config.n_sims,
+                    )
+                )
+            self.forecast_rows += self.forecasts.record_lap(rows)
+        except Exception:
+            self.log_failures += 1
+            log.exception("could not forecast the field at lap %s", state.lap)
+            return
+
+        self._forecast_laps.add(state.lap)
+
     def _recent_laps(self, limit: int = 12) -> dict[str, list[float]]:
         """Last few clean-ish lap times per car, for the trend sparklines.
 
@@ -380,11 +457,14 @@ class Engine:
         expensive failure here - the race is not re-runnable - so this is on the
         dashboard rather than only in a log file.
         """
-        if self.log is None:
+        if self.log is None and self.forecasts is None:
             return None
+        if self.log is None:
+            return {"forecasts": self.forecast_rows, "committing": self.forecasts.commit_enabled}
         return {
             "path": str(self.log.path),
             "written": self.logged,
+            "forecasts": self.forecast_rows,
             "commits_failed": self.log.commit_failures,
             "write_failures": self.log_failures,
             "committing": self.log.commit_enabled,

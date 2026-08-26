@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from pitwall.ledger.score import Scorecard, score_predictions
+from pitwall.ledger.score import Scorecard, score_forecasts, score_predictions
 
 
 def _verdict(card: Scorecard) -> str:
@@ -44,6 +44,31 @@ def _verdict(card: Scorecard) -> str:
     )
 
 
+def _pct(value: float) -> str:
+    if value == float("-inf"):
+        return "worse"
+    return f"{value:+.1%}"
+
+
+def _reliability_verdict(field: Any) -> str:
+    """Say which way the miscalibration runs, rather than only tabulating it."""
+    over = [b for b in field.reliability if b.n >= 15 and b.gap > 0.10]
+    under = [b for b in field.reliability if b.n >= 15 and b.gap < -0.10]
+    if not over and not under:
+        return "Claimed and observed track each other across the range."
+    parts = []
+    if over:
+        bands = ", ".join(f"{b.low:.0%}–{b.high:.0%}" for b in over)
+        parts.append(f"**overconfident** in the {bands} band(s)")
+    if under:
+        bands = ", ".join(f"{b.low:.0%}–{b.high:.0%}" for b in under)
+        parts.append(f"**underconfident** in the {bands} band(s)")
+    return (
+        "The model is " + " and ".join(parts) + ". Bands with fewer than fifteen "
+        "forecasts are not judged here; they move too much to read."
+    )
+
+
 def race_report(
     predictions: list[dict[str, Any]],
     finishing: dict[str, int],
@@ -52,10 +77,12 @@ def race_report(
     circuit: str,
     tla_by_driver: dict[str, str] | None = None,
     latency: str | None = None,
+    forecasts: list[dict[str, Any]] | None = None,
 ) -> str:
     """Render a markdown report grading a race's predictions."""
     names = tla_by_driver or {}
     card = score_predictions(predictions, finishing)
+    field = score_forecasts(forecasts, finishing) if forecasts else None
     generated = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
     lines = [
@@ -133,6 +160,43 @@ def race_report(
 
     if latency:
         lines += ["## Feed", "", f"```\n{latency}\n```", ""]
+
+    if field is not None and field.n:
+        lines += [
+            "## Field forecast",
+            "",
+            f"Alongside each pit call the engine forecasts **every car**, which costs one "
+            f"simulation rather than one per car. That is what makes a calibration curve "
+            f"possible: {field.n:,} claims across {field.n_cars} cars, against "
+            f"{len(predictions)} recommendations concentrated on the car being advised.",
+            "",
+            "| metric | model | baseline | skill |",
+            "|---|---|---|---|",
+            f"| Brier (win) | {field.brier_win:.4f} | {field.baseline_win:.4f} "
+            f"| {_pct(field.skill_win)} |",
+            f"| Brier (top 3) | {field.brier_top3:.4f} | {field.baseline_top3:.4f} "
+            f"| {_pct(field.skill_top3)} |",
+            f"| Brier (points) | {field.brier_points:.4f} | {field.baseline_points:.4f} "
+            f"| {_pct(field.skill_points)} |",
+            f"| Mean position error | {field.position_error:.2f} "
+            f"| {field.baseline_position_error:.2f} | — |",
+            "",
+            "### Reliability",
+            "",
+            "When it says 70%, does it happen seven times in ten?",
+            "",
+            "| confidence band | n | said | happened |",
+            "|---|---|---|---|",
+        ]
+        for b in field.reliability:
+            lines.append(
+                f"| {b.low:.0%}–{b.high:.0%} | {b.n} | {b.predicted:.1%} | {b.observed:.1%} |"
+            )
+        lines += [
+            "",
+            _reliability_verdict(field),
+            "",
+        ]
 
     lines += [
         "---",

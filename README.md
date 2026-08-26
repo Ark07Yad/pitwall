@@ -328,7 +328,44 @@ laps 1–24 — no leak from the finish into a forecast of it. The report grades
 actual classification, and is generated rather than written so the bad weekends cannot be quietly
 skipped.
 
-The current scorecard, 28 leak-free predictions from the 2026 Hungarian GP:
+### Forecasting the whole field
+
+A recommendation log cannot be calibrated. The engine advises **one** car — a pit wall only has one
+to advise — so a race yields ~50 calls, nearly all on a leader who was never going to move. Every
+`p_points` sits at 0.98, the baseline scores a perfect 0.0000, and the reliability diagram has one
+populated bucket. Nothing there is measurable.
+
+So alongside each call the engine forecasts **every car**, which costs **one** simulation rather
+than one per car — 0.16 s against the ~37 s it would take to evaluate a full recommendation for all
+22 — because the field is simulated jointly anyway. That turns 49 concentrated claims into 1,078
+spread across cars whose outcomes genuinely differ:
+
+| metric | model | baseline | skill |
+|---|---|---|---|
+| Brier (win) | 0.0210 | 0.0427 | **+50.8%** |
+| Brier (top 3) | 0.0412 | 0.0390 | −5.6% |
+| Brier (points) | 0.0554 | 0.0705 | +21.5% |
+
+And a reliability diagram that says something:
+
+| confidence band | n | said | happened |
+|---|---|---|---|
+| 0%–20% | 872 | 1.0% | 1.8% |
+| 20%–40% | 51 | 29.0% | 33.3% |
+| 40%–60% | 24 | 48.8% | 16.7% |
+| 60%–80% | 47 | 73.0% | 59.6% |
+| 80%–100% | 84 | 91.8% | 97.6% |
+
+The engine is **overconfident in the middle** — when it says 73% it happens 60% of the time — and
+slightly *under*confident at the top. That is a real, actionable flaw, and it is the first one this
+project has been able to state at all, because leader-only calls could not reveal it.
+
+Forecasts are kept in their own file and committed a lap at a time rather than a car at a time:
+they are a different claim from a recommendation, settled at the flag with no judgement required.
+
+### The current scorecard
+
+28 leak-free predictions from the 2026 Hungarian GP:
 
 | metric | model | baseline | skill |
 |---|---|---|---|

@@ -4,6 +4,69 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-26 — The scorecard could not be read, and why
+
+Sunday's report has a row that says `Brier (points) 0.0010 / 0.0000 / worse*`. A
+baseline of exactly zero is not a hard benchmark, it is a broken question, and I
+had been reading past it for three days while tuning the models it was supposed
+to be grading.
+
+**The evaluation was structurally uninformative and no amount of model work
+would have fixed it.** The engine advises one car, because a pit wall has one car
+to advise. So a race produces about fifty calls, and at Zandvoort nearly all of
+them were on whoever led — a car that finished where it started. Every
+`p_points` sat at 0.98, the naive baseline was flawless, and 41 of 49 calls
+landed in a single calibration bucket. The reliability diagram, which `PLAN.md`
+§6 calls the most persuasive artifact in the repository, had one populated band.
+
+**The fix is a distinction I should have drawn at the start.** A *recommendation*
+is expensive and singular — thirteen candidate strategies simulated for one car,
+1.68s. A *forecast* is cheap and plural — where does everyone finish — and the
+simulation already computes it, because the field is simulated jointly. One run
+returns a (1500, 22) array of finishing positions.
+
+Measured: **0.155s for the whole field, against 37s to run a recommendation for
+each of 22 cars.** A factor of 240, and the reason a calibration curve is
+affordable at all. Fifty concentrated claims become 1,078 spread across cars
+whose outcomes genuinely differ.
+
+**And the curve immediately says something the old one could not:**
+
+| band | n | said | happened |
+|---|---|---|---|
+| 0–20% | 872 | 1.0% | 1.8% |
+| 20–40% | 51 | 29.0% | 33.3% |
+| 40–60% | 24 | 48.8% | 16.7% |
+| 60–80% | 47 | 73.0% | 59.6% |
+| 80–100% | 84 | 91.8% | 97.6% |
+
+Overconfident through the middle — when it says 73% it happens 60% of the time —
+and slightly *under*confident at the top. That is the first genuine, actionable
+statement about this engine's calibration the project has been able to make, and
+it was invisible while every claim was about a leader cruising to a win.
+
+The headline numbers are mixed and that is fine: **+50.8% skill on P(win)**,
++21.5% on points, and **−5.6% on top-three** — beaten by the naive forecast on
+the one question where track position is stickiest. Mean position error 1.53
+against a baseline 1.13. A model that beats a strong baseline on two of three
+questions and loses the third is a normal model; the previous −167% was a bug.
+
+**Kept separate, deliberately.** Forecasts go in their own file and are committed
+a lap at a time rather than a car at a time. They are a different claim from a
+recommendation — settled at the flag with no judgement required — and folding
+them together would let a thousand easy forecasts bury fifty hard calls, which is
+exactly the kind of averaging this project exists not to do.
+
+**The pattern, four days running.** Sunday: a decision layer with no "whether"
+option. Monday: a pace model extrapolating past its own data. Today: a scorecard
+whose baseline was degenerate. Each one produced a confident number, none of them
+errored, and every test passed throughout. The recurring failure here is not
+wrong code, it is a measurement that cannot say what it appears to say — and the
+only defence I have found that works is to look at the distribution behind the
+number rather than the number.
+
+---
+
 ## 2026-08-24 — Pooling 95 races, and what survivorship does to a tyre curve
 
 `PLAN.md` §5.2 asked for hierarchical degradation priors pooled across races, on

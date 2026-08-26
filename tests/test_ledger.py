@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -268,3 +269,120 @@ def test_report_refuses_to_conclude_from_too_little():
 def test_report_handles_an_empty_log():
     text = race_report([], {}, session="GP", circuit="X")
     assert "nothing is claimed" in text.lower()
+
+
+# -- field forecasts ----------------------------------------------------
+#
+# A recommendation log cannot be calibrated. The engine advises one car, so a
+# race yields ~50 calls nearly all on a leader who was never going to move: every
+# p_points sits at 0.98, the baseline scores a perfect zero, and the reliability
+# diagram has one populated bucket. Forecasting the whole field costs one
+# simulation instead of one per car and turns that into ~1,000 spread claims.
+
+from pitwall.ledger import Forecast, ForecastLog, score_forecasts  # noqa: E402
+
+
+def make_forecast(**overrides: object) -> Forecast:
+    defaults = dict(
+        session="2026 Dutch GP",
+        circuit="Zandvoort",
+        lap=30,
+        total_laps=72,
+        driver="1",
+        tla="NOR",
+        position=1,
+        expected_position=1.4,
+        p_win=0.72,
+        p_top3=0.95,
+        p_points=0.99,
+        p_retire=0.03,
+        n_sims=1500,
+    )
+    defaults.update(overrides)
+    return Forecast(**defaults)  # type: ignore[arg-type]
+
+
+def test_a_forecast_is_settled_at_the_flag():
+    """No judgement call about when it becomes checkable: the race ends."""
+    assert make_forecast(lap=30, total_laps=72).horizon_lap == 72
+
+
+def test_forecasts_go_in_their_own_file():
+    """A recommendation and a forecast are different claims; mixing them lets a
+    thousand easy forecasts bury fifty hard recommendations."""
+    log = ForecastLog("2026 Dutch GP", directory=Path("/tmp"), commit=False)
+    assert log.path.name == "2026-dutch-gp-forecasts.jsonl"
+
+
+def test_a_lap_is_one_commit_not_twenty_two(tmp_path):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=tmp_path, check=True)
+
+    log = ForecastLog("GP", directory=tmp_path / "predictions", commit=True, repo=tmp_path)
+    log.record_lap([make_forecast(lap=10, driver=str(i), tla=f"D{i}") for i in range(22)])
+    log.record_lap([make_forecast(lap=11, driver=str(i), tla=f"D{i}") for i in range(22)])
+
+    assert log.written == 44
+    assert log.commit_failures == 0
+    count = subprocess.run(
+        ["git", "rev-list", "--count", "HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert count == "2", "one commit per lap, not per car"
+
+
+def test_an_empty_lap_writes_nothing(tmp_path):
+    log = ForecastLog("GP", directory=tmp_path, commit=False)
+    assert log.record_lap([]) == 0
+    assert not log.path.exists()
+
+
+# -- scoring them -------------------------------------------------------
+
+
+def test_scoring_separates_win_top3_and_points():
+    entries = [
+        make_forecast(driver="1", p_win=0.9, p_top3=0.99, p_points=1.0, position=1).__dict__,
+        make_forecast(driver="2", p_win=0.0, p_top3=0.1, p_points=0.6, position=12).__dict__,
+    ]
+    score = score_forecasts(entries, {"1": 1, "2": 14})
+    assert score.n == 2
+    assert score.n_cars == 2
+    # Both claims were right, so every Brier should be small.
+    assert score.brier_win < 0.02
+    assert score.brier_points < 0.2
+
+
+def test_an_overconfident_model_shows_up_in_the_reliability_diagram():
+    """The diagram exists to catch exactly this: a model that ranks correctly and
+    is still badly overconfident."""
+    entries = []
+    for i in range(40):
+        # Claims 70%, happens 25% of the time.
+        entries.append(
+            make_forecast(driver=str(i), p_top3=0.70, position=4, expected_position=4.0).__dict__
+        )
+    finishing = {str(i): (2 if i % 4 == 0 else 8) for i in range(40)}
+    score = score_forecasts(entries, finishing)
+
+    band = next(b for b in score.reliability if b.low <= 0.70 < b.high)
+    assert band.n == 40
+    assert band.predicted == pytest.approx(0.70, abs=0.01)
+    assert band.observed == pytest.approx(0.25, abs=0.01)
+    assert band.gap > 0.4, "positive gap means overconfident"
+
+
+def test_cars_with_no_classification_are_skipped():
+    """Scoring a car the recording never classified would invent an outcome."""
+    entries = [make_forecast(driver="1").__dict__, make_forecast(driver="99").__dict__]
+    score = score_forecasts(entries, {"1": 1})
+    assert score.n == 1
+
+
+def test_too_few_forecasts_says_so():
+    score = score_forecasts([make_forecast(driver="1").__dict__], {"1": 1})
+    assert any("too few" in w for w in score.warnings)

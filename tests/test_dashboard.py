@@ -349,3 +349,63 @@ def test_a_stay_out_call_is_logged_as_one(tmp_path):
 
     call = Prediction(**{k: v for k, v in entry.items() if k in Prediction.__dataclass_fields__})
     assert call.call == "stay out on MED"
+
+
+def test_the_engine_forecasts_the_whole_field(tmp_path):
+    """One simulation covers every car, which is why a calibration curve is
+    affordable at all: ~0.16s for the field against ~37s to recommend per car."""
+    from pitwall.ledger import ForecastLog
+
+    flog = ForecastLog("2026 Dutch GP", directory=tmp_path, commit=False)
+    engine = Engine(ReplayFeed(tmp_path / "x.txt"), forecasts=flog)
+
+    state = race_state(lap=30)
+    for number, tla in (("1", "NOR"), ("4", "VER"), ("16", "LEC")):
+        car = state.cars.setdefault(
+            number,
+            __import__("pitwall.state.models", fromlist=["CarState"]).CarState(number=number),
+        )
+        car.tla = tla
+
+    class FakeEntry:
+        def __init__(self, driver, elapsed):
+            self.driver, self.elapsed = driver, elapsed
+
+    entries = [FakeEntry("1", 0.0), FakeEntry("4", 5.0), FakeEntry("16", 9.0)]
+
+    import numpy as np
+
+    class FakeResult:
+        drivers = ["1", "4", "16"]
+        tlas = ["NOR", "VER", "LEC"]
+        positions = np.array([[1, 2, 3]] * 100)
+        retired = np.zeros((100, 3), dtype=bool)
+
+    import pitwall.dashboard.engine as module
+
+    original = module.simulate
+    module.simulate = lambda *a, **k: FakeResult()
+    try:
+        engine._forecast(entries, state, SimConfigStub())
+    finally:
+        module.simulate = original
+
+    rows = flog.entries()
+    assert len(rows) == 3, "one row per car, from a single simulation"
+    assert {r["tla"] for r in rows} == {"NOR", "VER", "LEC"}
+    leader = next(r for r in rows if r["tla"] == "NOR")
+    assert leader["p_win"] == 1.0
+    assert leader["total_laps"] == 72
+
+
+class SimConfigStub:
+    n_sims = 100
+
+
+def test_forecasts_only_during_a_race(tmp_path):
+    from pitwall.ledger import ForecastLog
+
+    flog = ForecastLog("GP", directory=tmp_path, commit=False)
+    engine = Engine(ReplayFeed(tmp_path / "x.txt"), forecasts=flog)
+    engine._forecast([], race_state(total_laps=0, session_type="Practice"), SimConfigStub())
+    assert flog.entries() == []

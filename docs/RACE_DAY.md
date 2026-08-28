@@ -139,27 +139,43 @@ Monza is a **low safety-car circuit**, and the opposite of Zandvoort in almost e
 | attrition factor | 0.98x, 16th | 1.01x |
 | expected retirements | 1.94 of 22 | 2.54 of 22 |
 | pit loss (median / expected) | **24.24 s / 24.53 s** (89 stops) | 22.38 s / 22.67 s (126) |
-| degradation factor | 0.88x (3 races) | 0.50x (5 races) |
+| degradation factor | **0.78x** (3 usable races) | 1.05x (3) |
 
 Lap 1 still dominates the early risk numbers: a **12.4% hazard against 0.7%** for any other lap.
 
-**The consequence to watch.** Monza's pit loss is among the highest measured — 24.24 s, 4th of 25
-behind Imola, Lusail and Le Castellet — while its degradation factor is near average. The two pull against each other, and the
-break-even for a second stop on a 26-lap-old hard lands at **~30 laps of remaining running** — so
-after roughly lap 23 of 53 the engine will stop recommending another stop. That is defensible at
-Monza, where one-stop races are normal. It is the same arithmetic that made Zandvoort's calls
-degenerate, so read late-race "stay out" calls as the model's known bias, not as a judgement.
+**The consequence to watch, written down before the race.** Monza's pit loss is among the highest
+measured — 24.24 s, 4th of 25 behind Imola, Lusail and Le Castellet — while its degradation factor
+is one of the lowest at 0.78x. Both push the same way, and the break-even for a second stop on a
+26-lap-old hard lands at **31 laps of remaining running: the last lap on which the engine can
+recommend another stop is lap 22 of 53.** Past that it will say stay out every time, and that is
+arithmetic rather than judgement.
 
-Confirm on the dashboard: `model.pit_loss` should read roughly
-`{"seconds": 24.24, "expected": 24.53, "botch_rate": 0.05, "fitted": true, "races": 4}`. If
-`fitted` is false the circuit name did not resolve and it has fallen back to the field median —
-still sane, but say so in the write-up.
+At Monza that is roughly right — one-stop races are the norm here. It is still the same shape of
+answer that made Zandvoort's late calls degenerate on 23 August, so read anything after lap 22 as
+the model having no option to compare against, not as a considered call.
+
+**Zandvoort's own factor moved from 0.50x to 1.05x on 28 August**, which is why the contrast column
+above no longer matches the Dutch GP runbook. The old figure was one failed decomposition — the wet
+2023 race — outvoting four sound ones. A second stop at Zandvoort used to need 47 laps of running
+to pay for itself and now needs 22. The logbook entry has the detail.
+
+Confirm both on the dashboard:
+
+- `model.pit_loss` ≈ `{"seconds": 24.24, "expected": 24.53, "botch_rate": 0.05, "fitted": true,
+  "races": 4}`
+- `model.prior` ≈ `{"factor": 0.78, "fitted": true, "races": 3, "pooled_races": 80}`
+
+If either `fitted` is false the circuit name did not resolve and that model has fallen back to a
+neutral default — still sane, but it means the call is not Monza-specific and the write-up has to
+say so. `races` is on the screen precisely so 0.78x from three races cannot be read as 0.78x from
+ten.
 
 **Known weaknesses, going in deliberately.**
 
-- The **cliff term is identically zero on HAR and MED** — the quadratic came back negative on both
-  and was refit without it. Only SOF carries curvature. A long stint on a hard is therefore modelled
-  as a straight line, which is the optimistic direction.
+- **No cliff term is identified on any compound.** On the filtered pool the quadratic came back
+  negative for all three and was refit without it, so every long stint is modelled as a straight
+  line — the optimistic direction. The fit says so in its own warnings now rather than printing
+  `+0.00000` as though it were a measurement.
 - The **botched-stop tail is capped at +15 s**: the stuck wheel nut that costs half a minute is not
   modelled, because in lap data it is indistinguishable from a front wing change.
 - Measured pit-loss spread is an **upper bound**, not an estimate — the out-lap runs on fresh tyres

@@ -5,6 +5,7 @@ from pitwall.models.degradation import (
     DegradationPrior,
     fit_degradation,
     load_degradation,
+    neutralisation_index,
 )
 from pitwall.models.fuel import (
     DEFAULT_SECONDS_PER_KG,
@@ -47,5 +48,6 @@ __all__ = [
     "load_degradation",
     "load_history",
     "load_pit_loss",
+    "neutralisation_index",
     "normalise_circuit",
 ]

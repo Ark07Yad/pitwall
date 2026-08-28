@@ -69,6 +69,10 @@ DEFAULT_BLEND_LAPS = 200.0
 
 # Races a circuit needs before its own scale factor outweighs the field average.
 DEFAULT_CIRCUIT_SHRINKAGE = 3.0
+# Above this a race's decomposition is not trusted. It sits in a gap in the data
+# rather than on a knife edge: seven races ran 24% or more of their laps on wet
+# tyres and the next one down is 1.2%. See `disruption`.
+MAX_WET_SHARE = 0.05
 
 # Same physical bounds the in-session fit uses.
 MAX_DEGRADATION = 1.0
@@ -200,6 +204,17 @@ def load_degradation(path: Path | str) -> list[dict[str, Any]]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def neutralisation_index(history: list[dict[str, Any]]) -> dict[tuple[int, int], Any]:
+    """Key the safety-car history by (season, round) so the fit can join on it.
+
+    The two datasets are collected by separate scripts and neither is the
+    other's source of truth, so the join is by race identity rather than by
+    position. A race missing from one side simply fails the neutralisation test
+    and is kept; the wet-share test still applies to it.
+    """
+    return {(int(r["season"]), int(r["round"])): r for r in history if "season" in r}
+
+
 def _fit_shape(ages: np.ndarray, deltas: np.ndarray, weights: np.ndarray) -> tuple[float, float]:
     """Weighted least squares of `delta ≈ α·age + γ·age²`, through the origin.
 
@@ -230,24 +245,89 @@ def _fit_shape(ages: np.ndarray, deltas: np.ndarray, weights: np.ndarray) -> tup
     return linear, curvature
 
 
+def disruption(race: dict[str, Any], history: dict[tuple[int, int], Any] | None) -> str:
+    """Why this race's decomposition cannot be trusted, or "" if it can.
+
+    The per-race fit subtracts one straight line in race lap - fuel burn and
+    track evolution together - before anything is attributed to tyre age. Three
+    things break that line, and all of them dump the break into the age terms:
+
+    - a **red flag**, which resets fuel load and track state mid-race;
+    - **wet running**, where the surviving slick laps sit either side of a
+      drying trend far steeper than fuel burn.
+
+    Measured rather than assumed: across the 95-race pool, races whose fitted
+    scale came out negative - a tyre getting *faster* with age, which is not a
+    tyre - were six times as likely to be red-flagged (29% against 5%), had
+    three times the safety-car starts (1.41 against 0.47) and ran twice the
+    share of the race neutralised (17.6% against 7.9%).
+
+    **A neutralisation test was tried on that evidence and is deliberately not
+    here.** Excluding races above a 20% neutralised share cost twelve more races
+    and changed the fitted shape by under 0.002 s/lap on every compound; it took
+    Silverstone from two usable races to one and Zandvoort from three to two,
+    while Zandvoort's factor moved 1.046 to 1.026. The correlation is real but
+    it is not independent - a race neutralised that heavily is usually also
+    red-flagged or wet - so the test was removed rather than kept for the sake
+    of the evidence that motivated it.
+
+    This is also deliberately *not* "drop the races whose answer looks wrong".
+    Excluding on the sign of the estimate would systematically overstate every
+    circuit whose true degradation is near zero, because noise there scatters
+    the estimate either side of it and only one side would be kept - and those
+    low-degradation circuits are exactly the ones this scale matters most for.
+    """
+    if float(race.get("wet_share") or 0.0) > MAX_WET_SHARE:
+        return f"{float(race['wet_share']):.0%} of laps run on wet tyres"
+    entry = (history or {}).get((int(race.get("season", 0)), int(race.get("round", 0))))
+    if entry is not None and entry.get("red_starts"):
+        return "red-flagged"
+    return ""
+
+
 def fit_degradation(
     races: list[dict[str, Any]],
     *,
     circuit_shrinkage: float = DEFAULT_CIRCUIT_SHRINKAGE,
     blend_laps: float = DEFAULT_BLEND_LAPS,
+    history: dict[tuple[int, int], Any] | None = None,
 ) -> DegradationPrior | None:
-    """Fit the pooled shape and per-circuit scales."""
+    """Fit the pooled shape and per-circuit scales.
+
+    `history` is the safety-car history keyed by (season, round), which is where
+    the red-flag test reads from. Without it only the wet-share test can run, so
+    the fit is more contaminated but still works - the caller that has it should
+    pass it.
+
+    A disrupted race is dropped from **both** the pooled shape and the circuit
+    scales, not just the scales. The contamination is one mechanism and it does
+    not respect that distinction: on the unfiltered pool the fitted shape put
+    the soft at -0.015 s/lap against the hard at +0.037, which is a soft tyre
+    that improves with age and wears slower than a hard - both false, and both
+    the wrong way round. Filtered, the ordering comes out soft > medium > hard,
+    which is the only ordering a tyre compound admits.
+    """
     if not races:
         return None
 
     by_compound: dict[Compound, list[tuple[int, float, int]]] = defaultdict(list)
     per_circuit: dict[str, list[tuple[Compound, int, float, int]]] = defaultdict(list)
+    # One entry per race, so a scale can be fitted per race and combined
+    # robustly. Pooling every bucket row at a circuit into a single
+    # least-squares lets one broken race move the whole circuit.
+    per_race: dict[str, list[list[tuple[Compound, int, float, int]]]] = defaultdict(list)
     circuit_races: dict[str, int] = defaultdict(int)
+    excluded: list[str] = []
     total_laps = 0
 
     for race in races:
         circuit = normalise_circuit(race.get("circuit"))
+        reason = disruption(race, history)
+        if reason:
+            excluded.append(f"{race.get('season')} {race.get('event', circuit)} ({reason})")
+            continue
         circuit_races[circuit] += 1
+        race_rows: list[tuple[Compound, int, float, int]] = []
         for bucket in race.get("buckets") or ():
             compound = _BY_SHORT.get(str(bucket.get("compound")))
             if compound is None or compound is Compound.UNKNOWN:
@@ -259,7 +339,10 @@ def fit_degradation(
                 continue
             by_compound[compound].append((age, mean, n))
             per_circuit[circuit].append((compound, age, mean, n))
+            race_rows.append((compound, age, mean, n))
             total_laps += n
+        if race_rows:
+            per_race[circuit].append(race_rows)
 
     if not by_compound:
         return None
@@ -301,11 +384,34 @@ def fit_degradation(
     if not linear:
         return None
 
+    flat = sorted(c.short for c in linear if not curvature.get(c))
+    if flat:
+        # `PLAN.md` §5.2 asks for a cliff and the table prints "+0.00000" for
+        # one that was never fitted, which reads as a measurement of zero rather
+        # than the absence of one. On the clean pool no compound identifies a
+        # cliff at all: teams pit before the tyre falls off, so the steep part
+        # is missing from the observations *because* it is steep.
+        warnings.append(
+            "no cliff term is identified for " + ", ".join(flat) + " - the quadratic came back "
+            "negative and was refit without it, so a long stint on those compounds is modelled "
+            "as a straight line, which is the optimistic direction"
+        )
+
     # One scalar per circuit against the shared shape. A whole curve per circuit
     # is not supportable on five races; a single scale is.
+    #
+    # Fitted per race and combined by median, not pooled into one least-squares
+    # over every bucket row at the circuit. The pooled form has no defence
+    # against a single race whose decomposition failed: at Zandvoort the 2023
+    # race alone pulled the scale from ~1.0 to 0.505, and the per-compound
+    # breakdown showed why - hard 0.92x and medium 1.30x, both plausible,
+    # against a soft at -1.48x that outweighed them. The engine then believed a
+    # Zandvoort tyre wore at half the field rate, which is what made a second
+    # stop unable to pay for itself there before lap 48 of 72.
     circuit_factor: dict[str, float] = {}
     unreliable: list[str] = []
-    for circuit, rows in per_circuit.items():
+
+    def scale_of(rows: list[tuple[Compound, int, float, int]]) -> float | None:
         numerator = denominator = 0.0
         for compound, age, mean, n in rows:
             if compound not in linear:
@@ -313,9 +419,16 @@ def fit_degradation(
             predicted = linear[compound] * age + curvature[compound] * age * age
             numerator += n * mean * predicted
             denominator += n * predicted * predicted
-        if denominator <= 0:
+        return numerator / denominator if denominator > 0 else None
+
+    for circuit, races_at in per_race.items():
+        scales = [s for s in (scale_of(rows) for rows in races_at) if s is not None]
+        if not scales:
             continue
-        raw = numerator / denominator
+        # The median keeps a circuit whose true degradation is near zero honest:
+        # noise there lands either side, and a mean would follow whichever side
+        # happened to be larger.
+        raw = float(np.median(scales))
         if raw < 0.0:
             # A negative scale says tyres get *faster* with age at this circuit.
             # Shrinking it toward 1.0 would launder that into a small positive
@@ -325,10 +438,19 @@ def fit_degradation(
             # field average rather than a number built on a sign error.
             unreliable.append(circuit)
             continue
-        races_here = circuit_races[circuit]
-        # Shrink toward the field, in units of races.
+        races_here = len(scales)
+        # Shrink toward the field, in units of *usable* races - races excluded
+        # as disrupted must not buy a circuit confidence it has not earned.
         circuit_factor[circuit] = (races_here * raw + circuit_shrinkage) / (
             races_here + circuit_shrinkage
+        )
+        circuit_races[circuit] = races_here
+
+    if excluded:
+        warnings.append(
+            f"{len(excluded)} of {len(races)} races excluded from the fit as disrupted "
+            "(a red flag or wet running breaks the single race-lap trend "
+            "the decomposition subtracts): " + "; ".join(sorted(excluded))
         )
 
     if unreliable:
@@ -361,7 +483,7 @@ def fit_degradation(
         reliable_max_age={c: reliable[c] for c in linear},
         circuit_factor=circuit_factor,
         circuit_races=dict(circuit_races),
-        n_races=len(races),
+        n_races=len(races) - len(excluded),
         n_laps=total_laps,
         blend_laps=blend_laps,
         warnings=tuple(warnings),

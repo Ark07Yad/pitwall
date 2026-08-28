@@ -41,6 +41,7 @@ from pitwall.models import (
     load_degradation,
     load_history,
     load_pit_loss,
+    neutralisation_index,
 )
 from pitwall.models.pit_loss import DEFAULT_SHRINKAGE as PIT_LOSS_SHRINKAGE
 from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
@@ -231,7 +232,10 @@ def _degradation(args: argparse.Namespace) -> int:
         )
         return 1
 
-    fit = fit_degradation(load_degradation(args.file))
+    fit = fit_degradation(
+        load_degradation(args.file),
+        history=neutralisation_index(load_history(args.history)) if args.history.exists() else None,
+    )
     if fit is None:
         print("not enough history to fit a degradation prior", file=sys.stderr)
         return 1
@@ -300,7 +304,7 @@ def _strategy(args: argparse.Namespace) -> int:
 
     state = collector.state
     clean, _ = filter_laps(collector.laps)
-    prior = _load_degradation(args.degradation_history)
+    prior = _load_degradation(args.degradation_history, args.history)
     pace = fit_pace(clean, prior=prior, circuit=state.circuit)
     if pace is None:
         print("not enough clean laps to fit a pace model", file=sys.stderr)
@@ -427,7 +431,7 @@ def _backtest(args: argparse.Namespace) -> int:
         hazard = fit_hazard(history, kind=EventKind.ANY)
         attrition = fit_attrition(history)
     pit_loss = _load_pit_loss(args.pit_loss_history)
-    prior = _load_degradation(args.degradation_history)
+    prior = _load_degradation(args.degradation_history, args.history)
 
     laps = [int(x) for x in args.laps.split(",") if x.strip()]
     wanted = {d.strip().upper() for d in args.drivers.split(",") if d.strip()}
@@ -572,7 +576,7 @@ def _report(args: argparse.Namespace) -> int:
     return 0
 
 
-def _load_degradation(path: Path) -> DegradationPrior | None:
+def _load_degradation(path: Path, history_path: Path | None = None) -> DegradationPrior | None:
     """The pooled degradation prior, or None if the history is not built.
 
     Absence is not fatal: the in-session fit runs alone, which is what it did
@@ -580,7 +584,14 @@ def _load_degradation(path: Path) -> DegradationPrior | None:
     """
     if not path.exists():
         return None
-    return fit_degradation(load_degradation(path))
+    # The red-flag test lives in the safety-car history, so the fit wants both
+    # files. Missing it is not fatal - the wet-share test still runs - but it
+    # leaves red-flagged races in the pool, so say so rather than degrading
+    # quietly.
+    history: dict[tuple[int, int], object] | None = None
+    if history_path is not None and history_path.exists():
+        history = neutralisation_index(load_history(history_path))
+    return fit_degradation(load_degradation(path), history=history)
 
 
 def _load_pit_loss(path: Path) -> PitLossModel | None:
@@ -619,7 +630,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         hazard = fit_hazard(history, kind=EventKind.ANY)
         attrition = fit_attrition(history)
     pit_loss = _load_pit_loss(args.pit_loss_history)
-    prior = _load_degradation(args.degradation_history)
+    prior = _load_degradation(args.degradation_history, args.history)
 
     log = forecasts = latency = None
     if args.log_predictions:
@@ -732,6 +743,12 @@ def main(argv: list[str] | None = None) -> int:
         "file", type=Path, nargs="?", default=Path("data/history/degradation.json")
     )
     degradation.add_argument("--circuit", default="", help="scale to one circuit")
+    degradation.add_argument(
+        "--history",
+        type=Path,
+        default=Path("data/history/safety_car.json"),
+        help="safety-car history, for the red-flag exclusion test",
+    )
 
     pitloss = sub.add_parser("pitloss", help="fit per-circuit green-flag pit loss")
     pitloss.add_argument("file", type=Path, nargs="?", default=Path("data/history/pit_loss.json"))

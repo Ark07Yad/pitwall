@@ -4,6 +4,119 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-28 — One race in five was not a tyre, and it had a vote
+
+Set out to check a single suspicious number: Zandvoort's degradation factor of
+**0.505x**, second-lowest of twenty-two, sitting between Montréal and Jeddah.
+Zandvoort is a banked, high-load circuit and does not belong in that company. It
+was also the number that made the 23 August problem unfixable — at 0.505x a
+second stop needed **47 laps of running to pay for itself**, so past lap 25 of 72
+the engine had no arithmetic under which stopping won, and the cliff term and the
+95-race pooling had both failed to move it.
+
+**The factor breaks down by compound, and that is where it was.**
+
+| | overall | HAR | MED | SOF |
+|---|---|---|---|---|
+| Zandvoort | 0.207 raw | **0.920** | **1.296** | **−1.479** |
+
+Hard and medium were fine — near or above the field average, exactly what the
+circuit should look like. The soft said the tyre gets *faster* with age, and it
+outweighed them. There is a guard for precisely this, and it did not fire,
+because it tests the **aggregate**: +0.207 is positive, so nothing looked wrong.
+A guard that checks the sum cannot see a sign error in a term.
+
+Per season it is narrower still. 2022 1.76, 2024 1.27, 2025 0.65, 2026 0.72 —
+and **2023 at −1.98**. One race.
+
+**Then the hypothesis I had was wrong, and the data said so plainly.** 2023 was
+the wet Dutch GP, so I wrote down "wet races poison the decomposition" and went
+to check the other seventeen negative-scale races in the pool. Only five had
+meaningful wet running. **Eleven were bone dry.**
+
+What actually separates them is disruption. Against the 78 races with a positive
+scale, the 17 negatives were **six times as likely to be red-flagged** (29%
+against 5%), had **three times the safety-car starts** (1.41 against 0.47) and
+ran **twice the share of the race neutralised** (17.6% against 7.9%). The
+mechanism is in the decomposition itself: it subtracts one straight line in race
+lap — fuel burn and track evolution together — before anything is attributed to
+tyre age. A red flag resets fuel load and track state mid-race. A drying track
+falls several seconds a lap. Neither is a straight line, and whatever the line
+fails to fit gets attributed to the tyre.
+
+**Two changes, and one test that was tried and rejected.**
+
+The scale is now fitted **per race and combined by median**, not pooled into one
+least-squares over every bucket row at a circuit. The pooled form gave a single
+failed race a vote proportional to its lap count; a median across three to five
+races does not care. And disrupted races — red-flagged, or over 5% of laps on
+wet tyres — are excluded from the fit, on a criterion **measured independently of
+the answer**. Excluding on the sign of the estimate, which is what I prototyped
+first and it looked lovely, systematically overstates every circuit whose true
+degradation is near zero: noise there lands either side and only one side gets
+kept. Those are exactly the circuits this scale matters most for.
+
+I also tried excluding races above a 20% neutralised share, which is what the
+evidence above seems to ask for. **It did not earn its place** — twelve more
+races dropped, the fitted shape moved by under 0.002 s/lap on every compound,
+Silverstone went from two usable races to one, and Zandvoort's factor moved
+1.046 to 1.026. The correlation is real and not independent: a race neutralised
+that heavily is usually already red-flagged or wet. Removed.
+
+**What it did to the model.** 80 of 95 races survive. The pooled shape:
+
+| | before | after |
+|---|---|---|
+| SOF | **−0.0148** | +0.0646 |
+| MED | +0.0307 | +0.0455 |
+| HAR | +0.0369 | +0.0394 |
+
+The old ordering was hard > medium > soft, with the soft improving as it aged —
+a soft tyre that wears slower than a hard, and backwards. The new one is soft >
+medium > hard, which is the only ordering a set of compounds admits. **That was
+in the repository for four days, in the model every pit call runs on, and no test
+failed.**
+
+And the break-even, which is the number that matters:
+
+| circuit | before | after |
+|---|---|---|
+| **Zandvoort** | **47** | **22** |
+| Montréal | 57 | 30 |
+| Monaco | 36 | 21 |
+| Jeddah | 46 | 22 |
+| Silverstone | 22 | 22 |
+| Spa | 10 | 10 |
+| Sakhir | 11 | 13 |
+| Monza | 30 | 31 |
+
+The circuits that were already clean do not move. That is the shape a
+contamination fix should have, and it is the reason to believe this one rather
+than the tidier story I nearly shipped this morning.
+
+**The tests all passed before and after, again.** Twenty existing degradation
+tests build five *identical* synthetic races, where a median and a pooled
+least-squares are the same number by construction — they could not have caught
+this and did not. The new robustness test fails at 0.529 against 1.134 on the old
+aggregation, which is almost exactly the real Zandvoort signature, and I checked
+that by putting the old aggregation back rather than by assuming it.
+
+**Left standing, and said out loud rather than fixed:** no cliff term is
+identified on any compound now — all three quadratics came back negative and were
+refit without them, so every long stint is a straight line, which is the
+optimistic direction. The fit warns about it instead of printing `+0.00000` as
+though a zero had been measured. Jeddah lost its factor entirely and falls back
+to the field average. And Le Castellet and Monaco rest on one usable race each,
+which is why the dashboard now prints the race count next to the factor: 1.05x
+from three races and 1.05x from one are the same number and not the same claim.
+
+Fourth finding in a week of the same kind, and the clearest yet: not wrong code,
+but a measurement that could not say what it appeared to say — and, this time, a
+guard written to catch exactly this failure that was looking at the wrong level
+of aggregation to see it.
+
+---
+
 ## 2026-08-26 (later) — A latency budget, missed, then met
 
 `PLAN.md` §6.4 wanted p50/p99 from packet arrival to published recommendation,

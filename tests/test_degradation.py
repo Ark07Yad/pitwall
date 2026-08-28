@@ -162,3 +162,92 @@ def test_a_negative_circuit_scale_is_rejected_not_shrunk():
         prior.degradation_at(Compound.HARD, 20), rel=1e-9
     )
     assert any("negative" in w for w in prior.warnings)
+
+
+# -- contamination ------------------------------------------------------
+
+
+def races_at(circuit, n, linear=0.04, start_round=1):
+    """`n` honest races at one circuit, each a distinct (season, round)."""
+    return [
+        dict(race(circuit, curve("HAR", linear, 0.0, 30)), season=2020 + i, round=start_round)
+        for i in range(n)
+    ]
+
+
+def test_one_broken_race_does_not_move_the_circuit():
+    """The bug this replaced: pooling every bucket row at a circuit into one
+    least-squares gave a single failed decomposition a vote proportional to its
+    lap count. At Zandvoort the 2023 race alone pulled the scale from ~1.0 to
+    0.505 - hard 0.92x and medium 1.30x outvoted by a soft at -1.48x."""
+    field = [r for c in ("Monza", "Sakhir", "Suzuka", "Austin") for r in races_at(c, 3)]
+    # Zandvoort and the control are identical apart from the broken race, so
+    # comparing them holds the pooled shape constant - a broken race moves that
+    # too, and this test is about the circuit scale.
+    honest = races_at("Zandvoort", 4) + races_at("Silverstone", 4)
+    broken = dict(race("Zandvoort", curve("HAR", -0.12, 0.0, 30)), season=2019, round=1)
+
+    prior = fit_degradation(field + honest + [broken])
+    assert prior.circuit_factor["Zandvoort"] == pytest.approx(
+        prior.circuit_factor["Silverstone"], abs=0.05
+    )
+
+
+def test_a_red_flagged_race_is_excluded_and_named():
+    history = {
+        (2019, 1): {
+            "red_starts": [2],
+            "sc_laps": [],
+            "vsc_laps": [],
+            "red_laps": [2],
+            "total_laps": 70,
+        }
+    }
+    races = races_at("Monza", 3) + [
+        dict(race("Monza", curve("HAR", -0.2, 0.0, 30)), season=2019, round=1)
+    ]
+    prior = fit_degradation(races, history=history)
+    assert prior.n_races == 3
+    assert prior.circuit_races["Monza"] == 3
+    assert any("red-flagged" in w for w in prior.warnings)
+
+
+def test_a_wet_race_is_excluded_on_its_own_measurement():
+    """No history file needed: the wet share is recorded with the race."""
+    races = races_at("Monza", 3)
+    races.append(
+        dict(race("Monza", curve("HAR", -0.2, 0.0, 30)), season=2019, round=1, wet_share=0.62)
+    )
+    prior = fit_degradation(races)
+    assert prior.n_races == 3
+    assert any("62% of laps run on wet tyres" in w for w in prior.warnings)
+
+
+def test_a_dry_green_race_is_not_excluded():
+    """The filter must not quietly eat the ordinary case."""
+    races = races_at("Monza", 4)
+    for r in races:
+        r["wet_share"] = 0.0
+    prior = fit_degradation(races, history={})
+    assert prior.n_races == 4
+    assert not any("excluded" in w for w in prior.warnings)
+
+
+def test_shrinkage_counts_usable_races_not_collected_ones():
+    """A circuit whose races were nearly all thrown out must not keep the
+    confidence of the ones it lost."""
+    races = races_at("Monza", 4, linear=0.08)
+    for r in races[1:]:
+        r["wet_share"] = 0.62
+    prior = fit_degradation(races)
+    assert prior.circuit_races["Monza"] == 1
+    # One race against a shrinkage of 3: three quarters of the way back to 1.0.
+    assert prior.circuit_factor["Monza"] == pytest.approx(1.0, abs=0.3)
+
+
+def test_absent_cliff_is_reported_not_printed_as_zero():
+    """ "+0.00000" in the table reads as a measured zero rather than the absence
+    of a measurement, and PLAN.md 5.2 asks for a cliff."""
+    prior = fit_degradation([race("Monza", curve("HAR", 0.04, 0.0, 30)) for _ in range(5)])
+    assert prior.curvature[Compound.HARD] == 0.0
+    assert any("no cliff term is identified" in w for w in prior.warnings)

@@ -259,9 +259,10 @@ limitation:
 ### Pooling across races, and survivorship
 
 A cliff needs stints long enough to contain one, which no single race provides. `scripts/
-fetch_degradation.py` pools **95 races and 85,587 laps** out of the local FastF1 cache — no API
-calls — by stripping each race down to the part of a lap attributable to tyre age and pooling
-those deltas, which mean the same thing at Monaco and Monza.
+fetch_degradation.py` collects **95 races** out of the local FastF1 cache — no API calls — by
+stripping each race down to the part of a lap attributable to tyre age and pooling those deltas,
+which mean the same thing at Monaco and Monza. **80 of the 95 are used**; the rest are excluded,
+and which and why is the subject of the next section.
 
 Pooling did not reveal a cliff, and why is the more useful result:
 
@@ -284,17 +285,57 @@ artifact; a straight line is the smallest claim that is not knowingly wrong.
 uv run pitwall degradation
 
   compound       linear       cliff  trusted  seen     @20     @40     @55
-  HAR          +0.0369   +0.00000       29    78  +0.74s  +1.48s  +2.03s
-  MED          +0.0307   +0.00000       29    77  +0.61s  +1.23s  +1.69s
-  SOF          -0.0148   +0.00228       19    54  +0.61s  +2.05s  +3.12s
+  HAR          +0.0394   +0.00000       54    71  +0.79s  +1.57s  +2.16s
+  MED          +0.0455   +0.00000       29    59  +0.91s  +1.82s  +2.50s
+  SOF          +0.0646   +0.00000       24    38  +1.29s  +2.58s  +3.55s
 
   circuit factor (shrunk toward 1.0):
-    Sakhir 2.48x   Spa 2.27x   Barcelona 2.19x   ...   Zandvoort 0.50x   Montréal 0.39x
+    Spa 2.02x   Sakhir 1.88x   Barcelona 1.38x   ...   Monza 0.78x   Montréal 0.69x
 ```
 
 Circuits whose fitted scale comes out *negative* are rejected rather than shrunk — Melbourne's raw
 scale was −0.64, and shrinking that toward 1.0 produced a plausible-looking 0.06x, which is how a
 sign error survives review. They fall back to the field average with a warning.
+
+### The race that gets a vote it has not earned
+
+The table above used to read `SOF −0.0148` against `HAR +0.0369`: a soft tyre that improves with
+age and wears more slowly than a hard, which is backwards twice over. It was in the model every pit
+call runs on for four days and no test failed.
+
+**Seventeen of the 95 races fit a negative degradation scale** — a tyre that gets faster the longer
+it runs. They are not random. Against the 78 that fit a positive one they were six times as likely
+to be **red-flagged** (29% against 5%), had three times the safety-car starts, and ran twice the
+share of the race neutralised. The decomposition subtracts one straight line in race lap — fuel burn
+and track evolution together — before attributing anything to tyre age, and a red flag resets fuel
+load and track state mid-race while a drying track falls several seconds a lap. Whatever that line
+fails to fit is attributed to the tyre.
+
+Two things follow, and the second matters more than it looks:
+
+- The circuit scale is fitted **per race and combined by median**, not pooled into a single
+  least-squares over every bucket row. Pooling gave one failed race a vote proportional to its lap
+  count: Zandvoort's factor was **0.505x** — second-lowest of twenty-two, on a banked high-load
+  circuit — because the wet 2023 race outvoted four sound ones. Per compound that race read hard
+  0.92x, medium 1.30x, soft **−1.48x**. The guard that exists for exactly this tests the aggregate,
+  which came to +0.207, so nothing looked wrong. It is now **1.05x**.
+- Disrupted races are excluded on a criterion **measured independently of the answer** — red-flagged,
+  or over 5% of laps on wet tyres — never on the sign of the estimate. Excluding on the sign
+  systematically overstates every circuit whose true degradation is near zero, since noise there
+  lands either side and only one side survives, and those are the circuits the scale matters most
+  for.
+
+What that does to the only number a strategist would check — how many laps of running a second stop
+needs before it pays for itself, on a 26-lap-old hard:
+
+| | Zandvoort | Montréal | Monaco | Silverstone | Spa | Monza |
+|---|---|---|---|---|---|---|
+| before | 47 | 57 | 36 | 22 | 10 | 30 |
+| after | **22** | 30 | 21 | 22 | 10 | 31 |
+
+The circuits that were already clean do not move, which is the shape a contamination fix should
+have. At Zandvoort the old number meant that past lap 25 of 72 no second stop could ever win, which
+is what made the 23 August "stay out on everything" result impossible to fix by tuning.
 
 The in-session fit is blended toward this prior in proportion to how many laps back it, so a
 well-observed compound keeps its own rate and a thin one borrows the pooled shape.

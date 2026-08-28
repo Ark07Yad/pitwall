@@ -157,6 +157,21 @@ def age_deltas(laps: Any) -> dict[str, dict[int, list[float]]]:
     return out
 
 
+def wet_share(laps: Any) -> float:
+    """Share of the field's laps run on a wet-weather tyre.
+
+    A drying race is worse for this decomposition than a wet one. The wet laps
+    themselves are dropped by compound, but the slick laps around them survive,
+    and the single linear `race_lap` term then fits the drying trend rather than
+    fuel burn. Whatever it fits is subtracted from every lap, and what is left
+    over is attributed to tyre age.
+    """
+    if laps is None or not len(laps):
+        return 0.0
+    compounds = laps.Compound.astype(str).str.upper()
+    return float(compounds.isin({"INTERMEDIATE", "WET"}).mean())
+
+
 def collect(season: int, rnd: int) -> dict[str, Any] | None:
     session = fastf1.get_session(season, rnd, "R")
     session.load(telemetry=False, weather=False, messages=False)
@@ -191,6 +206,10 @@ def collect(season: int, rnd: int) -> dict[str, Any] | None:
         "location": location,
         "n_laps": sum(b["n"] for b in buckets),
         "max_age": max(b["age"] for b in buckets),
+        # Recorded so the fit can exclude a race whose decomposition cannot be
+        # trusted, on a criterion measured here rather than on the sign of the
+        # number being estimated. See `models/degradation.py`.
+        "wet_share": round(wet_share(session.laps), 4),
         "buckets": buckets,
     }
 

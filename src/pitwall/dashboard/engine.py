@@ -35,6 +35,7 @@ from pitwall.models import (
     PaceFit,
     PitLossModel,
     fit_pace,
+    normalise_circuit,
 )
 from pitwall.sim import (
     SimConfig,
@@ -540,10 +541,26 @@ class Engine:
                 "races": self.pit_loss.races_at(circuit),
             }
 
+        prior = None
+        if self.degradation is not None:
+            circuit = self.state.circuit
+            # The factor alone cannot be read: 1.05x from three races and 1.05x
+            # from one are the same number and not the same claim, and after the
+            # disrupted-race filter several circuits rest on one.
+            prior = {
+                "factor": round(
+                    self.degradation.circuit_factor.get(normalise_circuit(circuit), 1.0), 3
+                ),
+                "fitted": self.degradation.known_circuit(circuit),
+                "races": self.degradation.circuit_races.get(normalise_circuit(circuit), 0),
+                "pooled_races": self.degradation.n_races,
+            }
+
         return {
             "clean_laps": self._clean_laps,
             "stints": pace.n_stints,
             "pit_loss": stop,
+            "prior": prior,
             "trend": round(pace.race_lap_coef, 4),
             "residual": round(pace.residual_std, 3),
             "r2": round(pace.r_squared, 3),

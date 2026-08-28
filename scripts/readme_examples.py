@@ -70,6 +70,16 @@ def main() -> int:
 
     hazard = cli("hazard", "--kind", "any")
     print(block("Clean-lap filtering", "### Clean-lap filtering", cli("laps", str(RACE))))
+    # The pooled prior was the one block still pasted by hand, and it drifted:
+    # the README quoted a soft tyre at -0.0148 s/lap for four days after the fit
+    # that produced it had been replaced.
+    print(
+        block(
+            "Pooled degradation",
+            "### Pooling across races, and survivorship",
+            cli("degradation"),
+        )
+    )
     print(block("Safety-car hazard", "### Safety-car hazard (--kind any)", hazard))
     print(block("Pit calls", "### Pit calls", strategy_block()))
     print(block("The track record", "### The track record", report))

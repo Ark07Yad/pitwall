@@ -69,6 +69,40 @@ def _reliability_verdict(field: Any) -> str:
     )
 
 
+def _provenance(
+    predictions: list[dict[str, Any]],
+    forecasts: list[dict[str, Any]] | None,
+) -> list[str]:
+    """State up front where the graded rows came from.
+
+    A report that grades replayed calls looks exactly like one that grades live
+    ones, and the numbers mean different things. Anything not made live is said
+    so in the second line of the document rather than a footnote, because the
+    headline skill figure is what gets quoted.
+    """
+
+    def sources(rows: list[dict[str, Any]] | None) -> list[str]:
+        # Rows written before the field existed are live: nothing else could
+        # write to the ledger then, and the replay guard has always been there.
+        return sorted({str(row.get("source", "live")) for row in rows or []})
+
+    calls, field = sources(predictions), sources(forecasts)
+    if calls == ["live"] and field in ([], ["live"]):
+        return []
+
+    lines = ["> **Not a live ledger.**"]
+    if calls != ["live"]:
+        lines.append(f"> Calls: {', '.join(calls)}.")
+    if field and field != ["live"]:
+        lines.append(f"> Field forecasts: {', '.join(field)}.")
+    lines += [
+        "> Rows made against a recording that already contains the result are not evidence",
+        "> that the call preceded the outcome, whatever they score.",
+        "",
+    ]
+    return lines
+
+
 def race_report(
     predictions: list[dict[str, Any]],
     finishing: dict[str, int],
@@ -90,6 +124,7 @@ def race_report(
         "",
         f"*Generated {generated} from {len(predictions)} logged predictions.*",
         "",
+        *_provenance(predictions, forecasts),
         "## Verdict",
         "",
         _verdict(card),

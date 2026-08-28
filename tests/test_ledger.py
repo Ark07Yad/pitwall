@@ -386,3 +386,59 @@ def test_cars_with_no_classification_are_skipped():
 def test_too_few_forecasts_says_so():
     score = score_forecasts([make_forecast(driver="1").__dict__], {"1": 1})
     assert any("too few" in w for w in score.warnings)
+
+
+# -- provenance --------------------------------------------------------
+
+
+def test_the_log_stamps_the_source_not_the_caller(tmp_path):
+    """A caller that has to remember to say "this is a replay" will one day not,
+    and the row it writes is then indistinguishable from a live one."""
+    log = PredictionLog("GP", directory=tmp_path, commit=False, source="replay of x.txt")
+    written = log.record(make_prediction(source="live"))
+    assert written.source == "replay of x.txt"
+    assert json.loads(log.path.read_text().splitlines()[0])["source"] == "replay of x.txt"
+
+
+def test_forecasts_are_stamped_too(tmp_path):
+    """The reliability diagram is built from this file, so an unmarked replay
+    would sit underneath the most persuasive artifact in the repository."""
+    log = ForecastLog("GP", directory=tmp_path, commit=False, source="replay of x.txt")
+    log.record_lap([make_forecast(), make_forecast(driver="4")])
+    rows = [json.loads(line) for line in log.path.read_text().splitlines()]
+    assert [r["source"] for r in rows] == ["replay of x.txt"] * 2
+
+
+def test_a_live_log_says_live_by_default(tmp_path):
+    log = PredictionLog("GP", directory=tmp_path, commit=False)
+    assert log.record(make_prediction()).source == "live"
+
+
+def test_a_report_on_replayed_rows_says_so_before_the_scores():
+    """The headline skill figure is what gets quoted, so the caveat goes above
+    it rather than in a footnote."""
+    rows = [make_prediction(source="replay of x.txt").__dict__]
+    report = race_report(rows, {"1": 2}, session="GP", circuit="Zandvoort")
+    assert "Not a live ledger" in report
+    assert report.index("Not a live ledger") < report.index("## Scores")
+
+
+def test_a_report_on_live_rows_is_not_disclaimed():
+    rows = [make_prediction().__dict__]
+    report = race_report(rows, {"1": 2}, session="GP", circuit="Zandvoort")
+    assert "Not a live ledger" not in report
+
+
+def test_live_calls_with_replayed_forecasts_are_flagged():
+    """The Dutch GP shape exactly: calls made live, field forecasts added three
+    days later from the recording."""
+    report = race_report(
+        [make_prediction().__dict__],
+        {"1": 2},
+        session="GP",
+        circuit="Zandvoort",
+        forecasts=[make_forecast(source="replay of x.txt").__dict__],
+    )
+    assert "Not a live ledger" in report
+    assert "Field forecasts: replay of x.txt" in report
+    assert "Calls:" not in report

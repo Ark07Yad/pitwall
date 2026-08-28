@@ -1,6 +1,11 @@
 # 2026 Dutch GP — Zandvoort
 
-*Generated 2026-08-26 19:47 UTC from 49 logged predictions.*
+*Generated 2026-08-28 17:39 UTC from 49 logged predictions.*
+
+> **Not a live ledger.**
+> Field forecasts: replay of 2026-netherlands-race.txt.
+> Rows made against a recording that already contains the result are not evidence
+> that the call preceded the outcome, whatever they score.
 
 ## Verdict
 

@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import subprocess
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -73,6 +73,12 @@ class Prediction:
     extrapolated: bool = False
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    # Where the state behind this call came from: "live" for a call made against
+    # F1's feed with the outcome still unknown, "replay of <file>" for one made
+    # against a recording that already contains it. Stamped by the log rather
+    # than the caller, because a caller that has to remember will eventually
+    # not, and the two are indistinguishable once written.
+    source: str = "live"
     note: str = ""
 
     @property
@@ -124,6 +130,10 @@ class Forecast:
 
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    # See `Prediction.source`. It matters more here: the reliability diagram is
+    # built from this file, so an unmarked replay would put a thousand rows made
+    # against a known result underneath the project's most persuasive artifact.
+    source: str = "live"
 
     @property
     def horizon_lap(self) -> int:
@@ -149,6 +159,7 @@ class ForecastLog:
         directory: Path | str = DEFAULT_DIR,
         commit: bool = True,
         repo: Path | str | None = None,
+        source: str = "live",
     ) -> None:
         self.session = session
         self.directory = Path(directory)
@@ -156,6 +167,7 @@ class ForecastLog:
         self.path = self.directory / f"{_slug(session)}-forecasts.jsonl"
         self.commit_enabled = commit
         self.repo = Path(repo) if repo else Path.cwd()
+        self.source = source
         self.written = 0
         self.commit_failures = 0
 
@@ -163,14 +175,15 @@ class ForecastLog:
         """Append a lap's forecasts and commit them together."""
         if not forecasts:
             return 0
+        stamped = [replace(forecast, source=self.source) for forecast in forecasts]
         with self.path.open("a", encoding="utf-8") as handle:
-            for forecast in forecasts:
+            for forecast in stamped:
                 handle.write(forecast.to_json() + "\n")
-        self.written += len(forecasts)
+        self.written += len(stamped)
 
         if self.commit_enabled:
-            self._commit(forecasts)
-        return len(forecasts)
+            self._commit(stamped)
+        return len(stamped)
 
     def entries(self) -> list[dict[str, Any]]:
         if not self.path.exists():
@@ -223,6 +236,7 @@ class PredictionLog:
         directory: Path | str = DEFAULT_DIR,
         commit: bool = True,
         repo: Path | str | None = None,
+        source: str = "live",
     ) -> None:
         self.session = session
         self.directory = Path(directory)
@@ -230,18 +244,20 @@ class PredictionLog:
         self.path = self.directory / f"{_slug(session)}.jsonl"
         self.commit_enabled = commit
         self.repo = Path(repo) if repo else Path.cwd()
+        self.source = source
         self.written = 0
         self.commit_failures = 0
 
     def record(self, prediction: Prediction) -> Prediction:
         """Append a prediction and commit it. Returns what was written."""
+        stamped = replace(prediction, source=self.source)
         with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(prediction.to_json() + "\n")
+            handle.write(stamped.to_json() + "\n")
         self.written += 1
 
         if self.commit_enabled:
-            self._commit(prediction)
-        return prediction
+            self._commit(stamped)
+        return stamped
 
     def entries(self) -> list[dict[str, Any]]:
         if not self.path.exists():

@@ -462,6 +462,9 @@ def _backtest(args: argparse.Namespace) -> int:
                 args.session or f"{state.session_name} {state.circuit}",
                 directory=args.out,
                 commit=not args.no_commit,
+                # A backtest re-folds a finished recording. It is never live,
+                # whatever it is pointed at.
+                source=f"backtest of {args.file.name}",
             )
 
         entries = entries_from_state(state, pace)
@@ -634,12 +637,18 @@ def _dashboard(args: argparse.Namespace) -> int:
             )
             return 1
         name = args.session or f"{args.replay.stem if args.replay else 'live'}"
-        log = PredictionLog(name, directory=args.out, commit=not args.no_commit)
-        forecasts = ForecastLog(name, directory=args.out, commit=not args.no_commit)
+        # Refusing to commit keeps a replay out of git history, but the rows
+        # still land in the same file a live race writes to, under the same
+        # name. Stamping every row says which it was on the row itself, so the
+        # distinction survives being read back by anything that is not git.
+        source = f"replay of {args.replay.name}" if args.replay else "live"
+        log = PredictionLog(name, directory=args.out, commit=not args.no_commit, source=source)
+        forecasts = ForecastLog(name, directory=args.out, commit=not args.no_commit, source=source)
         latency = LatencyLog(path=args.out / f"{log.path.stem}-latency.jsonl")
         suffix = "" if log.commit_enabled else " (not committing)"
         print(f"  ledger    -> {log.path}{suffix}")
         print(f"  forecasts -> {forecasts.path}{suffix}")
+        print(f"  source    -> {source}")
         print(f"  latency   -> {latency.path}")
 
     engine = Engine(

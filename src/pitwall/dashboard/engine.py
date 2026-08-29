@@ -111,6 +111,7 @@ class Engine:
         forecasts: ForecastLog | None = None,
         latency: LatencyLog | None = None,
         horizon: int = 10,
+        rehearsal: bool = False,
     ) -> None:
         self.feed = feed
         self.hazard = hazard
@@ -126,6 +127,15 @@ class Engine:
         self.forecasts = forecasts
         self.latency = latency
         self.horizon = horizon
+        # A rehearsal writes to the ledger from a session that is not a race, so
+        # the two race-only guards below are relaxed. It is the only way to
+        # exercise the write path against a live feed: practice never sends
+        # `LapCount`, so a dashboard left running through FP2 otherwise proves
+        # the feed and the reducer and nothing at all about the ledger - which is
+        # the part that has never run live. The CLI forces `commit=False` and a
+        # `source` of "rehearsal of ..." alongside it, so relaxing the guard
+        # cannot put a practice call anywhere the real ledger is read from.
+        self.rehearsal = rehearsal
 
         self.collector = LapCollector()
         self.advice: Advice | None = None
@@ -363,8 +373,8 @@ class Engine:
             config=config,
         )
 
-        self._record(recommendation, state)
-        self._forecast(entries, state, config)
+        self._record(recommendation, state, total)
+        self._forecast(entries, state, config, total)
 
         return Advice(
             lap=lap,
@@ -393,7 +403,7 @@ class Engine:
             computed_at=time.time(),
         )
 
-    def _record(self, recommendation: Any, state: RaceState) -> None:
+    def _record(self, recommendation: Any, state: RaceState, total_laps: int) -> None:
         """Write the call to the ledger and commit it, before the lap it covers.
 
         This runs inside `_compute`, which is already on a worker thread, so the
@@ -404,7 +414,10 @@ class Engine:
         **A race only.** `total_laps` is set by the `LapCount` topic, which
         practice and qualifying never send, so a dashboard left running through
         FP1 records nothing. `session_type` is checked too where the feed gives
-        it.
+        it. Both are lifted by `rehearsal`, which exists precisely to drive this
+        path from a practice session - and which the CLI pairs with a forced
+        `commit=False` and a "rehearsal of ..." source, so nothing written under
+        it can be mistaken for a call made on a race.
 
         **Once per lap.** A mid-race reconnection replays the state snapshot and
         can walk back over a lap already advised. Logging it twice would double-
@@ -416,10 +429,11 @@ class Engine:
         """
         if self.log is None:
             return
-        if state.total_laps <= 0:
-            return
-        if state.session_type and state.session_type.lower() != "race":
-            return
+        if not self.rehearsal:
+            if state.total_laps <= 0:
+                return
+            if state.session_type and state.session_type.lower() != "race":
+                return
         if recommendation.lap in self._logged_laps:
             return
 
@@ -429,7 +443,11 @@ class Engine:
                     recommendation,
                     session=self.log.session,
                     circuit=state.circuit,
-                    total_laps=state.total_laps,
+                    # In a rehearsal this is the synthetic horizon the
+                    # simulation actually ran against, not a real race length.
+                    # Writing state.total_laps here would put a 0 in the file and
+                    # a horizon_lap of 0 with it.
+                    total_laps=total_laps,
                     horizon=self.horizon,
                 )
             )
@@ -441,7 +459,9 @@ class Engine:
         self._logged_laps.add(recommendation.lap)
         self.logged += 1
 
-    def _forecast(self, entries: list, state: RaceState, config: SimConfig) -> None:
+    def _forecast(
+        self, entries: list, state: RaceState, config: SimConfig, total_laps: int
+    ) -> None:
         """Log where every car is heading, not just the one being advised.
 
         One simulation covers the whole field - they are simulated jointly
@@ -453,10 +473,13 @@ class Engine:
         Cars already out are skipped. "Where will a retired car finish" is not a
         forecast, and scoring it would pad the log with free correct answers.
         """
-        if self.forecasts is None or state.total_laps <= 0:
+        if self.forecasts is None:
             return
-        if state.session_type and state.session_type.lower() != "race":
-            return
+        if not self.rehearsal:
+            if state.total_laps <= 0:
+                return
+            if state.session_type and state.session_type.lower() != "race":
+                return
         if state.lap in self._forecast_laps:
             return
 
@@ -464,7 +487,7 @@ class Engine:
             result = simulate(
                 entries,
                 from_lap=state.lap,
-                total_laps=state.total_laps,
+                total_laps=total_laps,
                 circuit=state.circuit,
                 pace=self._pace,
                 hazard=self.hazard,
@@ -487,7 +510,7 @@ class Engine:
                         session=self.forecasts.session,
                         circuit=state.circuit,
                         lap=state.lap,
-                        total_laps=state.total_laps,
+                        total_laps=total_laps,
                         driver=entry,
                         tla=result.tlas[index],
                         position=order.get(entry, 0),

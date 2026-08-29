@@ -235,7 +235,7 @@ def engine_with_log(tmp_path, **kwargs) -> Engine:
 
 def test_records_a_call_during_a_race(tmp_path):
     engine = engine_with_log(tmp_path)
-    engine._record(FakeRecommendation(), race_state())
+    engine._record(FakeRecommendation(), race_state(), 72)
 
     assert engine.logged == 1
     entry = engine.log.entries()[0]
@@ -254,8 +254,8 @@ def test_does_not_record_outside_a_race(tmp_path):
     never sends one cannot be scored against a classification either.
     """
     engine = engine_with_log(tmp_path)
-    engine._record(FakeRecommendation(), race_state(total_laps=0, session_type="Practice"))
-    engine._record(FakeRecommendation(), race_state(session_type="Qualifying"))
+    engine._record(FakeRecommendation(), race_state(total_laps=0, session_type="Practice"), 42)
+    engine._record(FakeRecommendation(), race_state(session_type="Qualifying"), 72)
 
     assert engine.logged == 0
     assert engine.log.entries() == []
@@ -269,9 +269,9 @@ def test_does_not_record_the_same_lap_twice(tmp_path):
     would double-count that call in every score drawn from the file.
     """
     engine = engine_with_log(tmp_path)
-    engine._record(FakeRecommendation(lap=24), race_state(lap=24))
-    engine._record(FakeRecommendation(lap=24), race_state(lap=24))
-    engine._record(FakeRecommendation(lap=25), race_state(lap=25))
+    engine._record(FakeRecommendation(lap=24), race_state(lap=24), 72)
+    engine._record(FakeRecommendation(lap=24), race_state(lap=24), 72)
+    engine._record(FakeRecommendation(lap=25), race_state(lap=25), 72)
 
     assert engine.logged == 2
     assert [e["lap"] for e in engine.log.entries()] == [24, 25]
@@ -285,7 +285,7 @@ def test_a_ledger_failure_does_not_stop_the_engine(tmp_path, monkeypatch):
         raise OSError("disk full")
 
     monkeypatch.setattr(engine.log, "record", boom)
-    engine._record(FakeRecommendation(), race_state())  # must not raise
+    engine._record(FakeRecommendation(), race_state(), 72)  # must not raise
 
     assert engine.logged == 0
     assert engine.log_failures == 1
@@ -299,7 +299,7 @@ def test_snapshot_reports_the_ledger(tmp_path):
     engine = engine_with_log(tmp_path)
     assert engine.snapshot()["ledger"]["written"] == 0
 
-    engine._record(FakeRecommendation(), race_state())
+    engine._record(FakeRecommendation(), race_state(), 72)
     ledger = engine.snapshot()["ledger"]
     assert ledger["written"] == 1
     assert ledger["committing"] is False
@@ -319,8 +319,8 @@ def test_live_calls_are_committed_as_they_are_made(tmp_path):
     )
     engine = Engine(ReplayFeed(tmp_path / "x.txt"), log=log)
 
-    engine._record(FakeRecommendation(lap=24), race_state(lap=24))
-    engine._record(FakeRecommendation(lap=25), race_state(lap=25))
+    engine._record(FakeRecommendation(lap=24), race_state(lap=24), 72)
+    engine._record(FakeRecommendation(lap=25), race_state(lap=25), 72)
 
     assert log.commit_failures == 0
     count = subprocess.run(
@@ -340,7 +340,7 @@ def test_a_stay_out_call_is_logged_as_one(tmp_path):
     engine = engine_with_log(tmp_path)
     rec = FakeRecommendation(lap=60)
     rec.best = FakeOutcome(pit_lap=72, stop=False, compound=FakeCompound("MED"))
-    engine._record(rec, race_state(lap=60))
+    engine._record(rec, race_state(lap=60), 72)
 
     entry = engine.log.entries()[0]
     assert entry["stop"] is False
@@ -386,7 +386,7 @@ def test_the_engine_forecasts_the_whole_field(tmp_path):
     original = module.simulate
     module.simulate = lambda *a, **k: FakeResult()
     try:
-        engine._forecast(entries, state, SimConfigStub())
+        engine._forecast(entries, state, SimConfigStub(), state.total_laps or 72)
     finally:
         module.simulate = original
 
@@ -407,7 +407,7 @@ def test_forecasts_only_during_a_race(tmp_path):
 
     flog = ForecastLog("GP", directory=tmp_path, commit=False)
     engine = Engine(ReplayFeed(tmp_path / "x.txt"), forecasts=flog)
-    engine._forecast([], race_state(total_laps=0, session_type="Practice"), SimConfigStub())
+    engine._forecast([], race_state(total_laps=0, session_type="Practice"), SimConfigStub(), 42)
     assert flog.entries() == []
 
 
@@ -478,3 +478,76 @@ def test_no_latency_log_means_no_adaptation(tmp_path):
     before = engine.sims
     engine._adapt_sims(10.0)
     assert engine.sims == before
+
+
+# -- rehearsing against a live practice session -------------------------
+
+
+def test_rehearsal_records_from_a_session_that_is_not_a_race(tmp_path):
+    """Practice never sends `LapCount`, so the race-only guard means a dashboard
+    run through FP2 proves the feed and the reducer and nothing whatever about
+    the ledger - which is the part that has never run live. `--rehearse` is the
+    only way to drive that path before a race does it for real."""
+    engine = engine_with_log(tmp_path, rehearsal=True)
+    engine._record(FakeRecommendation(), race_state(total_laps=0, session_type="Practice"), 42)
+
+    assert engine.logged == 1
+    assert engine.log.entries()
+
+
+def test_a_rehearsal_records_the_horizon_it_actually_ran_against(tmp_path):
+    """`total_laps` is 0 in practice. Writing that to the file would give every
+    row a horizon_lap of 0 - a claim already settled before it was made."""
+    engine = engine_with_log(tmp_path, rehearsal=True)
+    engine._record(FakeRecommendation(lap=22), race_state(lap=22, total_laps=0), 42)
+
+    row = engine.log.entries()[0]
+    assert row["total_laps"] == 42
+    assert row["horizon_lap"] > row["lap"]
+
+
+def test_rehearsal_is_off_by_default(tmp_path):
+    """The guard has to stay the default. A flag that has to be remembered to
+    stay safe is not a guard."""
+    engine = engine_with_log(tmp_path)
+    engine._record(FakeRecommendation(), race_state(total_laps=0, session_type="Practice"), 42)
+    assert engine.logged == 0
+
+
+def test_the_rehearse_flag_reaches_the_engine(tmp_path, monkeypatch):
+    """The wiring, not the guard: `--rehearse` is worth nothing if the CLI parses
+    it and then builds an Engine that still refuses to write."""
+    import pitwall.cli as cli
+    import pitwall.dashboard as dashboard
+
+    built = {}
+
+    def fake_serve(engine, **kwargs):
+        built["rehearsal"] = engine.rehearsal
+        built["commit"] = engine.log.commit_enabled
+        built["source"] = engine.log.source
+
+    monkeypatch.setattr(dashboard, "serve", fake_serve)
+    monkeypatch.chdir(tmp_path)
+    recording = tmp_path / "quali.txt"
+    recording.write_text("")
+
+    cli.main(
+        [
+            "dashboard",
+            "--replay",
+            str(recording),
+            "--rehearse",
+            "--log-predictions",
+            "--session",
+            "Italy FP2",
+            "--out",
+            str(tmp_path / "predictions"),
+        ]
+    )
+
+    assert built == {
+        "rehearsal": True,
+        "commit": False,
+        "source": "rehearsal of Italy FP2",
+    }

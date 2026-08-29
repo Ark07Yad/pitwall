@@ -442,3 +442,38 @@ def test_live_calls_with_replayed_forecasts_are_flagged():
     assert "Not a live ledger" in report
     assert "Field forecasts: replay of x.txt" in report
     assert "Calls:" not in report
+
+
+# -- what a rehearsal is allowed to write ------------------------------
+
+
+def test_a_rehearsal_never_commits_however_it_is_invoked():
+    """The property the whole mode rests on. `--rehearse` lifts the race-only
+    guard on the ledger, so if it could also be persuaded to commit, a practice
+    call would land in the history that is the project's only real evidence."""
+    from pitwall.cli import ledger_mode
+
+    for no_commit in (True, False):
+        commit, provenance = ledger_mode(
+            name="Italy FP2", replay=None, rehearse=True, no_commit=no_commit
+        )
+        assert commit is False
+        assert provenance == "rehearsal of Italy FP2"
+
+
+def test_a_live_run_commits_and_says_live():
+    from pitwall.cli import ledger_mode
+
+    assert ledger_mode(name="x", replay=None, rehearse=False, no_commit=False) == (True, "live")
+
+
+def test_a_replay_is_named_by_its_recording():
+    from pathlib import Path
+
+    from pitwall.cli import ledger_mode
+
+    commit, provenance = ledger_mode(
+        name="x", replay=Path("data/raw/2026-italy-race.txt"), rehearse=False, no_commit=True
+    )
+    assert commit is False
+    assert provenance == "replay of 2026-italy-race.txt"

@@ -576,6 +576,23 @@ def _report(args: argparse.Namespace) -> int:
     return 0
 
 
+def ledger_mode(
+    *, name: str, replay: Path | None, rehearse: bool, no_commit: bool
+) -> tuple[bool, str]:
+    """Whether to commit, and what to stamp on every row.
+
+    Pulled out of the dashboard command so the one property that matters can be
+    tested: a rehearsal cannot be talked into committing. It lifts the race-only
+    guard on the ledger, so the two things keeping its rows out of the evidence -
+    never committed, always stamped - must not depend on a second flag being
+    remembered.
+    """
+    if rehearse:
+        return False, f"rehearsal of {name}"
+    provenance = f"replay of {replay.name}" if replay else "live"
+    return not no_commit, provenance
+
+
 def _load_degradation(path: Path, history_path: Path | None = None) -> DegradationPrior | None:
     """The pooled degradation prior, or None if the history is not built.
 
@@ -617,7 +634,8 @@ def _dashboard(args: argparse.Namespace) -> int:
         # (driver list, stints, compounds), where skipping would silently drop it.
         warp = timedelta(minutes=args.skip) if args.skip else None
         feed = ReplayFeed(args.replay, speed=args.speed, warp_until=warp)
-        source = f"replay of {args.replay.name} at {args.speed or 'max'}x"
+        pace_label = f"{args.speed:g}x" if args.speed else "max speed"
+        source = f"replay of {args.replay.name} at {pace_label}"
         if warp:
             source += f", from {args.skip:g} min in"
     else:
@@ -639,11 +657,13 @@ def _dashboard(args: argparse.Namespace) -> int:
         # would destroy the only thing that makes the ledger worth anything -
         # that a commit timestamp proves the call preceded the outcome. So a
         # replay may be logged, but never committed.
-        if args.replay and not args.no_commit:
+        if args.replay and not args.no_commit and not args.rehearse:
             print(
                 "refusing to commit predictions from a replay: the recording already "
                 "contains the outcome.\n"
-                "re-run with --no-commit to rehearse the ledger, or drop --replay to go live.",
+                "re-run with --no-commit to rehearse the ledger, or drop --replay to go live.\n"
+                "(--rehearse also implies it, and is how the non-race guard gets exercised "
+                "against a practice or qualifying recording before a live session.)",
                 file=sys.stderr,
             )
             return 1
@@ -652,14 +672,20 @@ def _dashboard(args: argparse.Namespace) -> int:
         # still land in the same file a live race writes to, under the same
         # name. Stamping every row says which it was on the row itself, so the
         # distinction survives being read back by anything that is not git.
-        source = f"replay of {args.replay.name}" if args.replay else "live"
-        log = PredictionLog(name, directory=args.out, commit=not args.no_commit, source=source)
-        forecasts = ForecastLog(name, directory=args.out, commit=not args.no_commit, source=source)
+        # Not `source`: that name already holds the feed description printed in
+        # the startup banner, and rebinding it here made a live run announce
+        # itself as "pitwall dashboard - live" instead of "- F1 live timing".
+        # The banner is how race morning confirms it is not on a replay.
+        commit, provenance = ledger_mode(
+            name=name, replay=args.replay, rehearse=args.rehearse, no_commit=args.no_commit
+        )
+        log = PredictionLog(name, directory=args.out, commit=commit, source=provenance)
+        forecasts = ForecastLog(name, directory=args.out, commit=commit, source=provenance)
         latency = LatencyLog(path=args.out / f"{log.path.stem}-latency.jsonl")
         suffix = "" if log.commit_enabled else " (not committing)"
         print(f"  ledger    -> {log.path}{suffix}")
         print(f"  forecasts -> {forecasts.path}{suffix}")
-        print(f"  source    -> {source}")
+        print(f"  source    -> {provenance}")
         print(f"  latency   -> {latency.path}")
 
     engine = Engine(
@@ -674,6 +700,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         forecasts=forecasts,
         latency=latency,
         horizon=args.horizon,
+        rehearsal=args.rehearse,
     )
     print(f"pitwall dashboard - {source}")
     print(f"  http://{args.host}:{args.port}")
@@ -853,6 +880,12 @@ def main(argv: list[str] | None = None) -> int:
     dashboard.add_argument("--horizon", type=int, default=10, help="laps a call is claimed for")
     dashboard.add_argument(
         "--no-commit", action="store_true", help="write the ledger but do not git commit"
+    )
+    dashboard.add_argument(
+        "--rehearse",
+        action="store_true",
+        help="drive the ledger from a live practice or qualifying session; "
+        "never commits, and stamps every row as a rehearsal",
     )
 
     args = parser.parse_args(argv)

@@ -4,6 +4,64 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-08-29 — The rehearsal that would have rehearsed nothing
+
+Yesterday's runbook told Friday-me to rehearse the whole chain on Monza FP2, and
+listed what it would prove: "the feed connects, the reducer folds a live
+green-flag session, the pace fit becomes usable, and **the ledger writes**".
+
+The last one is false, and the reason was already written down in the engine's
+own docstring: *"`total_laps` is set by the `LapCount` topic, which practice and
+qualifying never send, so a dashboard left running through FP1 records nothing."*
+There is a second guard on `session_type` behind it. Run as documented, the
+rehearsal would have exercised the feed and the reducer and proved **nothing
+whatever** about the ledger — which is the single part of this system that has
+never run against a live session, and the entire reason for rehearsing.
+
+I wrote that claim yesterday, in the same session where I found three other
+things of exactly this shape. Writing a confident sentence about what a thing
+tests is not the same as checking.
+
+**`--rehearse` lifts both guards, and pays for it.** The mode forces two
+properties that cannot be switched off from the command line: it never commits,
+and it stamps `source: "rehearsal of ..."` on every row. The decision lives in
+one function, `ledger_mode`, so the property that matters is directly testable —
+`--rehearse --no-commit` and `--rehearse` alone must both come back
+`(commit=False, "rehearsal of ...")`, and the test asserts it for both.
+
+**One thing the guard was hiding.** With `total_laps` at zero the simulation runs
+against `current lap + 20`, an invented horizon that already existed for the
+on-screen recommendation. The logging path took `state.total_laps` directly, so
+a rehearsal row would have recorded `total_laps: 0` and, through
+`min(lap + horizon, total_laps)`, a **`horizon_lap` of 0** — a claim settled
+before it was made. The effective horizon is now threaded through both the
+recommendation and the forecast, so the file records what the simulation actually
+ran against.
+
+**And a real bug, found by reading rather than by failing.** Yesterday's
+provenance commit introduced a second variable called `source` inside the
+dashboard command, shadowing the one that holds the feed description. The startup
+banner is how race morning confirms it is on the live feed and not a replay, and
+on a live run with `--log-predictions` it had started announcing
+`pitwall dashboard - live` instead of `- F1 live timing`. Renamed to
+`provenance`. While in there: `at {speed or 'max'}x` rendered a max-speed replay
+as `at maxx`.
+
+**What I could not test, and am not pretending otherwise.** The guard-lifting is
+unit-tested both ways, and the CLI wiring has a test that fails if the flag stops
+reaching the `Engine` — I checked that by deleting the line rather than assuming.
+But the only non-race recordings in `data/raw/` are single-frame snapshots with
+no lap stream, so there is no way to drive the full path end to end until Friday.
+That is not a gap in the work; it is the thing the rehearsal exists to find out,
+and it is now capable of finding it out.
+
+Also allowed `--rehearse` with `--replay`, which I had initially forbidden on
+tidiness grounds. Combining them is how you smoke-test the mode against a
+practice recording, and it is strictly safer than the `--replay --no-commit` it
+replaces, since rehearsal forces the no-commit rather than trusting a flag.
+
+---
+
 ## 2026-08-28 — One race in five was not a tyre, and it had a vote
 
 Set out to check a single suspicious number: Zandvoort's degradation factor of

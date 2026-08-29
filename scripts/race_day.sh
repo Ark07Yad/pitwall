@@ -6,10 +6,20 @@
 # folds them into race state, fits the models, publishes a call every lap, and
 # commits each call to the prediction ledger as it is made.
 #
-#   scripts/race_day.sh "2026-08-23 13:45" 2026-netherlands-race "2026 Dutch GP" LEC 195
+#   scripts/race_day.sh "2026-09-06 13:45" 2026-italy-race "2026 Italian GP" LEC 210
 #
 # Arguments: start time (local), recording basename, ledger session name, the
 # TLA to advise (blank = the leader), minutes to run, and the dashboard port.
+#
+# Pass --rehearse first to drive a practice or qualifying session instead:
+#
+#   scripts/race_day.sh --rehearse "2026-09-04 14:45" 2026-italy-fp2 "2026 Italy FP2" "" 105
+#
+# A rehearsal never commits and stamps every ledger row "rehearsal of ...", so
+# it cannot reach the evidence. It exists because practice never sends
+# `LapCount`: without lifting the engine's race-only guard, a dashboard run
+# through FP2 exercises the feed and the reducer and nothing at all about the
+# ledger, which is the part that has never run against a live session.
 #
 # The port is checked before the wait rather than at launch: uvicorn cannot bind
 # a taken port, so a clash would kill the engine the instant it finally started -
@@ -24,7 +34,13 @@
 
 set -uo pipefail
 
-START_AT="${1:?usage: race_day.sh \"YYYY-MM-DD HH:MM\" BASENAME SESSION [TLA] [MINUTES]}"
+REHEARSE=0
+if [[ "${1:-}" == "--rehearse" ]]; then
+    REHEARSE=1
+    shift
+fi
+
+START_AT="${1:?usage: race_day.sh [--rehearse] \"YYYY-MM-DD HH:MM\" BASENAME SESSION [TLA] [MINUTES]}"
 BASENAME="${2:?missing recording basename}"
 SESSION="${3:?missing ledger session name}"
 DRIVER="${4:-}"
@@ -47,15 +63,15 @@ target_epoch=$(date -j -f "%Y-%m-%d %H:%M" "$START_AT" +%s 2>/dev/null) || {
 # each prediction is committed with `--only`, staging just the log file - but a
 # detached HEAD or a missing identity means every commit fails silently for two
 # hours and the timestamps that are the whole point are lost.
-if ! git -C "$REPO" rev-parse --abbrev-ref HEAD >/dev/null 2>&1; then
+if (( REHEARSE )); then
+    log "REHEARSAL - the ledger will be written but never committed"
+elif ! git -C "$REPO" rev-parse --abbrev-ref HEAD >/dev/null 2>&1; then
     echo "not a git repository: $REPO" >&2
     exit 1
-fi
-if [[ "$(git -C "$REPO" rev-parse --abbrev-ref HEAD)" == "HEAD" ]]; then
+elif [[ "$(git -C "$REPO" rev-parse --abbrev-ref HEAD)" == "HEAD" ]]; then
     echo "detached HEAD - check out a branch so prediction commits land somewhere" >&2
     exit 1
-fi
-if ! git -C "$REPO" config user.email >/dev/null; then
+elif ! git -C "$REPO" config user.email >/dev/null; then
     echo "git user.email is unset - every prediction commit would fail" >&2
     exit 1
 fi
@@ -119,9 +135,12 @@ while (( $(date +%s) < target_epoch )); do
 done
 
 log "starting the engine"
+REHEARSE_FLAG=()
+(( REHEARSE )) && REHEARSE_FLAG=(--rehearse)
 "${REPO}/.venv/bin/pitwall" dashboard \
     --record "$OUTPUT" \
     --log-predictions \
+    "${REHEARSE_FLAG[@]}" \
     --session "$SESSION" \
     --driver "$DRIVER" \
     --port "$PORT" \
@@ -145,7 +164,15 @@ slug=$(printf '%s' "$SESSION" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\{1
 ledger="${REPO}/predictions/${slug}.jsonl"
 if [[ -f "$ledger" ]]; then
     log "ledger finished - $ledger ($(wc -l <"$ledger" | tr -d ' ') calls)"
-    log "committed: $(git -C "$REPO" rev-list --count HEAD -- "$ledger") commits touch it"
+    if (( REHEARSE )); then
+        # The point of the rehearsal is that this path ran at all. Say what it
+        # wrote and that none of it counts, rather than counting commits that
+        # were deliberately never made.
+        log "rehearsal - not committed, every row stamped \"rehearsal of ${SESSION}\""
+        log "delete it when you are done: rm $ledger ${ledger%.jsonl}-forecasts.jsonl"
+    else
+        log "committed: $(git -C "$REPO" rev-list --count HEAD -- "$ledger") commits touch it"
+    fi
 else
     log "WARNING: no ledger written at $ledger"
 fi

@@ -22,17 +22,28 @@ and the `GmtOffset` of +02:00 are what settle it.
 
 **Monza is a conventional weekend, not a sprint.** That matters more than it sounds: Zandvoort was
 a sprint weekend with no FP2, which is why the live path has still never run against a real
-green-flag session. Monza has **FP1 Friday 4 September 12:30 CEST (11:30 Irish)** and **FP2 Friday
-16:00 CEST (15:00 Irish)**. Rehearsing the chain on FP2 costs one afternoon and is the cheapest risk
-reduction available before Sunday.
+green-flag session. Rehearsing on a practice session is the cheapest risk reduction available before
+Sunday.
+
+**Friday's two sessions went unused.** The remaining windows, in local time:
+
+| session | Irish time | note |
+|---|---|---|
+| ~~FP1, FP2~~ | Fri 4 Sep 11:30, 15:00 | gone |
+| **FP3** | **Sat 5 Sep 11:30** | an hour of green running, and a second attempt still available after it |
+| Qualifying | Sat 5 Sep 15:00 | fallback; leaves no margin to fix what it finds |
+| Race | Sun 6 Sep 14:00 | |
+
+FP3 is the one to use. If it exposes something, Qualifying is four hours later and Saturday evening
+is free; if Qualifying is the first attempt, a failure there is discovered with the race next.
 
 ```bash
-nohup ./scripts/race_day.sh --rehearse "2026-09-04 14:45" 2026-italy-fp2 "2026 Italy FP2" "" 105 &
+nohup ./scripts/race_day.sh --rehearse "2026-09-05 11:15" 2026-italy-fp3 "2026 Italy FP3" "" 90 &
 ```
 
 **Why `--rehearse` and not just `--no-commit`.** The engine refuses to write the ledger outside a
 race, and the tell is `total_laps`: `LapCount` is a race-only topic, so in practice it is zero and
-the guard fires. Without lifting it, a dashboard run through FP2 exercises the feed, the reducer and
+the guard fires. Without lifting it, a dashboard run through a practice session exercises the feed, the reducer and
 the pace fit — and **nothing whatever about the ledger**, which is the one part that has never run
 against a live session. `--rehearse` lifts that guard, and pays for it by forcing two things that
 cannot be switched off: it never commits, and it stamps `source: "rehearsal of ..."` on every row.
@@ -47,12 +58,12 @@ running order to simulate against, and with `total_laps` at zero the simulation 
 invented horizon of `current lap + 20`. That number is written into `total_laps` on every rehearsal
 row, so the file says what it ran against rather than recording a zero.
 
-**Afterwards, delete it.** The rehearsal writes `predictions/2026-italy-fp2.jsonl` and its
+**Afterwards, delete it.** The rehearsal writes `predictions/2026-italy-fp3.jsonl` and its
 forecasts file. They are stamped and uncommitted, so they cannot contaminate the evidence, but there
 is no reason to keep them:
 
 ```bash
-rm predictions/2026-italy-fp2*.jsonl
+rm predictions/2026-italy-fp3*.jsonl
 ```
 
 Check the recording survived — that is the artifact worth having either way, and a practice session

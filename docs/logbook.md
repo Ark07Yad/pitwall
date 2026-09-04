@@ -4,6 +4,70 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-04 — The refit changed the model and not one call
+
+Two days before Monza, and the question I had not asked about the 28 August
+degradation rebuild: **did it change any decisions?** It moved Zandvoort's factor
+from 0.505x to 1.05x, corrected a pooled shape that had the soft tyre improving
+with age, and took the break-even for a second stop from 47 laps to 22. All of
+that is defensible on its own terms. None of it is evidence that the engine would
+have *called* anything differently.
+
+The answer is no. Matched lap-for-lap and car-for-car against the previous
+rescore — same 48 laps, same cars, one model changed — the old and new priors
+produce **zero different decisions**. Not close: identical, 48 of 48, still 47
+stay-outs.
+
+| | old prior | new prior |
+|---|---|---|
+| Brier (top 3) | 0.0846 | **0.0607** |
+| skill vs baseline | +42.0% | **+58.4%** |
+| mean position error | **0.50** | 0.58 |
+| decisions differing | — | **0 of 48** |
+
+The Brier gain is real and it is a *forecast* improvement, not a decision one:
+the same calls, carrying better-calibrated probabilities about where the car
+finishes. Position error moves the other way. Had I quoted "+58.4%" without
+checking the decisions, it would have read as the strategy improving, and the
+strategy did not move at all.
+
+Zandvoort sits in a regime where staying out wins under both versions, so this
+race cannot separate them. **Monza is the first race that can.** Its break-even
+is 31 laps of 53, so the last lap on which a second stop can be recommended is
+lap 22 — a boundary the old prior would have put somewhere else, and one that
+falls inside the race rather than past the flag.
+
+**The tool is the other half of this.** The 23 August rescore was done by hand,
+which is exactly why its numbers went stale six days later when the model changed
+underneath them and nobody noticed. `scripts/rescore.py` now does it as a
+command: read a live ledger, re-fold to each of its laps, evaluate the same car
+with the current models, score both against the actual classification. Every row
+it writes is stamped `rescore of <recording>` so the report refuses to read it as
+a live ledger, and the live log is opened read-only.
+
+**Also today, checks rather than changes**, since five commits had landed since
+anything ran end to end:
+
+- The full chain works: replayed Zandvoort at 60x, ledger writing, forecasts
+  writing, `model.prior` reading `1.046x / 3 races / 80 pooled` on the dashboard.
+- A first attempt at that smoke test **passed while running nothing** — `timeout`
+  does not exist on macOS, the command failed instantly, and the harness reported
+  success. The same shape as everything else in this logbook, this time in my own
+  verification rather than in the code.
+- F1's endpoint still accepts unauthenticated connections. Last checked 22 August.
+- All three `race_day.sh` pre-flight guards fire: usage, port-in-use *before* the
+  wait, git identity on a branch.
+- Every number in the Monza runbook matches the fitted models exactly.
+
+**What did not happen: the rehearsal.** FP1 and FP2 were today, at 11:30 and
+15:00 Irish, and both went by unused. The live path has still never run against a
+real green-flag session — the oldest open risk in this project, now thirteen days
+old. FP3 tomorrow at 11:30 is the last window that leaves room to fix what it
+finds; qualifying at 15:00 is the fallback and leaves none. The runbook has been
+retargeted at FP3, since it still pointed at a session that had already gone.
+
+---
+
 ## 2026-08-29 — The rehearsal that would have rehearsed nothing
 
 Yesterday's runbook told Friday-me to rehearse the whole chain on Monza FP2, and

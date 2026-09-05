@@ -20,54 +20,50 @@ relying on. `date` printing "IST" here means *Irish* Summer Time, not India.
 Confirm against F1's own `SessionInfo` on the day rather than trusting this line: the meeting key
 and the `GmtOffset` of +02:00 are what settle it.
 
-**Monza is a conventional weekend, not a sprint.** That matters more than it sounds: Zandvoort was
-a sprint weekend with no FP2, which is why the live path has still never run against a real
-green-flag session. Rehearsing on a practice session is the cheapest risk reduction available before
-Sunday.
+## The rehearsal that did not happen, and what it does and does not cost
 
-**Friday's two sessions went unused.** The remaining windows, in local time:
+**All four practice and qualifying windows passed unused** — FP1 and FP2 on Friday, FP3 and
+Qualifying on Saturday. There is no rehearsal before this race.
 
-| session | Irish time | note |
+**This is a smaller problem than the previous version of this document claimed, and the correction
+matters more than the miss.** That version said the rehearsal was needed because "the live path has
+still never run against a real green-flag session." That was written on 28 August and it was
+already false: **the Dutch GP ran live on 23 August** — 49 calls committed to git lap by lap
+between 15:00 and 16:07 while the race was running, a 13.7 MB recording, every row stamped
+`source: "live"`. The claim was carried over from the note written *before* Zandvoort and never
+re-checked against the repository that disproves it.
+
+So the engine is not going into Monza cold. It has completed a live race, including a red flag on
+lap 2 and a mid-race feed drop it reconnected through.
+
+**What is genuinely unproven is narrower: the five commits since.** Nothing that changed after
+23 August has run against a live feed —
+
+| change | landed | live-tested |
 |---|---|---|
-| ~~FP1, FP2~~ | Fri 4 Sep 11:30, 15:00 | gone |
-| **FP3** | **Sat 5 Sep 11:30** | an hour of green running, and a second attempt still available after it |
-| Qualifying | Sat 5 Sep 15:00 | fallback; leaves no margin to fix what it finds |
-| Race | Sun 6 Sep 14:00 | |
+| `source` stamping on every ledger row | 28 Aug | no |
+| degradation refit (per-race median, disrupted races dropped) | 28 Aug | no |
+| `--rehearse` mode and the `ledger_mode` split | 29 Aug | no |
+| `model.prior` block on the dashboard | 28 Aug | no |
 
-FP3 is the one to use. If it exposes something, Qualifying is four hours later and Saturday evening
-is free; if Qualifying is the first attempt, a failure there is discovered with the race next.
+All four were exercised end to end on a 60x replay of Zandvoort on 4 September: the ledger wrote,
+forecasts wrote, and `model.prior` read `1.046x / 3 races / 80 pooled`. A replay cannot test the
+feed handshake or a live pace fit, but it does test every one of those four changes, because none
+of them is in the feed layer.
 
-```bash
-nohup ./scripts/race_day.sh --rehearse "2026-09-05 11:15" 2026-italy-fp3 "2026 Italy FP3" "" 90 &
-```
+**The residual risk, stated plainly:** the parts a replay cannot reach — F1's endpoint accepting the
+connection, and the reducer folding live frames — are the parts that did *not* change since they
+last worked in anger. The endpoint was re-checked on 4 September and still accepts unauthenticated
+connections.
 
-**Why `--rehearse` and not just `--no-commit`.** The engine refuses to write the ledger outside a
-race, and the tell is `total_laps`: `LapCount` is a race-only topic, so in practice it is zero and
-the guard fires. Without lifting it, a dashboard run through a practice session exercises the feed, the reducer and
-the pace fit — and **nothing whatever about the ledger**, which is the one part that has never run
-against a live session. `--rehearse` lifts that guard, and pays for it by forcing two things that
-cannot be switched off: it never commits, and it stamps `source: "rehearsal of ..."` on every row.
-Neither is a default you can forget.
+`--rehearse` stays in the tool for the next weekend that offers a practice session: it lifts the
+race-only `total_laps` guard and pays for it by forcing never-commit and a `source: "rehearsal of
+..."` stamp on every row. Its strategy numbers are meaningless — practice has no running order to
+simulate against — so it tests the write path, not the calls.
 
-What that gets you, which no replay can: the feed connects to F1 unauthenticated on the day, the
-reducer folds a live green-flag session, the pace fit becomes usable on live laps, and the ledger
-write path runs end to end. A replay only proves this project can read a file it already wrote.
-
-**The strategy numbers are meaningless and should not be read.** Practice is not a race: there is no
-running order to simulate against, and with `total_laps` at zero the simulation runs against an
-invented horizon of `current lap + 20`. That number is written into `total_laps` on every rehearsal
-row, so the file says what it ran against rather than recording a zero.
-
-**Afterwards, delete it.** The rehearsal writes `predictions/2026-italy-fp3.jsonl` and its
-forecasts file. They are stamped and uncommitted, so they cannot contaminate the evidence, but there
-is no reason to keep them:
-
-```bash
-rm predictions/2026-italy-fp3*.jsonl
-```
-
-Check the recording survived — that is the artifact worth having either way, and a practice session
-of raw frames is a useful thing to replay against later.
+Whenever it is next used, delete the ledger it writes afterwards — the rows are stamped and
+uncommitted so they cannot contaminate the evidence, but there is no reason to keep them. Keep the
+recording: a practice session of raw frames is a useful thing to replay against later.
 
 ---
 

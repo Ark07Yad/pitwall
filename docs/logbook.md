@@ -4,6 +4,64 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-05 — A sentence I kept repeating, and the repository that disproved it
+
+No rehearsal happened. FP1, FP2, FP3 and qualifying all went by; the race is in
+fifteen hours. Sat down to write that up honestly and found the more interesting
+problem underneath it.
+
+**For eight days I have been calling the rehearsal urgent because "the live path
+has still never run against a real green-flag session." It is not true, and the
+evidence against it is in this repository.** The Dutch GP ran live on 23 August:
+49 calls committed to git lap by lap between 15:00 and 16:07 while the race was
+running, a 13.7 MB recording, every row stamped `source: "live"`. `git log
+predictions/2026-dutch-gp.jsonl` shows the timestamps. I have quoted that same
+race as the project's headline achievement in the README while simultaneously
+describing the path that produced it as never having run.
+
+The sentence came from the note written the night *before* Zandvoort, where it
+was true. It went into `RACE_DAY.md` on 28 August, survived every subsequent
+edit of that document, and I repeated it out loud several times as "the oldest
+open risk in this project" — including yesterday, while looking at the ledger
+that refutes it.
+
+**What it cost:** it inflated the stated risk of going in without a rehearsal.
+The real exposure is narrower and I should have been describing that instead.
+
+| change | landed | run live? |
+|---|---|---|
+| `source` stamping on ledger rows | 28 Aug | no |
+| degradation refit | 28 Aug | no |
+| `--rehearse` / `ledger_mode` | 29 Aug | no |
+| `model.prior` on the dashboard | 28 Aug | no |
+
+Five commits since the last live race, none of them feed-layer, and **all four of
+those changes were exercised end to end on a 60x replay yesterday** — ledger
+writing, forecasts writing, `model.prior` reading `1.046x / 3 races / 80 pooled`.
+The things a replay genuinely cannot test, the endpoint handshake and folding
+live frames, are precisely the things that have not been touched since they last
+worked through a full Grand Prix. The endpoint itself was re-checked yesterday
+and still accepts unauthenticated connections.
+
+So the honest position going into Monza is: the engine has completed a live race,
+the changes since are replay-verified, and the rehearsal would have been a
+belt-and-braces check rather than a first flight. Missing it is a real gap and a
+smaller one than I said.
+
+**The pattern, and it is getting tiresome in a useful way.** Every finding in
+this logbook since 22 August has been a claim that could not survive being
+checked against the thing it described: a `.get` with a plausible default, a
+README feature nothing implemented, a guard reading the wrong aggregation level,
+a test that could not fail. This one is the same shape with no code in it at all
+— a sentence in a document, true when written, false a day later, and repeated
+for eight days because re-reading it felt like knowing it. The defence that works
+is the same one: check the claim against the artifact, not against memory.
+
+`RACE_DAY.md` now carries the correction rather than the claim, since it is the
+document I will be reading at 13:45 tomorrow.
+
+---
+
 ## 2026-09-04 — The refit changed the model and not one call
 
 Two days before Monza, and the question I had not asked about the 28 August
@@ -79,8 +137,12 @@ own docstring: *"`total_laps` is set by the `LapCount` topic, which practice and
 qualifying never send, so a dashboard left running through FP1 records nothing."*
 There is a second guard on `session_type` behind it. Run as documented, the
 rehearsal would have exercised the feed and the reducer and proved **nothing
-whatever** about the ledger — which is the single part of this system that has
-never run against a live session, and the entire reason for rehearsing.
+whatever** about the ledger, which was the entire reason for rehearsing.
+
+*(Corrected 5 September: this entry went on to call the ledger "the single part
+of this system that has never run against a live session." That was false when
+written — the Dutch GP ran live on 23 August and committed 49 calls during the
+race. See the 5 September entry.)*
 
 I wrote that claim yesterday, in the same session where I found three other
 things of exactly this shape. Writing a confident sentence about what a thing

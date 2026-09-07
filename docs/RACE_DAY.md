@@ -12,6 +12,16 @@ fall back to the field average, and the engine will say so rather than hide it â
 `unfitted: "attrition,degradation,pit_loss,safety_car"`. The post-race report prints a banner above
 the scores saying the calls are live and real but are not evidence about this circuit.
 
+**Check the two windows overlap, or the calls are not calls.** Monza produced 110 recommendations
+on 6 September and not one was a decision: the pace fit did not become identifiable until lap 32,
+and the break-even said a stop stopped paying at lap 22. Ten laps of gap, so every call was "stay
+out" by arithmetic rather than by judgement, and nothing in the system noticed.
+
+So during the race, note the lap of the **first published call** and compare it with the break-even
+lap for the circuit. If the first call comes after it, the engine had no lap on which it could both
+speak and choose, and the race should be written up that way. At a new circuit with a slow fit this
+is the likeliest thing to go quietly wrong.
+
 **Friday practice is the only chance to change that, and it changes one quarter of it.**
 
 | model | recoverable from practice? |

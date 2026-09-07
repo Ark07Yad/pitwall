@@ -4,6 +4,80 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-07 — Monza, rebuilt from the archive, and a window that had already shut
+
+The race went unrecorded. The live ledger is gone and cannot be recovered — a
+commit timestamp proving a call preceded the outcome is not something you can
+make afterwards. The *data* turned out not to be gone at all.
+
+**F1 keeps the streams.** The archive at `livetiming.formula1.com/static/` holds
+the same per-topic streams the socket pushed, FastF1 already fetches them, and
+`replay.py` has always read FastF1's `[topic, data, timestamp]` line format
+alongside the raw frames. That second reader had existed for months and had never
+been pointed at the archive. `scripts/fetch_recording.py` joins the three:
+56,424 events, 7.6 MB, folding to `Race @ Monza lap 53/53` with every car's
+compound, age and stop count. Smaller than a live capture because `Position.z`
+and `CarData.z` are skipped — compressed telemetry the reducer never reads.
+
+The wider effect is worth more than Monza. Backtests were limited to the two
+races I happened to record. Every race in the archive is now available.
+
+**Then the backtest, which found something I would not have guessed.**
+
+Nine laps requested, 16 through 48. The first four were refused:
+
+    lap 16: effects are not separately identified
+            race-lap trend is positive (+6.23 s/lap)
+            driver pace spread of 75.7s is not physical
+    lap 20: ... HAR degradation of -1.66 s/lap is out of range
+    lap 24: driver pace spread of 61.4s is not physical
+    lap 28: driver pace spread of 61.7s is not physical
+    lap 32: 187 clean laps known, logged predictions
+
+The fit does not become identifiable at Monza until **lap 32**. And Monza's
+break-even — written into `RACE_DAY.md` three days before the race — says the
+last lap on which a stop can pay for itself is **lap 22**.
+
+| | Monza | Zandvoort |
+|---|---|---|
+| race laps | 53 | 72 |
+| last lap a stop wins | **22** | 50 |
+| first usable call | **32** | 21 |
+| overlap | **none** | 29 laps |
+
+**The decision window shuts ten laps before the engine can speak.** All 110 calls
+are "stay out", and not one of them is a decision: there was no lap on which the
+engine was both able to answer and able to answer anything else. The six
+exceptions are LEC, running P22 a lap down after a lap-1 stop, and PER in P18 —
+cars where a stop is nearly free because there is nothing to lose.
+
+This is not the degradation model being wrong. Every component behaves as
+documented: the pace fit refuses rather than publishing a degenerate answer,
+which is the feature, and the break-even is honest arithmetic on a circuit with
+the 4th-highest pit loss and a low degradation factor. It is the *interaction*
+that is empty, and neither component can see it.
+
+**Why Monza and not Zandvoort.** High pit loss and low degradation make the
+viable window short; a red flag on lap 2 and the neutralised running after it
+make the fit slow to identify. Zandvoort has the opposite of both, and its window
+is 29 laps wide — which is why the stay-out rescore there had two genuine "pit"
+calls at laps 21 and 25 and Monza has none.
+
+**What this answers.** On 4 September I wrote that the 28 August degradation
+refit changed zero decisions at Zandvoort, and that "Monza is the first race that
+can actually test it." It cannot. At Monza the engine could not have recommended
+a stop under either prior, because it has nothing to say until after the only
+window in which stopping wins. The test is still outstanding.
+
+**The diagnostic I did not have.** Break-even is computable before a race; the
+first usable lap is not, but the dashboard shows it live. If the first call
+arrives after the break-even lap, every call that follows is forced, and the
+race should be read that way rather than as a series of judgements. That check is
+now in `RACE_DAY.md`, because Madrid on Sunday is a new circuit where the fit may
+well be slow and nobody will otherwise notice.
+
+---
+
 ## 2026-09-05 — A sentence I kept repeating, and the repository that disproved it
 
 No rehearsal happened. FP1, FP2, FP3 and qualifying all went by; the race is in

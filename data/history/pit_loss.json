@@ -4322,5 +4322,23 @@
       "implausible": 0,
       "penalty": 4
     }
+  },
+  {
+    "season": 2026,
+    "round": 13,
+    "event": "Italian Grand Prix",
+    "circuit": "Monza",
+    "location": "Monza",
+    "circuit_key": 39,
+    "n_stops": 2,
+    "median_loss": null,
+    "rejected": {
+      "neutralised": 28,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 0,
+      "implausible": 0,
+      "penalty": 0
+    }
   }
 ]

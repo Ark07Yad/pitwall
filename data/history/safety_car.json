@@ -2875,5 +2875,40 @@
     "red_starts": [
       2
     ]
+  },
+  {
+    "season": 2026,
+    "round": 13,
+    "event": "Italian Grand Prix",
+    "circuit": "Monza",
+    "total_laps": 53,
+    "sc_laps": [
+      2,
+      3
+    ],
+    "vsc_laps": [
+      27,
+      28,
+      29
+    ],
+    "red_laps": [
+      2,
+      3
+    ],
+    "starters": 22,
+    "retirements": [
+      2,
+      23,
+      27
+    ],
+    "sc_starts": [
+      2
+    ],
+    "vsc_starts": [
+      27
+    ],
+    "red_starts": [
+      2
+    ]
   }
 ]

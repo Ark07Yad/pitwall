@@ -25,9 +25,18 @@ Every race in the archive is now available, which is the difference between
 **Checked against races that were recorded.** Zandvoort and Hungary exist both as
 live captures and in the archive. Rebuilt, both fold to the same circuit, lap
 count, track status and — across all 22 cars — the same final classification. A
-backtest at six laps for four drivers produced **24 of 24 identical calls**, with
-expected positions agreeing to two decimals. The reconstruction is not an
+backtest run from each source with the same models produced **52 of 52 identical
+calls** - 24 at Zandvoort, 28 at Hungary - same stop-or-stay, same target lap,
+same compound, with expected positions differing by at most 0.02 places, which is
+Monte Carlo noise across 1,500 simulations. The reconstruction is not an
 approximation of a capture; it is the same race arriving by a different route.
+
+Run *both* sides with today's models when checking this. Comparing an archive
+backtest against a stored one is not a test of the archive: the Hungary file in
+`predictions/` was generated on 3 August, before the stay-out option, per-circuit
+pit loss, the degradation rebuild and the alias fix that made Hungaroring resolve
+to Budapest at all. Against it, 27 of 28 calls "differ" and every one of those
+differences is five weeks of model change.
 
 **What is deliberately not fetched.** `Position.z` and `CarData.z` are the big
 streams and are compressed telemetry the reducer never reads; pulling them would

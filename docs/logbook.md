@@ -26,14 +26,35 @@ The 3% event gap is the initial snapshot frame, keepalives, and the telemetry
 topics the fetch deliberately skips. None of it reaches race state, which is why
 the classifications match exactly.
 
-**Then the check that actually matters — the calls.** Same six laps, same four
-drivers, one backtest from the live capture and one from the archive:
+**Then the check that actually matters — the calls.** One backtest from the live
+capture and one from the archive, same laps, same drivers, same models:
 
-    24 of 24 calls identical
+| | matched calls | differing |
+|---|---|---|
+| Zandvoort | 24 | **0** |
+| Hungary | 28 | **0** |
 
-Same lap, same driver, same stop-or-stay, same target lap, same compound. Mean
-expected position agrees to two decimal places; two rows differ by 0.01, which is
-Monte Carlo noise across 1,500 simulations and not a difference in the data.
+**52 of 52 identical.** Same stop-or-stay, same target lap, same compound.
+Expected positions differ by at most 0.02 places, mean 0.004 — Monte Carlo noise
+across 1,500 simulations, not a difference in the data.
+
+**The first Hungary comparison I ran said 27 of 28 differed, and it was my
+control that was wrong.** I compared the archive backtest against
+`predictions/2026-hungarian-gp.jsonl`, which was generated on 3 August — before
+the stay-out option, before per-circuit pit loss, before the degradation rebuild,
+and before the alias fix that made `Hungaroring` resolve to Budapest at all. It
+has no `stop` field, so my comparison defaulted all 28 rows to "pit" and could
+not have matched a model that can now say "stay out". Every one of those 27
+differences was five weeks of model change wearing the costume of a data problem.
+
+Had I stopped there I would have reported the archive as unreliable, and the fix
+would have been to a tool that was working. The tell was that the number was too
+large: a data-fidelity fault does not flip 96% of calls, it perturbs a few.
+
+That file is still in the repository and will mislead the next comparison the
+same way. It is stamped `backtest of ...` so it cannot pass as live, but nothing
+in it records *which model* produced it, and provenance that stops at the data is
+only half of it.
 
 **What this licenses, and what it does not.** It licenses the Monza backtest and
 every archive race after it: the reconstruction is not an approximation of the

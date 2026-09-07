@@ -86,11 +86,28 @@ def _provenance(
         # write to the ledger then, and the replay guard has always been there.
         return sorted({str(row.get("source", "live")) for row in rows or []})
 
+    # A circuit with no history is a different claim from one with five races
+    # behind it, and the difference does not show up in any score - a confident
+    # number computed from the field average looks exactly like a confident
+    # number computed from the circuit.
+    blind = sorted({str(r.get("unfitted") or "") for r in predictions} - {""})
+
     calls, field = sources(predictions), sources(forecasts)
-    if calls == ["live"] and field in ([], ["live"]):
+    if calls == ["live"] and field in ([], ["live"]) and not blind:
         return []
 
+    if blind and calls == ["live"] and field in ([], ["live"]):
+        return [
+            "> **No circuit history here.**",
+            f"> These models had none and used the field average: {'; '.join(blind)}.",
+            "> The calls are live and the scores are real; they are just not evidence about",
+            "> this circuit, because nothing circuit-specific went into them.",
+            "",
+        ]
+
     lines = ["> **Not a live ledger.**"]
+    if blind:
+        lines.append(f"> No circuit history: {'; '.join(blind)} used the field average.")
     if calls != ["live"]:
         lines.append(f"> Calls: {', '.join(calls)}.")
     if field and field != ["live"]:

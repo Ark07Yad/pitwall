@@ -73,6 +73,13 @@ class Prediction:
     extrapolated: bool = False
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    # Which per-circuit models had no history for this circuit and fell back to
+    # the field average, as a sorted comma-separated list; "" when all four were
+    # fitted. A call at a new circuit is a different claim from one at Monza -
+    # the engine knows nothing track-specific there - and the scorecard cannot
+    # separate them after the fact unless the row says so at the time. Madrid,
+    # round 14, is the first circuit in this project with no history at all.
+    unfitted: str = ""
     # Where the state behind this call came from: "live" for a call made against
     # F1's feed with the outcome still unknown, "replay of <file>" for one made
     # against a recording that already contains it. Stamped by the log rather
@@ -130,6 +137,8 @@ class Forecast:
 
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    # See `Prediction.unfitted`.
+    unfitted: str = ""
     # See `Prediction.source`. It matters more here: the reliability diagram is
     # built from this file, so an unmarked replay would put a thousand rows made
     # against a known result underneath the project's most persuasive artifact.
@@ -319,6 +328,7 @@ def prediction_from(
     total_laps: int,
     horizon: int = 10,
     note: str = "",
+    unfitted: str = "",
 ) -> Prediction:
     """Build a log entry from a `Recommendation`.
 
@@ -346,5 +356,6 @@ def prediction_from(
         horizon_lap=min(recommendation.lap + horizon, total_laps),
         stop=best.stop,
         extrapolated=getattr(best, "extrapolated", False),
+        unfitted=unfitted,
         note=note,
     )

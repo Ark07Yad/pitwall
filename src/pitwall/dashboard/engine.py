@@ -449,6 +449,7 @@ class Engine:
                     # a horizon_lap of 0 with it.
                     total_laps=total_laps,
                     horizon=self.horizon,
+                    unfitted=self._unfitted(state.circuit),
                 )
             )
         except Exception:
@@ -458,6 +459,33 @@ class Engine:
 
         self._logged_laps.add(recommendation.lap)
         self.logged += 1
+
+    def _unfitted(self, circuit: str) -> str:
+        """Which per-circuit models have no history here, as a stable string.
+
+        Madrid is the first circuit in this project with none at all, and a call
+        made there is a different claim from one made at Monza: the engine knows
+        the field average and nothing about the track. The dashboard already
+        shows that, but the dashboard is not what gets graded six weeks later -
+        the ledger is, and a row that does not say so cannot be separated from
+        one where every model was fitted.
+
+        Named for what is missing rather than what is present, so an empty string
+        is the ordinary case and a non-empty one is always the thing worth
+        reading.
+        """
+        models = {
+            "safety_car": self.hazard,
+            "attrition": self.attrition,
+            "pit_loss": self.pit_loss,
+            "degradation": self.degradation,
+        }
+        missing = [
+            name
+            for name, model in models.items()
+            if model is not None and not model.known_circuit(circuit)
+        ]
+        return ",".join(sorted(missing))
 
     def _forecast(
         self, entries: list, state: RaceState, config: SimConfig, total_laps: int
@@ -500,6 +528,7 @@ class Engine:
                 for i, entry in enumerate(sorted(entries, key=lambda e: e.elapsed))
             }
             rows: list[Forecast] = []
+            unfitted = self._unfitted(state.circuit)
             for index, entry in enumerate(result.drivers):
                 column = result.positions[:, index]
                 retired = (
@@ -520,6 +549,7 @@ class Engine:
                         p_points=float((column <= 10).mean()),
                         p_retire=retired,
                         n_sims=config.n_sims,
+                        unfitted=unfitted,
                     )
                 )
             self.forecast_rows += self.forecasts.record_lap(rows)

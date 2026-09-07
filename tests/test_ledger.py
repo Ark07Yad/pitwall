@@ -477,3 +477,46 @@ def test_a_replay_is_named_by_its_recording():
     )
     assert commit is False
     assert provenance == "replay of 2026-italy-race.txt"
+
+
+# -- circuit-blind calls -----------------------------------------------
+
+
+def test_a_call_with_no_circuit_history_says_which_models(tmp_path):
+    """Madrid is the first circuit here with no history at all. A row that does
+    not record that cannot be told apart later from one made at Monza."""
+    log = PredictionLog("GP", directory=tmp_path, commit=False)
+    written = log.record(make_prediction(unfitted="degradation,pit_loss"))
+    assert json.loads(log.path.read_text())["unfitted"] == "degradation,pit_loss"
+    assert written.unfitted == "degradation,pit_loss"
+
+
+def test_a_fitted_circuit_records_an_empty_string(tmp_path):
+    """Named for what is missing, so the ordinary case is empty and anything
+    non-empty is always worth reading."""
+    log = PredictionLog("GP", directory=tmp_path, commit=False)
+    assert log.record(make_prediction()).unfitted == ""
+
+
+def test_a_report_on_circuit_blind_calls_says_so_before_the_scores():
+    rows = [make_prediction(unfitted="degradation,safety_car").__dict__]
+    report = race_report(rows, {"1": 2}, session="GP", circuit="Madrid")
+    assert "No circuit history here" in report
+    assert "degradation,safety_car" in report
+    assert report.index("No circuit history") < report.index("## Scores")
+    # Live calls at a new circuit are still live; they must not be disclaimed
+    # as though they had been replayed.
+    assert "Not a live ledger" not in report
+
+
+def test_circuit_blind_and_replayed_are_reported_together():
+    rows = [make_prediction(unfitted="pit_loss", source="replay of x.txt").__dict__]
+    report = race_report(rows, {"1": 2}, session="GP", circuit="Madrid")
+    assert "Not a live ledger" in report
+    assert "No circuit history: pit_loss" in report
+
+
+def test_a_fitted_live_race_gets_no_banner_at_all():
+    report = race_report([make_prediction().__dict__], {"1": 2}, session="GP", circuit="Monza")
+    assert "No circuit history" not in report
+    assert "Not a live ledger" not in report

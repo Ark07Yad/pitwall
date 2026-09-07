@@ -1,5 +1,41 @@
 # Race day
 
+> **Next up: Spanish GP, Madrid, Sunday 13 September, 14:00 Irish.** A brand-new circuit with no
+> history in any model — see "Madrid" below before running anything. The Monza sections that follow
+> are kept as the worked example; their numbers are Monza's, not Madrid's.
+
+## Madrid, and running blind
+
+Madrid is the first circuit in this project with **no history at all**. All four per-circuit models
+fall back to the field average, and the engine will say so rather than hide it — the dashboard shows
+`fitted: false, races: 0`, and every ledger row carries
+`unfitted: "attrition,degradation,pit_loss,safety_car"`. The post-race report prints a banner above
+the scores saying the calls are live and real but are not evidence about this circuit.
+
+**Friday practice is the only chance to change that, and it changes one quarter of it.**
+
+| model | recoverable from practice? |
+|---|---|
+| degradation | **partly** — long runs on the real surface |
+| pit loss | no — practice stops are not racing stops |
+| safety car | no — a hazard rate needs races, not laps |
+| attrition | no — same |
+
+Record FP2 (Friday 11 September, 16:00 Irish) and read what it implies:
+
+```bash
+nohup ./scripts/race_day.sh --rehearse "2026-09-11 15:45" 2026-madrid-fp2 "2026 Madrid FP2" "" 90 &
+python scripts/circuit_from_practice.py data/raw/2026-madrid-fp2.txt
+```
+
+That prints a provisional factor and writes nothing. Folding it into `degradation.json` is a
+judgement call, and the number reads **low** — practice runs are short and the track rubbers in over
+the session, so evolution drags the fitted slope toward zero. Treat it as a lower bound.
+
+Recording FP2 is also the rehearsal that has now been missed five times. It costs one evening.
+
+---
+
 The procedure for a live race. Written 22 August 2026 for Zandvoort; retargeted 28 August for
 Monza, with the Zandvoort numbers replaced rather than kept alongside — a runbook with two sets of
 expected values is a runbook nobody checks against.

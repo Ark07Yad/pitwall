@@ -1,0 +1,589 @@
+[
+ {
+  "round": 3,
+  "circuit": "Suzuka",
+  "lap": 21,
+  "total_laps": 53,
+  "factor_old": 1.1071821534682906,
+  "factor_new": 0.8035174250571765,
+  "skipped": "fit not usable"
+ },
+ {
+  "round": 3,
+  "circuit": "Suzuka",
+  "lap": 29,
+  "total_laps": 53,
+  "factor_old": 1.1071821534682906,
+  "factor_new": 0.8035174250571765,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "ANT": "stay/HAR",
+   "PIA": "stay/HAR",
+   "HAM": "stay/HAR",
+   "RUS": "stay/HAR"
+  },
+  "new": {
+   "ANT": "stay/HAR",
+   "PIA": "stay/HAR",
+   "HAM": "stay/HAR",
+   "RUS": "stay/HAR"
+  }
+ },
+ {
+  "round": 3,
+  "circuit": "Suzuka",
+  "lap": 37,
+  "total_laps": 53,
+  "factor_old": 1.1071821534682906,
+  "factor_new": 0.8035174250571765,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "ANT": "stay/HAR",
+   "PIA": "stay/HAR",
+   "HAM": "stay/HAR",
+   "LEC": "stay/HAR"
+  },
+  "new": {
+   "ANT": "stay/HAR",
+   "PIA": "stay/HAR",
+   "HAM": "stay/HAR",
+   "LEC": "stay/HAR"
+  }
+ },
+ {
+  "round": 3,
+  "circuit": "Suzuka",
+  "lap": 45,
+  "total_laps": 53,
+  "factor_old": 1.1071821534682906,
+  "factor_new": 0.8035174250571765,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "ANT": "stay/HAR",
+   "PIA": "stay/HAR",
+   "LEC": "stay/HAR",
+   "RUS": "stay/HAR"
+  },
+  "new": {
+   "ANT": "stay/HAR",
+   "PIA": "stay/HAR",
+   "LEC": "stay/HAR",
+   "RUS": "stay/HAR"
+  }
+ },
+ {
+  "round": 5,
+  "circuit": "Montr\u00e9al",
+  "lap": 27,
+  "total_laps": 68,
+  "factor_old": 0.3852570131379515,
+  "factor_new": 0.6891266185238616,
+  "n": 4,
+  "changed": 1,
+  "old": {
+   "RUS": "pit37/HAR",
+   "ANT": "pit27/HAR",
+   "VER": "pit27/HAR",
+   "HAM": "pit27/HAR"
+  },
+  "new": {
+   "RUS": "pit37/SOF",
+   "ANT": "pit27/HAR",
+   "VER": "pit27/HAR",
+   "HAM": "pit27/HAR"
+  }
+ },
+ {
+  "round": 5,
+  "circuit": "Montr\u00e9al",
+  "lap": 37,
+  "total_laps": 68,
+  "factor_old": 0.3852570131379515,
+  "factor_new": 0.6891266185238616,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "ANT": "stay/MED",
+   "VER": "stay/MED",
+   "HAM": "stay/MED",
+   "HAD": "stay/MED"
+  },
+  "new": {
+   "ANT": "stay/MED",
+   "VER": "stay/MED",
+   "HAM": "stay/MED",
+   "HAD": "stay/MED"
+  }
+ },
+ {
+  "round": 5,
+  "circuit": "Montr\u00e9al",
+  "lap": 47,
+  "total_laps": 68,
+  "factor_old": 0.3852570131379515,
+  "factor_new": 0.6891266185238616,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "ANT": "stay/MED",
+   "VER": "stay/MED",
+   "HAM": "stay/MED",
+   "LEC": "stay/MED"
+  },
+  "new": {
+   "ANT": "stay/MED",
+   "VER": "stay/MED",
+   "HAM": "stay/MED",
+   "LEC": "stay/MED"
+  }
+ },
+ {
+  "round": 5,
+  "circuit": "Montr\u00e9al",
+  "lap": 57,
+  "total_laps": 68,
+  "factor_old": 0.3852570131379515,
+  "factor_new": 0.6891266185238616,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "ANT": "stay/MED",
+   "VER": "stay/MED",
+   "HAM": "stay/MED",
+   "LEC": "stay/MED"
+  },
+  "new": {
+   "ANT": "stay/MED",
+   "VER": "stay/MED",
+   "HAM": "stay/MED",
+   "LEC": "stay/MED"
+  }
+ },
+ {
+  "round": 6,
+  "circuit": "Monaco",
+  "lap": 31,
+  "total_laps": 78,
+  "factor_old": 0.648740788003966,
+  "factor_new": 1.051614072515284,
+  "skipped": "fit not usable"
+ },
+ {
+  "round": 6,
+  "circuit": "Monaco",
+  "lap": 42,
+  "total_laps": 78,
+  "factor_old": 0.648740788003966,
+  "factor_new": 1.051614072515284,
+  "skipped": "fit not usable"
+ },
+ {
+  "round": 6,
+  "circuit": "Monaco",
+  "lap": 54,
+  "total_laps": 78,
+  "factor_old": 0.648740788003966,
+  "factor_new": 1.051614072515284,
+  "skipped": "fit not usable"
+ },
+ {
+  "round": 6,
+  "circuit": "Monaco",
+  "lap": 66,
+  "total_laps": 78,
+  "factor_old": 0.648740788003966,
+  "factor_new": 1.051614072515284,
+  "skipped": "fit not usable"
+ },
+ {
+  "round": 7,
+  "circuit": "Barcelona",
+  "lap": 26,
+  "total_laps": 66,
+  "factor_old": 2.1930687814403877,
+  "factor_new": 1.3781719398094223,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "RUS": "stay/HAR",
+   "HAM": "stay/HAR",
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR"
+  },
+  "new": {
+   "RUS": "stay/HAR",
+   "HAM": "stay/HAR",
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR"
+  }
+ },
+ {
+  "round": 7,
+  "circuit": "Barcelona",
+  "lap": 36,
+  "total_laps": 66,
+  "factor_old": 2.1930687814403877,
+  "factor_new": 1.3781719398094223,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "ANT": "pit36/SOF",
+   "RUS": "pit36/SOF",
+   "HAM": "stay/MED",
+   "LEC": "pit36/HAR"
+  },
+  "new": {
+   "ANT": "pit36/SOF",
+   "RUS": "pit36/SOF",
+   "HAM": "stay/MED",
+   "LEC": "pit36/HAR"
+  }
+ },
+ {
+  "round": 7,
+  "circuit": "Barcelona",
+  "lap": 46,
+  "total_laps": 66,
+  "factor_old": 2.1930687814403877,
+  "factor_new": 1.3781719398094223,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "HAM": "stay/HAR",
+   "RUS": "stay/HAR",
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR"
+  },
+  "new": {
+   "HAM": "stay/HAR",
+   "RUS": "stay/HAR",
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR"
+  }
+ },
+ {
+  "round": 7,
+  "circuit": "Barcelona",
+  "lap": 56,
+  "total_laps": 66,
+  "factor_old": 2.1930687814403877,
+  "factor_new": 1.3781719398094223,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "HAM": "stay/HAR",
+   "RUS": "stay/HAR",
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR"
+  },
+  "new": {
+   "HAM": "stay/HAR",
+   "RUS": "stay/HAR",
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR"
+  }
+ },
+ {
+  "round": 9,
+  "circuit": "Silverstone",
+  "lap": 20,
+  "total_laps": 52,
+  "factor_old": 1.0330685552747922,
+  "factor_new": 0.9986190129407178,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "LEC": "pit20/MED",
+   "ANT": "pit23/MED",
+   "HAM": "pit20/MED",
+   "RUS": "pit20/MED"
+  },
+  "new": {
+   "LEC": "pit20/MED",
+   "ANT": "pit23/MED",
+   "HAM": "pit20/MED",
+   "RUS": "pit20/MED"
+  }
+ },
+ {
+  "round": 9,
+  "circuit": "Silverstone",
+  "lap": 28,
+  "total_laps": 52,
+  "factor_old": 1.0330685552747922,
+  "factor_new": 0.9986190129407178,
+  "skipped": "fit not usable"
+ },
+ {
+  "round": 9,
+  "circuit": "Silverstone",
+  "lap": 36,
+  "total_laps": 52,
+  "factor_old": 1.0330685552747922,
+  "factor_new": 0.9986190129407178,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "LEC": "stay/HAR",
+   "ANT": "stay/HAR",
+   "VER": "stay/HAR",
+   "HAM": "stay/HAR"
+  },
+  "new": {
+   "LEC": "stay/HAR",
+   "ANT": "stay/HAR",
+   "VER": "stay/HAR",
+   "HAM": "stay/HAR"
+  }
+ },
+ {
+  "round": 9,
+  "circuit": "Silverstone",
+  "lap": 44,
+  "total_laps": 52,
+  "factor_old": 1.0330685552747922,
+  "factor_new": 0.9986190129407178,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "LEC": "stay/HAR",
+   "HAM": "stay/HAR",
+   "VER": "stay/MED",
+   "RUS": "stay/MED"
+  },
+  "new": {
+   "LEC": "stay/HAR",
+   "HAM": "stay/HAR",
+   "VER": "stay/MED",
+   "RUS": "stay/MED"
+  }
+ },
+ {
+  "round": 10,
+  "circuit": "Spa-Francorchamps",
+  "lap": 17,
+  "total_laps": 44,
+  "factor_old": 2.2736839942769396,
+  "factor_new": 2.024455122934155,
+  "skipped": "fit not usable"
+ },
+ {
+  "round": 10,
+  "circuit": "Spa-Francorchamps",
+  "lap": 24,
+  "total_laps": 44,
+  "factor_old": 2.2736839942769396,
+  "factor_new": 2.024455122934155,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "LEC": "stay/HAR",
+   "NOR": "pit24/MED",
+   "ANT": "stay/HAR",
+   "VER": "stay/HAR"
+  },
+  "new": {
+   "LEC": "stay/HAR",
+   "NOR": "pit24/MED",
+   "ANT": "stay/HAR",
+   "VER": "stay/HAR"
+  }
+ },
+ {
+  "round": 10,
+  "circuit": "Spa-Francorchamps",
+  "lap": 30,
+  "total_laps": 44,
+  "factor_old": 2.2736839942769396,
+  "factor_new": 2.024455122934155,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "LEC": "stay/HAR",
+   "ANT": "stay/HAR",
+   "VER": "stay/HAR",
+   "NOR": "pit30/SOF"
+  },
+  "new": {
+   "LEC": "stay/HAR",
+   "ANT": "stay/HAR",
+   "VER": "stay/HAR",
+   "NOR": "pit30/SOF"
+  }
+ },
+ {
+  "round": 10,
+  "circuit": "Spa-Francorchamps",
+  "lap": 37,
+  "total_laps": 44,
+  "factor_old": 2.2736839942769396,
+  "factor_new": 2.024455122934155,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "ANT": "stay/HAR",
+   "LEC": "stay/HAR",
+   "VER": "stay/HAR",
+   "PIA": "stay/HAR"
+  },
+  "new": {
+   "ANT": "stay/HAR",
+   "LEC": "stay/HAR",
+   "VER": "stay/HAR",
+   "PIA": "stay/HAR"
+  }
+ },
+ {
+  "round": 12,
+  "circuit": "Zandvoort",
+  "lap": 28,
+  "total_laps": 72,
+  "factor_old": 0.5045889639117878,
+  "factor_new": 1.045993747794699,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR",
+   "RUS": "stay/HAR",
+   "PIA": "stay/HAR"
+  },
+  "new": {
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR",
+   "RUS": "stay/HAR",
+   "PIA": "stay/HAR"
+  }
+ },
+ {
+  "round": 12,
+  "circuit": "Zandvoort",
+  "lap": 39,
+  "total_laps": 72,
+  "factor_old": 0.5045889639117878,
+  "factor_new": 1.045993747794699,
+  "n": 4,
+  "changed": 1,
+  "old": {
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR",
+   "RUS": "stay/HAR",
+   "LEC": "stay/MED"
+  },
+  "new": {
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR",
+   "RUS": "pit39/HAR",
+   "LEC": "stay/MED"
+  }
+ },
+ {
+  "round": 12,
+  "circuit": "Zandvoort",
+  "lap": 50,
+  "total_laps": 72,
+  "factor_old": 0.5045889639117878,
+  "factor_new": 1.045993747794699,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "HAM": "stay/HAR",
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR",
+   "RUS": "stay/HAR"
+  },
+  "new": {
+   "HAM": "stay/HAR",
+   "ANT": "stay/HAR",
+   "NOR": "stay/HAR",
+   "RUS": "stay/HAR"
+  }
+ },
+ {
+  "round": 12,
+  "circuit": "Zandvoort",
+  "lap": 61,
+  "total_laps": 72,
+  "factor_old": 0.5045889639117878,
+  "factor_new": 1.045993747794699,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "NOR": "stay/HAR",
+   "RUS": "stay/HAR",
+   "ANT": "stay/SOF",
+   "HAM": "stay/SOF"
+  },
+  "new": {
+   "NOR": "stay/HAR",
+   "RUS": "stay/HAR",
+   "ANT": "stay/SOF",
+   "HAM": "stay/SOF"
+  }
+ },
+ {
+  "round": 13,
+  "circuit": "Monza",
+  "lap": 21,
+  "total_laps": 53,
+  "factor_old": 0.8796912548072436,
+  "factor_new": 0.7798040840411359,
+  "skipped": "fit not usable"
+ },
+ {
+  "round": 13,
+  "circuit": "Monza",
+  "lap": 29,
+  "total_laps": 53,
+  "factor_old": 0.8796912548072436,
+  "factor_new": 0.7798040840411359,
+  "skipped": "fit not usable"
+ },
+ {
+  "round": 13,
+  "circuit": "Monza",
+  "lap": 37,
+  "total_laps": 53,
+  "factor_old": 0.8796912548072436,
+  "factor_new": 0.7798040840411359,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "RUS": "stay/HAR",
+   "ANT": "stay/MED",
+   "PIA": "stay/HAR",
+   "VER": "stay/HAR"
+  },
+  "new": {
+   "RUS": "stay/HAR",
+   "ANT": "stay/MED",
+   "PIA": "stay/HAR",
+   "VER": "stay/HAR"
+  }
+ },
+ {
+  "round": 13,
+  "circuit": "Monza",
+  "lap": 45,
+  "total_laps": 53,
+  "factor_old": 0.8796912548072436,
+  "factor_new": 0.7798040840411359,
+  "n": 4,
+  "changed": 0,
+  "old": {
+   "RUS": "stay/HAR",
+   "ANT": "stay/MED",
+   "VER": "stay/HAR",
+   "PIA": "stay/HAR"
+  },
+  "new": {
+   "RUS": "stay/HAR",
+   "ANT": "stay/MED",
+   "VER": "stay/HAR",
+   "PIA": "stay/HAR"
+  }
+ }
+]

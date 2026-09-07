@@ -22,6 +22,13 @@ Backtests used to be limited to races that happened to be recorded — two of th
 Every race in the archive is now available, which is the difference between
 "here is a model that worked on my two recordings" and a corpus.
 
+**Checked against races that were recorded.** Zandvoort and Hungary exist both as
+live captures and in the archive. Rebuilt, both fold to the same circuit, lap
+count, track status and — across all 22 cars — the same final classification. A
+backtest at six laps for four drivers produced **24 of 24 identical calls**, with
+expected positions agreeing to two decimals. The reconstruction is not an
+approximation of a capture; it is the same race arriving by a different route.
+
 **What is deliberately not fetched.** `Position.z` and `CarData.z` are the big
 streams and are compressed telemetry the reducer never reads; pulling them would
 multiply the file size for nothing. The result is smaller than a live capture

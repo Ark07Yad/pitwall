@@ -4,6 +4,51 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-07 (later) — Checking the archive against a race I did record
+
+`fetch_recording.py` rebuilt Monza from F1's archive and the backtest off it
+produced a real finding. But the tool had never been checked against a race where
+the answer is already known, so that finding rested on an assumption: that a
+reconstruction folds to the same race as the capture it replaces.
+
+Zandvoort and Hungary were both recorded live. Fetching them from the archive
+gives two cases with ground truth.
+
+**Folded state, archive against capture:**
+
+| | Zandvoort | Hungary |
+|---|---|---|
+| circuit, lap count, track status | identical | identical |
+| final classification, all 22 cars | **identical** | **identical** |
+| events | 77,228 vs 79,761 | 74,300 vs 76,979 |
+
+The 3% event gap is the initial snapshot frame, keepalives, and the telemetry
+topics the fetch deliberately skips. None of it reaches race state, which is why
+the classifications match exactly.
+
+**Then the check that actually matters — the calls.** Same six laps, same four
+drivers, one backtest from the live capture and one from the archive:
+
+    24 of 24 calls identical
+
+Same lap, same driver, same stop-or-stay, same target lap, same compound. Mean
+expected position agrees to two decimal places; two rows differ by 0.01, which is
+Monte Carlo noise across 1,500 simulations and not a difference in the data.
+
+**What this licenses, and what it does not.** It licenses the Monza backtest and
+every archive race after it: the reconstruction is not an approximation of the
+capture, it is the same race arriving by a different route. It does not license
+calling any of them evidence — the file contains the result, `backtest` stamps
+every row `backtest of <file>`, and the ledger still refuses to commit from a
+replay. A rebuilt race can tell you what the model would have said. Only a live
+ledger can tell you it said it first.
+
+Worth noting the order I did this in was wrong. I committed the Monza finding
+first and validated the tool that produced it afterwards, which is the same
+mistake as trusting a number because it looked reasonable. It happened to hold.
+
+---
+
 ## 2026-09-07 — Monza, rebuilt from the archive, and a window that had already shut
 
 The race went unrecorded. The live ledger is gone and cannot be recovered — a

@@ -520,3 +520,58 @@ def test_a_fitted_live_race_gets_no_banner_at_all():
     report = race_report([make_prediction().__dict__], {"1": 2}, session="GP", circuit="Monza")
     assert "No circuit history" not in report
     assert "Not a live ledger" not in report
+
+
+# -- model provenance ---------------------------------------------------
+
+
+def test_the_log_stamps_which_model_made_the_call(tmp_path):
+    """`source` says where the data came from; that is half of provenance. A
+    3 August backtest and a September one look identical in a file and are not
+    comparable, which cost an hour on 7 September."""
+    log = PredictionLog("GP", directory=tmp_path, commit=False)
+    written = log.record(make_prediction(models="4c8f425/ea41793b"))
+    assert json.loads(log.path.read_text())["models"] == "4c8f425/ea41793b"
+    assert written.models == "4c8f425/ea41793b"
+
+
+def test_a_report_refuses_to_average_across_models():
+    """Two model versions in one file is two scorecards, and their average
+    describes neither."""
+    rows = [
+        make_prediction(models="aaaaaaa/1111").__dict__,
+        make_prediction(lap=30, models="bbbbbbb/2222").__dict__,
+    ]
+    report = race_report(rows, {"1": 2}, session="GP", circuit="Monza")
+    assert "not all made by the same model" in report
+    assert report.index("not all made by the same model") < report.index("## Scores")
+
+
+def test_a_wholly_unstamped_file_is_not_flagged():
+    """A file written entirely before the field existed says nothing about which
+    model made it, and a banner claiming two versions would be inventing one."""
+    rows = [make_prediction().__dict__, make_prediction(lap=30).__dict__]
+    report = race_report(rows, {"1": 2}, session="GP", circuit="Monza")
+    assert "not all made by the same model" not in report
+
+
+def test_stamped_and_unstamped_rows_together_are_flagged():
+    """The case that started this, and the one the first implementation missed:
+    the 3 August Hungary backtest has no stamp and a September one does. Dropping
+    the empty string before counting made that look like a single model."""
+    rows = [
+        make_prediction().__dict__,
+        make_prediction(lap=30, models="aaaaaaa/1111").__dict__,
+    ]
+    report = race_report(rows, {"1": 2}, session="GP", circuit="Hungaroring")
+    assert "not all made by the same model" in report
+    assert "unrecorded" in report
+
+
+def test_one_model_across_the_file_is_not_flagged():
+    rows = [
+        make_prediction(models="aaaaaaa/1111").__dict__,
+        make_prediction(lap=30, models="aaaaaaa/1111").__dict__,
+    ]
+    report = race_report(rows, {"1": 2}, session="GP", circuit="Monza")
+    assert "not all made by the same model" not in report

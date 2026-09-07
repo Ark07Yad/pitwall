@@ -4,6 +4,48 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-07 (later still) — Stamping which model made the call
+
+The 27-of-28 scare earlier today was a comparison against a file written five
+weeks and four model changes ago. `source` said where the data came from and
+nothing said which model produced it, so nothing could have warned me.
+
+`models` now goes on every Prediction and Forecast: `<commit>/<params hash>`.
+The hash covers what actually reaches a decision — the pooled degradation shape,
+the four per-circuit factors *for the circuit being raced*, the pit-loss baseline
+and its botched-stop tail, each model's race count. The circuit is in it
+deliberately: the same code and the same files are still a different model at a
+different track, and a fingerprint that ignored that would call two incomparable
+rows comparable.
+
+A dirty tree stamps `+dirty` rather than a commit it is not, and a missing model
+contributes the literal `none` rather than being skipped — "no pit-loss model"
+and "a pit-loss model hashing to nothing" must not be the same value.
+
+**Two things went wrong while building it, both the house speciality.**
+
+*The field was empty exactly where it mattered.* I wired the fingerprint into the
+engine, the tests passed, and a real backtest wrote `models=`. The engine is one
+of two paths that build predictions; `backtest` builds them directly and had no
+stamp — and a backtest is the file most likely to be compared against another one
+months later. The `unfitted` field added this morning had the same hole for the
+same reason, silently, since I wrote it. Both now come from one shared function
+instead of a method the other caller cannot reach.
+
+*The banner did not fire on the case it was built for.* I excluded unstamped rows
+before counting distinct versions, reasoning that absent is not the same as
+different. It is not — but it means a file mixing old unstamped rows with new
+stamped ones counts as **one** model, and that is precisely the Hungary file. The
+tidy principle produced a check that was silent on its own motivating example. An
+unstamped row is now its own version; a file that is wholly unstamped still says
+nothing and is not flagged.
+
+`race_report` refuses to average across versions and says which it found. Only
+caught because I ran it against the real Hungary file rather than a fixture built
+to agree with me.
+
+---
+
 ## 2026-09-07 (later) — Checking the archive against a race I did record
 
 `fetch_recording.py` rebuilt Monza from F1's archive and the backtest off it

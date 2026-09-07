@@ -7,6 +7,12 @@ from pitwall.models.degradation import (
     load_degradation,
     neutralisation_index,
 )
+from pitwall.models.fingerprint import (
+    code_version,
+    model_fingerprint,
+    model_terms,
+    unfitted_models,
+)
 from pitwall.models.fuel import (
     DEFAULT_SECONDS_PER_KG,
     DEFAULT_START_FUEL_KG,
@@ -40,6 +46,7 @@ __all__ = [
     "PaceFit",
     "PitLossModel",
     "bucket_for",
+    "code_version",
     "fit_attrition",
     "fit_degradation",
     "fit_hazard",
@@ -48,6 +55,9 @@ __all__ = [
     "load_degradation",
     "load_history",
     "load_pit_loss",
+    "model_fingerprint",
+    "model_terms",
     "neutralisation_index",
     "normalise_circuit",
+    "unfitted_models",
 ]

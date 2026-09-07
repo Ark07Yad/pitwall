@@ -92,9 +92,31 @@ def _provenance(
     # number computed from the circuit.
     blind = sorted({str(r.get("unfitted") or "") for r in predictions} - {""})
 
+    # Rows made by different models are not one scorecard, they are two, and
+    # averaging them produces a number that describes neither.
+    #
+    # An unstamped row counts as its own version rather than being excluded. A
+    # file that is *entirely* unstamped predates the field and says nothing, so
+    # it does not trip this; a file mixing stamped and unstamped rows is the
+    # dangerous case and the one that started this - the 3 August Hungary
+    # backtest against a September one. Dropping the empty string first made
+    # exactly that case look like a single model.
+    stamps = {str(r.get("models") or "") for r in (predictions or [])}
+    mixed = len(stamps) > 1
+    models = sorted(s or "unrecorded" for s in stamps)
+
     calls, field = sources(predictions), sources(forecasts)
-    if calls == ["live"] and field in ([], ["live"]) and not blind:
+    if calls == ["live"] and field in ([], ["live"]) and not blind and not mixed:
         return []
+
+    if mixed:
+        return [
+            "> **These rows were not all made by the same model.**",
+            f"> {len(models)} model versions appear in this file: {', '.join(models)}.",
+            "> A scorecard over them is an average across different systems and describes none",
+            "> of them. Split the file by `models` and grade each separately.",
+            "",
+        ]
 
     if blind and calls == ["live"] and field in ([], ["live"]):
         return [

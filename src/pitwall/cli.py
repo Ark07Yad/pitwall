@@ -33,6 +33,7 @@ from pitwall.models import (
     EventKind,
     FuelModel,
     PitLossModel,
+    code_version,
     fit_attrition,
     fit_degradation,
     fit_hazard,
@@ -41,7 +42,9 @@ from pitwall.models import (
     load_degradation,
     load_history,
     load_pit_loss,
+    model_fingerprint,
     neutralisation_index,
+    unfitted_models,
 )
 from pitwall.models.pit_loss import DEFAULT_SHRINKAGE as PIT_LOSS_SHRINKAGE
 from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
@@ -433,6 +436,7 @@ def _backtest(args: argparse.Namespace) -> int:
     pit_loss = _load_pit_loss(args.pit_loss_history)
     prior = _load_degradation(args.degradation_history, args.history)
 
+    code = code_version()
     laps = [int(x) for x in args.laps.split(",") if x.strip()]
     wanted = {d.strip().upper() for d in args.drivers.split(",") if d.strip()}
     cfg = SimConfig(n_sims=args.sims)
@@ -494,6 +498,25 @@ def _backtest(args: argparse.Namespace) -> int:
                     circuit=state.circuit,
                     total_laps=state.total_laps or lap + 20,
                     horizon=args.horizon,
+                    # Stamped here as well as in the engine. A backtest is
+                    # precisely the file that gets compared against another one
+                    # months later, so leaving it blank on this path would leave
+                    # the field empty exactly where it is needed.
+                    unfitted=unfitted_models(
+                        circuit=state.circuit,
+                        hazard=hazard,
+                        attrition=attrition,
+                        pit_loss=pit_loss,
+                        degradation=prior,
+                    ),
+                    models=model_fingerprint(
+                        circuit=state.circuit,
+                        hazard=hazard,
+                        attrition=attrition,
+                        pit_loss=pit_loss,
+                        degradation=prior,
+                        code=code,
+                    ),
                 )
             )
             total += 1

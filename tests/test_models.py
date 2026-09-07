@@ -466,3 +466,70 @@ def test_no_prior_changes_nothing():
     same = fit_pace(laps, prior=None, circuit="Monza")
     assert bare.degradation == same.degradation
     assert bare.observed_max_age == same.observed_max_age
+
+
+# -- model fingerprint --------------------------------------------------
+
+
+def _fp(**kw):
+    from pitwall.models import model_fingerprint
+
+    return model_fingerprint(code="testsha", **kw)
+
+
+def test_fingerprint_is_stable_for_the_same_model():
+    from pitwall.models import fit_degradation, load_degradation
+
+    prior = fit_degradation(load_degradation("data/history/degradation.json"))
+    a = _fp(circuit="Monza", degradation=prior)
+    b = _fp(circuit="Monza", degradation=prior)
+    assert a == b
+
+
+def test_fingerprint_changes_when_the_model_changes():
+    """The whole point: a refit that moves a number must move this."""
+    import dataclasses
+
+    from pitwall.models import fit_degradation, load_degradation
+
+    prior = fit_degradation(load_degradation("data/history/degradation.json"))
+    moved = dataclasses.replace(prior, circuit_factor={**prior.circuit_factor, "Monza": 1.5})
+    assert _fp(circuit="Monza", degradation=prior) != _fp(circuit="Monza", degradation=moved)
+
+
+def test_fingerprint_changes_with_the_circuit():
+    """Same code and same files still means a different model at another track,
+    and calling those rows comparable is the failure this prevents."""
+    from pitwall.models import fit_degradation, load_degradation
+
+    prior = fit_degradation(load_degradation("data/history/degradation.json"))
+    assert _fp(circuit="Monza", degradation=prior) != _fp(circuit="Zandvoort", degradation=prior)
+
+
+def test_a_missing_model_is_named_not_skipped():
+    """ "no pit-loss model" and "a pit-loss model hashing to nothing" must not be
+    the same value - that is the silent default this codebase keeps producing."""
+    from pitwall.models import model_terms
+
+    assert "pl=none" in model_terms(circuit="Monza")
+    assert _fp(circuit="Monza") != _fp(circuit="Zandvoort")
+
+
+def test_a_dirty_tree_is_not_reported_as_a_commit(tmp_path):
+    """A dirty tree is not any commit, and saying it is would be the lie this
+    module exists to stop."""
+    import subprocess
+
+    from pitwall.models import code_version
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    (tmp_path / "a.txt").write_text("one")
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "one"], cwd=tmp_path, check=True)
+    clean = code_version(tmp_path)
+    assert clean and "+dirty" not in clean
+
+    (tmp_path / "a.txt").write_text("two")
+    assert code_version(tmp_path) == f"{clean}+dirty"

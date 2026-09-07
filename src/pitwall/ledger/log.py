@@ -80,6 +80,13 @@ class Prediction:
     # separate them after the fact unless the row says so at the time. Madrid,
     # round 14, is the first circuit in this project with no history at all.
     unfitted: str = ""
+    # Which model made the call: "<commit>/<params hash>". Two rows sharing it
+    # were produced by the same code against the same fitted models at the same
+    # circuit and are comparable; two that differ are not, however alike the
+    # numbers look. `source` records where the *data* came from and that is only
+    # half of provenance - comparing a 3 August backtest with a September one
+    # showed 27 of 28 calls "differing", all of it model change.
+    models: str = ""
     # Where the state behind this call came from: "live" for a call made against
     # F1's feed with the outcome still unknown, "replay of <file>" for one made
     # against a recording that already contains it. Stamped by the log rather
@@ -139,6 +146,8 @@ class Forecast:
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     # See `Prediction.unfitted`.
     unfitted: str = ""
+    # See `Prediction.models`.
+    models: str = ""
     # See `Prediction.source`. It matters more here: the reliability diagram is
     # built from this file, so an unmarked replay would put a thousand rows made
     # against a known result underneath the project's most persuasive artifact.
@@ -329,6 +338,7 @@ def prediction_from(
     horizon: int = 10,
     note: str = "",
     unfitted: str = "",
+    models: str = "",
 ) -> Prediction:
     """Build a log entry from a `Recommendation`.
 
@@ -357,5 +367,6 @@ def prediction_from(
         stop=best.stop,
         extrapolated=getattr(best, "extrapolated", False),
         unfitted=unfitted,
+        models=models,
         note=note,
     )

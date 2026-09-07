@@ -34,8 +34,11 @@ from pitwall.models import (
     HazardModel,
     PaceFit,
     PitLossModel,
+    code_version,
     fit_pace,
+    model_fingerprint,
     normalise_circuit,
+    unfitted_models,
 )
 from pitwall.sim import (
     SimConfig,
@@ -149,6 +152,9 @@ class Engine:
         self.logged = 0
         self.forecast_rows = 0
         self.log_failures = 0
+        # Resolved once. It costs two subprocesses and cannot change while the
+        # engine runs, and a race is not the place to shell out per lap.
+        self._code_version = code_version()
         # Laps already written. `_compute` is gated to one run per lap, but a
         # reconnection mid-race replays the snapshot and can revisit a lap, and
         # a ledger that records the same lap twice is not a track record.
@@ -450,6 +456,7 @@ class Engine:
                     total_laps=total_laps,
                     horizon=self.horizon,
                     unfitted=self._unfitted(state.circuit),
+                    models=self._fingerprint(state.circuit),
                 )
             )
         except Exception:
@@ -460,32 +467,36 @@ class Engine:
         self._logged_laps.add(recommendation.lap)
         self.logged += 1
 
-    def _unfitted(self, circuit: str) -> str:
-        """Which per-circuit models have no history here, as a stable string.
+    def _fingerprint(self, circuit: str) -> str:
+        """Which model is about to make this call.
 
-        Madrid is the first circuit in this project with none at all, and a call
-        made there is a different claim from one made at Monza: the engine knows
-        the field average and nothing about the track. The dashboard already
-        shows that, but the dashboard is not what gets graded six weeks later -
-        the ledger is, and a row that does not say so cannot be separated from
-        one where every model was fitted.
-
-        Named for what is missing rather than what is present, so an empty string
-        is the ordinary case and a non-empty one is always the thing worth
-        reading.
+        The commit is resolved once at construction, not per lap: it costs two
+        subprocesses and cannot change while the engine runs.
         """
-        models = {
-            "safety_car": self.hazard,
-            "attrition": self.attrition,
-            "pit_loss": self.pit_loss,
-            "degradation": self.degradation,
-        }
-        missing = [
-            name
-            for name, model in models.items()
-            if model is not None and not model.known_circuit(circuit)
-        ]
-        return ",".join(sorted(missing))
+        return model_fingerprint(
+            circuit=circuit,
+            hazard=self.hazard,
+            attrition=self.attrition,
+            pit_loss=self.pit_loss,
+            degradation=self.degradation,
+            code=self._code_version,
+        )
+
+    def _unfitted(self, circuit: str) -> str:
+        """Which per-circuit models have no history here.
+
+        Delegates rather than reimplementing: this was a method with its own
+        copy of the four `known_circuit` calls, and the backtest path - which
+        writes the files most likely to be compared later - had no copy at all
+        and wrote an empty string.
+        """
+        return unfitted_models(
+            circuit=circuit,
+            hazard=self.hazard,
+            attrition=self.attrition,
+            pit_loss=self.pit_loss,
+            degradation=self.degradation,
+        )
 
     def _forecast(
         self, entries: list, state: RaceState, config: SimConfig, total_laps: int
@@ -529,6 +540,7 @@ class Engine:
             }
             rows: list[Forecast] = []
             unfitted = self._unfitted(state.circuit)
+            fingerprint = self._fingerprint(state.circuit)
             for index, entry in enumerate(result.drivers):
                 column = result.positions[:, index]
                 retired = (
@@ -550,6 +562,7 @@ class Engine:
                         p_retire=retired,
                         n_sims=config.n_sims,
                         unfitted=unfitted,
+                        models=fingerprint,
                     )
                 )
             self.forecast_rows += self.forecasts.record_lap(rows)

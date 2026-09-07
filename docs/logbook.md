@@ -4,6 +4,63 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-07 (evening) — Asking the corpus, and a control that made it a result
+
+Three races failed to answer whether the 28 August degradation refit changes any
+decisions. Zandvoort could not separate the priors, Monza could not speak until
+after its window shut, and Madrid may do the same. So: ask the archive instead.
+
+Eight circuits chosen to span the change, both priors run against the same folded
+state, one fold per lap:
+
+| round | circuit | Δ factor | changed |
+|---|---|---|---|
+| 7 | Barcelona | **−0.815** | 0 / 16 |
+| 12 | Zandvoort | **+0.541** | 1 / 16 |
+| 6 | Monaco | +0.403 | *unusable at all four laps* |
+| 5 | Montréal | +0.304 | 1 / 16 |
+| 3 | Suzuka | −0.304 | 0 / 12 |
+| 10 | Spa | −0.249 | 0 / 12 |
+| 13 | Monza | −0.100 | 0 / 8 |
+| 9 | Silverstone | −0.034 | 0 / 12 |
+
+**2 of 92 calls changed — 2.2%.** Barcelona is the one that says it loudest: the
+largest factor move in the set, 2.19x to 1.38x, and not one decision moved.
+
+**The control is what makes that a finding rather than an absence.** "No change"
+and "no measurement" read identically, and I have been caught by exactly that
+shape three times this week. So: the current prior against *itself* with
+degradation tripled — **6 of 16 changed, 38%**, including stay-to-pit flips and
+compound swaps. The harness sees change when there is change. It is now a
+`--control` flag rather than a script I ran once, because a comparison tool
+without a sensitivity check invites the misreading.
+
+**What it means.** The refit corrected a real and demonstrable error — a pooled
+soft tyre that improved with age, one race in five contributing a negative scale
+— and it barely touches the calls. A 40% shift in the circuit factor moves 2% of
+decisions; a 200% shift moves 38%. Most pit decisions are not close: the margin
+between the best option and the next one is usually large against anything the
+degradation prior does at realistic magnitudes.
+
+That is worth knowing and slightly deflating. Four days of model work, correct
+work, with almost no effect on the output the project exists to produce. The
+honest version for anyone reading the repository is that the model is *more
+right* and the engine is *barely different*, and both halves belong in the
+sentence.
+
+**The finding I did not go looking for.** Nine of 32 decision points were
+unusable because the pace fit never identified — and four of those nine are
+Monaco, at every lap sampled: 31, 42, 54, 66 of 78. Monza was unusable at two of
+four. The window problem found on 6 September is not a Monza quirk; it is a
+pattern at low-degradation processional circuits, where the engine may have
+nothing to say for most of the race whatever prior is loaded.
+
+That is a bigger lever on decision quality than any prior. A better model that
+cannot speak is worth less than a worse one that can, and 28% of the sampled race
+was silence.
+
+---
+
 ## 2026-09-07 (later still) — Stamping which model made the call
 
 The 27-of-28 scare earlier today was a comparison against a file written five

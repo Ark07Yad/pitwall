@@ -18,6 +18,12 @@ afternoon.
 is folded once per lap and handed to each prior in turn - same laps, same cars,
 same everything except the model. Anything else compares two races.
 
+**Run the control.** `--control 3` compares the current prior against itself with
+degradation tripled. Without it "no change" and "no measurement" are the same
+reading, and the first is a finding while the second is a broken harness. On the
+28 August refit the answer was 2 of 92 calls against a control of 6 of 16, which
+is what makes the 2 a result rather than an absence.
+
 **The baseline is the real old model, not a reconstruction of it.** `--baseline`
 points at a `degradation.py` extracted from git, loaded as a module, and fitted on
 the dataset from the same commit. Both are checked on load: the old fit must
@@ -100,6 +106,13 @@ def main() -> int:
     parser.add_argument("--baseline-data", type=Path, required=True, help="old degradation.json")
     parser.add_argument("--raw", type=Path, default=Path("data/raw"))
     parser.add_argument("--out", type=Path, default=Path("reports/prior-corpus.json"))
+    parser.add_argument(
+        "--control",
+        type=float,
+        default=0.0,
+        help="also compare the current prior against itself with degradation "
+        "scaled by this factor; a sensitivity check, not a model",
+    )
     args = parser.parse_args()
 
     baseline = load_baseline(args.baseline, args.baseline_data)
@@ -207,6 +220,59 @@ def main() -> int:
             print(f"  r{rnd:>2} {circuit:<18} lap {lap:>2}/{total}{mark}", flush=True)
             for tla in changed:
                 print(f"       {tla}: {calls['old'][tla]} -> {calls['new'][tla]}", flush=True)
+
+    if args.control > 0:
+        import dataclasses
+
+        scaled = dataclasses.replace(
+            current, linear={c: v * args.control for c, v in current.linear.items()}
+        )
+        print(f"\n-- control: current prior vs itself at {args.control}x degradation --")
+        c_total = c_changed = 0
+        for row in [r for r in results if "n" in r]:
+            recording = next(args.raw.glob(f"*r{row['round']}-archive.txt"), None)
+            if recording is None:
+                continue
+            collector = fold_to_lap(recording, row["lap"])
+            state = collector.state
+            clean, _ = filter_laps(collector.laps)
+            order = {
+                car.number: car.position
+                for car in state.running_order()
+                if car.position is not None
+            }
+            pace = fit_pace(clean, prior=scaled, circuit=state.circuit)
+            if pace is None or not pace.usable:
+                continue
+            entries = entries_from_state(state, pace)
+            ranked = sorted(entries, key=lambda e: order.get(e.driver, 99))[: args.drivers]
+            changed = 0
+            for entry in ranked:
+                rec = evaluate_actions(
+                    entries,
+                    our_driver=entry.driver,
+                    from_lap=row["lap"],
+                    total_laps=row["total_laps"],
+                    circuit=state.circuit,
+                    pace=pace,
+                    hazard=hazard,
+                    attrition=attrition,
+                    pit_loss=pit_loss,
+                    config=cfg,
+                )
+                if row["new"].get(entry.tla) not in (None, call_of(rec)):
+                    changed += 1
+                c_total += 1
+            c_changed += changed
+            print(
+                f"  r{row['round']:>2} {row['circuit']:<18} lap {row['lap']:>2}"
+                f"  {changed}/{len(ranked)} changed",
+                flush=True,
+            )
+        if c_total:
+            print(f"  control: {c_changed} of {c_total} changed ({c_changed / c_total:.0%})")
+            print("  A control near zero means the harness cannot see change and the")
+            print("  main result above is an absence of measurement, not a finding.")
 
     scored = [r for r in results if "n" in r]
     total_calls = sum(r["n"] for r in scored)

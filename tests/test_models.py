@@ -255,10 +255,21 @@ def test_rank_deficient_fit_is_refused():
     assert not fit.usable
 
 
-def test_positive_race_lap_trend_is_refused():
-    """Cars get faster as fuel burns off. A positive trend means the fit is
-    describing something other than a race."""
-    assert not unusable_fit(race_lap_coef=+0.03).usable
+def test_a_strongly_positive_race_lap_trend_is_refused():
+    """Cars get faster as fuel burns off. A trend positive by more than the fuel
+    effect means the fit has not separated fuel from whatever else moves with
+    race lap."""
+    assert not unusable_fit(race_lap_coef=+0.15).usable
+
+
+def test_a_near_zero_trend_is_not_refused():
+    """A strict sign test has no tolerance, and that is how the engine came to be
+    silent at Monaco for a whole race: every lap sampled on 7 September was
+    refused, one of them for a trend of +0.0044 s/lap - 0.3 seconds across 78
+    laps. A coefficient indistinguishable from zero is uninformative, not wrong,
+    and refusing on it throws away a fit built on 739 clean laps."""
+    assert unusable_fit(race_lap_coef=+0.004).usable
+    assert unusable_fit(race_lap_coef=-0.030).usable
 
 
 def test_absurd_pace_spread_is_refused():
@@ -273,7 +284,7 @@ def test_absurd_degradation_is_refused():
 
 
 def test_refusal_explains_itself():
-    reasons = unusable_fit(race_lap_coef=+0.03).unusable_reasons
+    reasons = unusable_fit(race_lap_coef=+0.15).unusable_reasons
     assert reasons and "positive" in reasons[0]
 
 

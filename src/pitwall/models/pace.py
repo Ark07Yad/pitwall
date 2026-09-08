@@ -74,6 +74,21 @@ PHASE_SEPARATION_LIMIT = 0.35
 MAX_PACE_SPREAD = 10.0
 # Even a tyre falling off a cliff does not lose a second a lap, every lap.
 MAX_DEGRADATION = 1.0
+# How far above zero the race-lap trend may sit before the fit is refused.
+#
+# The trend should be negative: fuel burns off and the track rubbers in. But this
+# was a strict sign test, and a strict sign test has no tolerance - it refused a
+# Monaco fit built on 739 clean laps because the trend came out at +0.0044 s/lap,
+# which is 0.3 seconds across a 78-lap race and indistinguishable from zero. That
+# guard alone silenced the engine at Monaco for an entire race: every lap sampled
+# in the 7 September corpus, at 31, 42, 54 and 66 of 78.
+#
+# A coefficient near zero is uninformative, not wrong. What is wrong is a trend
+# positive by more than the fuel effect that should dominate it - so the tolerance
+# is that effect's own magnitude, ~0.031-0.046 s/lap depending on race length,
+# taken at the long-race end. Above this, fuel has not been separated from
+# whatever else moves with race lap, and the fit is refused as before.
+MAX_POSITIVE_TREND = 0.035
 # A compound needs this many laps, spanning this much tyre age, before a
 # quadratic is worth fitting. Below it the curvature is noise wearing a cliff's
 # clothes, and it extrapolates violently.
@@ -158,10 +173,10 @@ class PaceFit:
         reasons: list[str] = []
         if any("rank deficient" in w for w in self.warnings):
             reasons.append("effects are not separately identified")
-        if self.race_lap_coef > 0:
+        if self.race_lap_coef > MAX_POSITIVE_TREND:
             reasons.append(
-                f"race-lap trend is positive ({self.race_lap_coef:+.4f} s/lap); "
-                "cars get faster as fuel burns off"
+                f"race-lap trend is positive ({self.race_lap_coef:+.4f} s/lap) by more "
+                "than the fuel effect that should dominate it"
             )
         spread = (
             max(self.driver_pace.values()) - min(self.driver_pace.values())

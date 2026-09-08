@@ -4,6 +4,71 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-08 — A sign test with no tolerance, and a race of silence
+
+Yesterday's corpus turned up something bigger than the question it was asked:
+nine of 32 decision points had no usable pace fit, and four of those were Monaco
+— every lap sampled, 31, 42, 54 and 66 of 78. The engine was silent for an entire
+Grand Prix.
+
+**The reason at Monaco was one guard, and it had no tolerance.**
+
+    if self.race_lap_coef > 0:
+        reasons.append("race-lap trend is positive; cars get faster as fuel burns off")
+
+The physics is right: fuel burns off and the track rubbers in, so the trend
+should be negative. But a strict sign test refuses at zero. Monaco lap 54 came
+back at **+0.0044 s/lap** — 0.3 seconds across a 78-lap race, indistinguishable
+from nothing — and that threw away a fit built on **739 clean laps**.
+
+A coefficient near zero is uninformative, not wrong. What is wrong is a trend
+positive by more than the fuel effect that should dominate it, so that is the
+tolerance now: ~0.035 s/lap, the fuel model's own magnitude at a long race
+length. Physics-scaled rather than a constant chosen to make Monaco pass.
+
+**What the guard was built for, checked rather than assumed.** The docstring
+cites Hungary lap 16 — a 67-second spread in driver pace and +28 s/lap of hard
+degradation. All six known degenerate fits still refuse:
+
+| | trend | spread | |
+|---|---|---|---|
+| Hungary lap 12 | +0.1355 | 44.3s | refused |
+| Hungary lap 16 | +0.0335 | 67.2s | refused |
+| Hungary lap 20 | +0.0432 | **4.2s** | refused |
+| Monza lap 15 | +6.2136 | 75.6s | refused |
+| Monza lap 21 | −0.0726 | 60.7s | refused |
+| Monza lap 29 | −0.3500 | 61.7s | refused |
+
+Hungary lap 20 is the one that matters: its spread is 4.2s, so the pace-spread
+guard does not catch it and the trend test is doing sole work. At +0.0432 it
+stays refused, by a margin of 0.008 s/lap. That is uncomfortably close, and it is
+the honest position — the two cases genuinely sit that near each other, and a
+threshold pretending otherwise would be a threshold chosen for comfort.
+
+**Corpus-wide: 23 of 32 usable becomes 25 of 32.** The two recovered are exactly
+Monaco 54 and 66. Nothing else moved in either direction, which is the shape a
+targeted fix should have. Monaco 31 and 42 stay refused at +0.11 and +0.055 —
+genuinely positive, not noise.
+
+**And what it now says at Monaco is sensible**, which had to be checked, because
+a guard that makes the engine speak is only an improvement if the speech is worth
+having. Lap 54: leaders stay out on hards, expected positions tracking the actual
+order, one marginal pit call flagged at margin +0.02. Lap 66: everyone stays out
+with margins of 1.8 to 3.0, twelve laps from the flag. Degradation 0.024–0.028
+s/lap, which is Monaco.
+
+**The remaining seven silences are not this problem.** Two are a 60-second driver
+pace spread at Monza — a red-flagged race where some cars have almost no clean
+laps and get wild intercepts. Three are rank deficiency early in a race. Two are
+Monaco's genuinely positive trend. Different causes, and the pace-spread one
+looks like the next thread: a car with two clean laps should not be allowed to
+destabilise the whole decomposition.
+
+Silence went from 28% of sampled race distance to 22%. That is progress and not
+a solution, and the largest remaining block has a different explanation.
+
+---
+
 ## 2026-09-07 (evening) — Asking the corpus, and a control that made it a result
 
 Three races failed to answer whether the 28 August degradation refit changes any

@@ -544,3 +544,78 @@ def test_a_dirty_tree_is_not_reported_as_a_commit(tmp_path):
 
     (tmp_path / "a.txt").write_text("two")
     assert code_version(tmp_path) == f"{clean}+dirty"
+
+
+# -- identifiability of compound offsets --------------------------------
+
+
+def _one_compound_each(n_drivers: int = 8) -> list[LapRecord]:
+    """Every driver runs exactly one compound and never changes.
+
+    The state a real race is in for its first stint, and the state a
+    red-flagged one can stay in: at lap 29 of the 2026 Italian GP, 19 of 20
+    drivers had run a single compound.
+    """
+    order = [Compound.SOFT, Compound.MEDIUM, Compound.HARD]
+    laps: list[LapRecord] = []
+    for d in range(n_drivers):
+        compound = order[d % 3]
+        base = 84.0 + d * 0.15
+        # Two stints on the *same* compound, so tyre age resets while race lap
+        # runs on. Without that, age and lap are perfectly collinear in a single
+        # stint and the matrix is rank deficient for a different reason - which
+        # is what this test would otherwise be measuring.
+        for stint in range(2):
+            for age in range(1, 21):
+                lap_number = stint * 20 + age
+                laps.append(
+                    LapRecord(
+                        driver=str(d),
+                        tla=f"D{d:02d}",
+                        team="T",
+                        lap=lap_number,
+                        lap_time=base - 0.05 * lap_number + 0.06 * age,
+                        compound=compound,
+                        tyre_age=age,
+                        stint=stint,
+                        position=d + 1,
+                        interval=5.0,
+                        gap_to_leader="+5.0",
+                        track_statuses=GREEN,
+                        entered_pit=False,
+                        exited_pit=False,
+                        retired=False,
+                    )
+                )
+    return laps
+
+
+def test_an_unidentifiable_compound_offset_is_dropped_not_fitted():
+    """If every driver on a compound ran only that compound, its offset column is
+    exactly the sum of their driver dummies. Left in, the matrix is rank
+    deficient, `lstsq` returns the minimum-norm solution, and driver pace splits
+    arbitrarily - at Monza that gave some drivers 88 seconds and some 30 on a
+    circuit whose lap is 84, and a 61-second spread the usability guard then
+    refused as unphysical. The spread was the symptom."""
+    fit = fit_pace(_one_compound_each())
+    assert fit is not None
+    assert not any("rank deficient" in w for w in fit.warnings)
+    spread = max(fit.driver_pace.values()) - min(fit.driver_pace.values())
+    assert spread < 10.0, f"driver pace spread {spread:.1f}s suggests an arbitrary split"
+
+
+def test_dropping_an_offset_is_announced():
+    """Those drivers' intercepts now carry their compound's effect, so they look
+    faster or slower than they are. Silence about that is the failure mode this
+    codebase keeps producing."""
+    fit = fit_pace(_one_compound_each())
+    assert any("not identified" in w for w in fit.warnings)
+
+
+def test_a_bridged_offset_is_still_fitted():
+    """The fix must not throw away offsets it can identify: with drivers who
+    change compound, the offsets are separable and must still be estimated."""
+    fit = fit_pace(synthetic_race(stagger=True))
+    assert fit is not None
+    assert not any("not identified" in w for w in fit.warnings)
+    assert len(fit.compound_offset) == 3

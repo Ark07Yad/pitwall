@@ -51,7 +51,7 @@ interpolation from a guess.
 
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -329,7 +329,38 @@ def fit_pace(
     # the best-sampled compound keeps that baseline as stable as possible.
     usage = Counter(lap.compound for lap in usable if lap.compound in set(compounds))
     reference = usage.most_common(1)[0][0]
-    offset_compounds = [c for c in compounds if c is not reference]
+
+    driver_compounds: dict[str, set[Compound]] = defaultdict(set)
+    for lap in usable:
+        driver_compounds[lap.driver].add(lap.compound)
+
+    # A compound's offset is only separable from driver pace if somebody who ran
+    # it also ran something else. If every driver on a compound ran *only* that
+    # compound, its offset column is exactly the sum of their driver dummies -
+    # perfect collinearity - and "this compound is slow" cannot be told from
+    # "these drivers are slow".
+    #
+    # Mid-race that is the normal state, not an edge case: at lap 29 of Monza 19
+    # of 20 drivers had run a single compound, two of them the soft, and the soft
+    # offset was exactly those two intercepts. The matrix came out rank 27 of 28,
+    # `lstsq` returned the minimum-norm solution, and it split pace arbitrarily -
+    # some drivers at 88 seconds and some at 30 on a circuit whose lap is 84.
+    # That produced a 61-second "driver pace spread" which the usability guard
+    # then reported as unphysical. It was, but the spread was a symptom; the
+    # rank deficiency was the cause, and refusing on the symptom hid it.
+    #
+    # Dropping such an offset folds the compound effect into those drivers'
+    # intercepts, which is precisely what the data can support. The age terms are
+    # unaffected: degradation is a within-stint slope and is orthogonal to both.
+    bridged = {
+        compound
+        for compound in compounds
+        if any(
+            driver_compounds[lap.driver] - {compound} for lap in usable if lap.compound is compound
+        )
+    }
+    unbridged = [c for c in compounds if c is not reference and c not in bridged]
+    offset_compounds = [c for c in compounds if c is not reference and c in bridged]
 
     # How far the evidence actually reaches, per compound. Everything the model
     # says beyond this is extrapolation.
@@ -392,6 +423,14 @@ def fit_pace(
     if negative:
         curved = [c for c in curved if c not in negative]
         coefficients, age_index, offset_index, curve_index, rank, n_cols, x, y = solve(curved)
+
+    if unbridged:
+        names = ", ".join(sorted(c.short for c in unbridged))
+        warnings.append(
+            f"{names} offset is not identified - every driver on it has run only that "
+            "compound, so its effect cannot be told from their pace. Folded into their "
+            "intercepts, which makes those drivers look slower or faster than they are"
+        )
 
     if rank < n_cols:
         warnings.append(

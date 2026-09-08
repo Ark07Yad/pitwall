@@ -4,6 +4,71 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-08 (later) — The spread was the symptom, and the guard hid the cause
+
+Two guesses at the Monza silence, both wrong, before the actual answer.
+
+The refusal was a **61-second driver pace spread** on a circuit whose lap is 84
+seconds. First guess: cars with too few clean laps getting wild intercepts, since
+Monza was red-flagged on lap 2. Checked it — driver 11 had **ten** clean laps and
+fitted at 29.99 against a field at 88. Not thin data.
+
+Second look: the spread warning never appears alone. It comes with *"effects are
+not separately identified"*, every time. When the design matrix is rank
+deficient, `lstsq` returns the minimum-norm solution, and the minimum-norm
+solution splits pace arbitrarily between driver intercepts and compound offsets.
+Some drivers at 88, some at 30. **The spread was not a second cause; it was the
+first one's symptom, and refusing on the symptom is why the cause sat there
+unexamined.**
+
+**Then the dependency, which is exact.** At lap 29, nineteen of twenty drivers
+had run a single compound. Two of them had run only the soft — so the soft-offset
+column *is* the sum of those two drivers' dummies. Perfect collinearity, rank 27
+of 28, one dependency, and it matches. You cannot tell "the soft is slow" from
+"these two drivers are slow" when they have never run anything else.
+
+That is not an edge case mid-race. It is the normal state of a first stint.
+
+**The fix is to stop asking the question the data cannot answer.** A compound's
+offset is identifiable only if somebody who ran it also ran something else. Where
+nobody did, the offset column comes out and the effect folds into those drivers'
+intercepts — which is exactly what the evidence supports. The age terms are
+untouched: degradation is a within-stint slope, orthogonal to both. And it says
+so in a warning, because those drivers now look faster or slower than they are.
+
+| | before | after |
+|---|---|---|
+| Monza lap 21 | 60.7s spread, refused | **4.6s, usable** |
+| Monza lap 29 | 61.7s spread, refused | **3.9s, usable** |
+| Hungary lap 12 | 44.3s, refused | 4.3s, still refused (trend +0.1355) |
+| Hungary lap 16 | 67.2s, refused | 47.4s, **still refused** |
+| Silverstone lap 28 | refused | still refused (other dependency) |
+
+Hungary lap 16 is the case the guard's own docstring was written for, and it
+still refuses: it has two unbridged offsets and *remains* rank deficient after
+both come out, so something else is degenerate there too. The safety property
+holds.
+
+**Silence across the corpus, over the day:**
+
+| | usable | silent |
+|---|---|---|
+| yesterday | 23 / 32 | 28% |
+| after the trend tolerance | 25 / 32 | 22% |
+| after this | **28 / 32** | **12.5%** |
+
+What Monza says now is worth having: spread 4.6s and 3.9s, trend negative, r² 0.93
+to 0.97, everyone staying out with margins of 0.5 to 2.8 — which at lap 21 of 53
+on seventeen-lap-old tyres is right.
+
+**Noticed and not acted on:** Monza lap 29 fits a race-lap trend of −0.35 s/lap,
+roughly eight times the fuel prior. The guard only tests the positive side, so
+nothing objects. An implausibly *negative* trend is as much a sign of a confused
+decomposition as a positive one, and there is no evidence yet about which races
+it would catch — so it is written down rather than fixed on a hunch.
+
+---
+
 ## 2026-09-08 — A sign test with no tolerance, and a race of silence
 
 Yesterday's corpus turned up something bigger than the question it was asked:
@@ -58,11 +123,13 @@ with margins of 1.8 to 3.0, twelve laps from the flag. Degradation 0.024–0.028
 s/lap, which is Monaco.
 
 **The remaining seven silences are not this problem.** Two are a 60-second driver
-pace spread at Monza — a red-flagged race where some cars have almost no clean
-laps and get wild intercepts. Three are rank deficiency early in a race. Two are
-Monaco's genuinely positive trend. Different causes, and the pace-spread one
-looks like the next thread: a car with two clean laps should not be allowed to
-destabilise the whole decomposition.
+pace spread at Monza, three are rank deficiency, two are Monaco's genuinely
+positive trend.
+
+*(Corrected later the same day: the pace spread and the rank deficiency are not
+different causes. The spread is the rank deficiency's symptom, and the guess in
+the original sentence — that cars with too few clean laps get wild intercepts —
+was wrong. See the next entry.)*
 
 Silence went from 28% of sampled race distance to 22%. That is progress and not
 a solution, and the largest remaining block has a different explanation.

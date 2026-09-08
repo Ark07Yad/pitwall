@@ -74,6 +74,10 @@ PHASE_SEPARATION_LIMIT = 0.35
 MAX_PACE_SPREAD = 10.0
 # Even a tyre falling off a cliff does not lose a second a lap, every lap.
 MAX_DEGRADATION = 1.0
+# Distinct tyre ages a compound needs before its own degradation slope can be
+# estimated. Two points determine a line; one determines nothing, and leaves the
+# age column an exact multiple of the compound offset.
+MIN_AGES_FOR_SLOPE = 2
 # How far above zero the race-lap trend may sit before the fit is refused.
 #
 # The trend should be negative: fuel burns off and the track rubbers in. But this
@@ -360,6 +364,24 @@ def fit_pace(
         )
     }
     unbridged = [c for c in compounds if c is not reference and c not in bridged]
+
+    # A compound needs two distinct tyre ages before a slope can be fitted for it
+    # at all. With one, its age column is an exact multiple of its offset column
+    # - one observation cannot determine a level and a trend - and the matrix is
+    # rank deficient. At lap 28 of the 2026 British GP a single soft lap, run at
+    # age 3, made `age:SOF` exactly three times `offset:SOF`; the fit was refused
+    # for the rest of the race on the back of that one lap.
+    #
+    # This is a rank condition, not a quality threshold: below two ages the
+    # parameter does not exist rather than being poorly estimated. Those
+    # compounds take the pooled prior's rate instead, which is what the blend
+    # already does for a thinly-observed one.
+    ages_seen = {
+        compound: {lap.tyre_age for lap in usable if lap.compound is compound}
+        for compound in compounds
+    }
+    flat = [c for c in compounds if len(ages_seen[c]) < MIN_AGES_FOR_SLOPE]
+    aged = [c for c in compounds if c not in flat]
     offset_compounds = [c for c in compounds if c is not reference and c in bridged]
 
     # How far the evidence actually reaches, per compound. Everything the model
@@ -383,8 +405,8 @@ def fit_pace(
     lap_col = len(drivers)
 
     def solve(with_curvature: list[Compound]):
-        age_index = {c: lap_col + 1 + i for i, c in enumerate(compounds)}
-        base = lap_col + 1 + len(compounds)
+        age_index = {c: lap_col + 1 + i for i, c in enumerate(aged)}
+        base = lap_col + 1 + len(aged)
         offset_index = {c: base + i for i, c in enumerate(offset_compounds)}
         base += len(offset_compounds)
         curve_index = {c: base + i for i, c in enumerate(with_curvature)}
@@ -424,6 +446,14 @@ def fit_pace(
         curved = [c for c in curved if c not in negative]
         coefficients, age_index, offset_index, curve_index, rank, n_cols, x, y = solve(curved)
 
+    if flat:
+        names = ", ".join(sorted(c.short for c in flat))
+        warnings.append(
+            f"{names} has fewer than {MIN_AGES_FOR_SLOPE} distinct tyre ages, so its "
+            "degradation cannot be separated from its compound offset; the pooled "
+            "prior's rate is used for it instead"
+        )
+
     if unbridged:
         names = ", ".join(sorted(c.short for c in unbridged))
         warnings.append(
@@ -460,6 +490,12 @@ def fit_pace(
         )
 
     degradation = {c: float(coefficients[i]) for c, i in age_index.items()}
+    # A compound with no age column still needs a rate, or the simulation simply
+    # has nothing for that tyre. Seeded at zero with a lap count of zero, the
+    # blend below returns the prior's rate exactly, which is the whole of what is
+    # known about it.
+    for compound in flat:
+        degradation.setdefault(compound, 0.0)
     compound_offset = {reference: 0.0}
     compound_offset.update({c: float(coefficients[i]) for c, i in offset_index.items()})
 
@@ -494,7 +530,12 @@ def fit_pace(
             degradation=degradation,
             curvature=degradation_curvature,
             observed_max_age=observed_max_age,
-            laps_per_compound=Counter(lap.compound for lap in usable),
+            # Compounds whose slope was never fitted count as zero laps, so the
+            # blend hands them the prior rather than an average of the prior and
+            # a number that was not estimated.
+            laps_per_compound=Counter(
+                lap.compound for lap in usable if lap.compound not in set(flat)
+            ),
             prior=prior,
             circuit=circuit,
         )

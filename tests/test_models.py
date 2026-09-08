@@ -619,3 +619,78 @@ def test_a_bridged_offset_is_still_fitted():
     assert fit is not None
     assert not any("not identified" in w for w in fit.warnings)
     assert len(fit.compound_offset) == 3
+
+
+def test_a_single_lap_cannot_carry_a_degradation_slope():
+    """One observation determines a level or a trend, not both: with one lap on a
+    compound its age column is an exact multiple of its offset column. At lap 28
+    of the 2026 British GP a single soft lap at age 3 made `age:SOF` exactly three
+    times `offset:SOF`, and the fit was refused for the rest of the race."""
+    laps = [lap for lap in synthetic_race(stagger=True) if lap.compound is not Compound.SOFT]
+    laps.append(
+        LapRecord(
+            driver="0",
+            tla="D00",
+            team="T",
+            lap=46,
+            lap_time=83.9,
+            compound=Compound.SOFT,
+            tyre_age=3,
+            stint=3,
+            position=1,
+            interval=5.0,
+            gap_to_leader="+5.0",
+            track_statuses=GREEN,
+            entered_pit=False,
+            exited_pit=False,
+            retired=False,
+        )
+    )
+    fit = fit_pace(laps)
+    assert fit is not None
+    assert not any("rank deficient" in w for w in fit.warnings)
+    assert any("distinct tyre ages" in w for w in fit.warnings)
+
+
+def test_a_compound_without_a_slope_takes_the_prior_rate():
+    """It must still get a number, or the simulation has nothing for that tyre -
+    and the number it gets should be the prior's, which is all that is known."""
+    laps = [lap for lap in synthetic_race(stagger=True) if lap.compound is not Compound.SOFT]
+    laps.append(
+        LapRecord(
+            driver="0",
+            tla="D00",
+            team="T",
+            lap=46,
+            lap_time=83.9,
+            compound=Compound.SOFT,
+            tyre_age=3,
+            stint=3,
+            position=1,
+            interval=5.0,
+            gap_to_leader="+5.0",
+            track_statuses=GREEN,
+            entered_pit=False,
+            exited_pit=False,
+            retired=False,
+        )
+    )
+    from pitwall.models.degradation import fit_degradation
+
+    prior = fit_degradation(
+        [
+            {
+                "season": 2025,
+                "round": r,
+                "circuit": "Monza",
+                "location": "Monza",
+                "buckets": [
+                    {"compound": "SOF", "age": a, "n": 40, "mean": 0.09 * a} for a in range(1, 30)
+                ],
+            }
+            for r in range(1, 6)
+        ]
+    )
+    fit = fit_pace(laps, prior=prior, circuit="Monza")
+    expected = prior.linear[Compound.SOFT] * prior.circuit_factor.get("Monza", 1.0)
+    assert fit.degradation[Compound.SOFT] == pytest.approx(expected, rel=1e-6)

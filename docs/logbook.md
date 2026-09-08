@@ -4,6 +4,67 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-08 (evening) — One lap, and a column that was three times another
+
+Silverstone lap 28 was the last rank deficiency, and guessing was not going to
+find it — so I rebuilt the design matrix and took its null vector. That names the
+collinear columns rather than describing them.
+
+    offset:SOF   -0.9487
+    age:SOF      +0.3162
+
+A ratio of exactly one third. **There was one soft lap in the race, run at tyre
+age 3**, so the soft's age column was three times its offset column, everywhere,
+exactly. Rank 29 of 30.
+
+One observation determines a level *or* a trend, never both. The fit had been
+asking for an intercept and a slope from a single point, and being refused for
+the rest of the race on the strength of it.
+
+**The same shape as this morning's Monza bug, a different mechanism.**
+
+| | collinear with | because |
+|---|---|---|
+| Monza | compound offset ↔ **driver dummies** | nobody who ran that compound ran another |
+| Silverstone | compound offset ↔ **its own age column** | one lap cannot fit an intercept and a slope |
+
+Both are rank conditions rather than quality thresholds, which is worth saying
+plainly: below the limit the parameter does not exist, as against being estimated
+badly. So `MIN_AGES_FOR_SLOPE = 2` is arithmetic, not a number chosen to make a
+race pass — two points determine a line.
+
+**Where the number comes from instead.** The compound still needs a degradation
+rate or the simulation has nothing for that tyre, so it takes the pooled prior's,
+which is the whole of what is known about it. Checked rather than assumed: at
+lap 28 the soft comes out at **0.0645** against a prior of 0.0646 × 0.999 = 0.0645
+— the blend handed it over verbatim, because the compound is passed to it with a
+lap count of zero. By laps 36 and 44 there is real soft running and it fits its
+own rate again, 0.0745 and 0.0675. And it warns, so a prior-derived number is
+never mistaken for a measurement.
+
+**Silence across the corpus, over two days:**
+
+| | usable | silent |
+|---|---|---|
+| 7 September | 23 / 32 | 28% |
+| + trend tolerance | 25 / 32 | 22% |
+| + offset identifiability | 28 / 32 | 12.5% |
+| + this | **29 / 32** | **9.4%** |
+
+The three that remain are all the same refusal and it looks right: Suzuka lap 21
+at +0.2985 s/lap, Monaco 31 and 42 at +0.1644 and +0.0546. Genuinely positive
+trends rather than noise around zero, at points early enough that the
+decomposition has not settled.
+
+**What the two days actually found.** Not one bug but a family: three separate
+places where the fit was asked a question the data could not answer, and answered
+anyway — the minimum-norm solution obliging with an arbitrary split — after which
+a guard downstream caught the resulting nonsense and refused. Every one of those
+guards was working. Each refusal was correct. And each of them hid its own cause,
+because a refusal is where an investigation stops.
+
+---
+
 ## 2026-09-08 (later) — The spread was the symptom, and the guard hid the cause
 
 Two guesses at the Monza silence, both wrong, before the actual answer.

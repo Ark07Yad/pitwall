@@ -8,27 +8,30 @@ builds its tyre picture at a new track.
 
     python scripts/circuit_from_practice.py data/raw/2026-madrid-fp2.txt
 
-What this can and cannot recover, stated plainly, because three of the four
-per-circuit models are not obtainable from an hour of practice:
+**What this recovers, as tested - which is less than it first claimed.** Three of
+the four per-circuit models were never obtainable from practice: stops there are
+not racing stops, and a safety-car or attrition rate needs races rather than
+laps. The fourth, degradation, is the reason this script exists, and on the one
+real test it has had it produced nothing.
 
-  degradation     yes, partly. Long runs give tyre age against lap time on the
-                  real surface. This is what the script estimates.
-  pit loss        no. Practice stops are not racing stops - no fuel change, no
-                  urgency, and the pit lane is often run at a different delta.
-  safety car      no. A hazard rate needs many races, not many laps.
-  attrition       no. Same.
+Madrid, 11 September 2026: FP1 and FP2 both refused. Race-lap trends of +0.71
+and +1.54 s/lap, residual spreads of 10.2 and 6.4 seconds, r-squared of 0.21 and
+0.37, and 146-174 laps excluded as implausible for a racing lap. The cause is the
+premise, not the data. The decomposition reads race lap as a proxy for fuel burn,
+and in practice fuel is reset between runs - a low-fuel qualifying simulation
+sits between two high-fuel long runs - so lap number carries no fuel information.
+The first version of this docstring said the number would "read low" and should be
+treated "as a lower bound". It had only ever been run against a race recording,
+where the premise holds.
 
-**The output is provisional and is not written into `degradation.json`.** It
-prints a factor and what it rests on; folding it in is a judgement call for
-whoever reads it, and the file it would go into is the one the race is fitted
-from. A number from one practice session does not belong in a five-season pool
-without someone deciding it does.
+**What would work instead, and is not built:** fuel-corrected long-run analysis,
+the way teams read practice. Keep only long runs, correct each lap by the physics
+fuel prior for laps into the stint, give every stint its own intercept, and fit
+the per-compound slope within stints. No race-lap term, because there is no race.
 
-**The estimate is biased and the direction is known.** Practice long runs are
-shorter than race stints, run on a green track that rubbers in over the session,
-and often on low fuel. Track evolution alone pushes lap times *down* as tyre age
-rises within a run, which drags the fitted slope toward zero and makes the
-circuit look gentler on tyres than it is. Read the number as a lower bound.
+**Nothing is written into `degradation.json`.** If a fit ever does come back
+usable it prints a factor and what it rests on; folding one practice session into
+a five-season pool is a judgement call for whoever reads it.
 """
 
 from __future__ import annotations
@@ -97,7 +100,9 @@ def main() -> int:
 
     print(f"\n{pace}")
     if not pace.usable:
-        print("\nthe fit is not usable; the reasons above are the answer, not a number")
+        print("\nthe fit is not usable; the reasons above are the answer, not a number.")
+        print("From practice this is the expected outcome: fuel is reset between runs, so")
+        print("race lap is not a fuel proxy and the decomposition has nothing to stand on.")
         return 1
 
     print(f"\n  implied {circuit} degradation against the pooled shape:\n")
@@ -133,9 +138,9 @@ def main() -> int:
     print(f"\n  lap-weighted factor: {factor:.2f}x   on {total} clean laps")
     print(f"  currently in the model: {in_model}")
     print(
-        "\n  Provisional. Practice long runs are short, on a track that rubbers in as the\n"
-        "  session goes, so evolution pulls the slope toward zero and this reads low.\n"
-        "  Treat it as a lower bound, and nothing is written to disk."
+        "\n  Provisional, and not written to disk. Practice resets fuel between runs, so\n"
+        "  the race-lap term this fit leans on means little here; a usable result from\n"
+        "  practice is the exception, not the expected case."
     )
     return 0
 

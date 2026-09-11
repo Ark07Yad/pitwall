@@ -4,6 +4,64 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-11 — Madring, and a tool only ever tested on the wrong kind of session
+
+FP1 and FP2 went by unrecorded again. The reason for recording FP2 was the tyre
+data, though, and once a session is over the archive has it, so both were rebuilt
+with `fetch_recording.py --session`: 20,274 and 17,085 events. Two things came out
+before any modelling happened.
+
+**The feed calls the circuit `Madring`.** The schedule says Madrid, every
+document here says Madrid, and the dashboard on Sunday will say Madring. It
+resolves as unknown in all four models either way — checked, not assumed — but a
+runbook that tells you to expect a name the screen never shows is a runbook that
+produces a scare at 14:05.
+
+**The practice tool produced nothing, and it had said it would.** Both fits
+refused:
+
+| | FP1 | FP2 |
+|---|---|---|
+| race-lap trend | +0.71 s/lap | +1.54 s/lap |
+| residual std | 10.2 s | 6.4 s |
+| r² | 0.21 | 0.37 |
+| laps excluded as implausible | 174 | 146 |
+
+Every degradation came out strongly negative. The guards did exactly their job.
+
+The fault is the premise. The decomposition reads race lap as a proxy for fuel
+burn, which is true in a race and false in practice: fuel is reset between runs,
+and a low-fuel qualifying simulation sits between two high-fuel long runs, so lap
+number carries no fuel information at all. On 7 September I wrote into that
+script's docstring that its number "reads low" and should be treated "as a lower
+bound". I had run it once, against the Hungary *race* recording, where the
+premise holds. It had never met the only kind of session it exists for. That is
+the same shape as every claim this logbook has had to walk back — written with
+confidence, checked against the wrong case.
+
+**What would work, and why it is not being built tonight.** Fuel-corrected
+long-run analysis, the way teams read practice: long runs only, each lap corrected
+by the physics fuel prior for laps into the stint, a separate intercept per stint,
+per-compound slope fitted within stints, no race-lap term. That is a real
+estimator and it is two evenings, not one. And the corpus answered on 7 September
+how much it would buy Sunday: a 40% change in a circuit's degradation factor moved
+2% of decisions. A perfect Madring factor would barely touch the calls. It is
+written down as the right next step for new circuits rather than rushed.
+
+**Also checked tonight, since three `pace.py` changes had landed since the last
+full run.** The engine runs end to end: Monza lap 29 — refused before this week —
+now produces calls stamped with a clean commit. And the whole fit-and-simulate path
+runs at a circuit with no history, producing a call and an `unfitted` stamp naming
+all four models, with no path that assumes a fitted track. The runbook, though,
+still gave Monza's date in its race command; the Sunday reminder had the right one
+and the document did not. Fixed.
+
+So Madring runs blind on all four models, says so in every row, and the only open
+question on the day is the one Monza raised: whether the first usable call arrives
+before the break-even lap.
+
+---
+
 ## 2026-09-08 (evening) — One lap, and a column that was three times another
 
 Silverstone lap 28 was the last rank deficiency, and guessing was not going to

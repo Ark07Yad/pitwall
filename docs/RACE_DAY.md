@@ -1,6 +1,6 @@
 # Race day
 
-> **Next up: Spanish GP, Madrid, Sunday 13 September, 14:00 Irish.** A brand-new circuit with no
+> **Next up: Spanish GP at Madrid — `Madring` on the feed — Sunday 13 September, 14:00 Irish.** A brand-new circuit with no
 > history in any model — see "Madrid" below before running anything. The Monza sections that follow
 > are kept as the worked example; their numbers are Monza's, not Madrid's.
 
@@ -22,27 +22,32 @@ lap for the circuit. If the first call comes after it, the engine had no lap on 
 speak and choose, and the race should be written up that way. At a new circuit with a slow fit this
 is the likeliest thing to go quietly wrong.
 
-**Friday practice is the only chance to change that, and it changes one quarter of it.**
+**What good looks like at Madring**, because every "healthy" value further down this document is
+Monza's:
 
-| model | recoverable from practice? |
+| field | expected |
 |---|---|
-| degradation | **partly** — long runs on the real surface |
-| pit loss | no — practice stops are not racing stops |
-| safety car | no — a hazard rate needs races, not laps |
-| attrition | no — same |
+| `circuit` | **`Madring`** — the feed's name; the schedule and this document say Madrid |
+| `total_laps` | non-zero, from `LapCount`. The race distance is in no local data, so note what it reads |
+| `model.pit_loss` | `{"seconds": 22.15, "expected": 22.44, "fitted": false, "races": 0}` |
+| `model.prior` | `{"factor": 1.0, "fitted": false, "races": 0, "pooled_races": 80}` |
 
-Record FP2 (Friday 11 September, 16:00 Irish) and read what it implies:
+**`fitted: false` is correct here, not a fault.** The Monza section below says a false `fitted`
+means the circuit name failed to resolve; at Madring there is simply nothing to resolve to. The
+whole circuit-blind path — fit, simulate, write a ledger row — was run end to end on 11 September
+and produces calls.
 
-```bash
-nohup ./scripts/race_day.sh --rehearse "2026-09-11 15:45" 2026-madrid-fp2 "2026 Madrid FP2" "" 90 &
-python scripts/circuit_from_practice.py data/raw/2026-madrid-fp2.txt
-```
+**The break-even, from field averages.** A second stop on a 26-lap-old hard needs **22 laps** of
+remaining running to pay for itself (a 15-lap-old hard needs 39; a 26-lap-old medium, 19). So the
+last lap on which a second stop can be recommended is roughly **race distance − 22**. That is the
+number to hold the first published call against — the window check above, with a figure in it.
 
-That prints a provisional factor and writes nothing. Folding it into `degradation.json` is a
-judgement call, and the number reads **low** — practice runs are short and the track rubbers in over
-the session, so evolution drags the fitted slope toward zero. Treat it as a lower bound.
-
-Recording FP2 is also the rehearsal that has now been missed five times. It costs one evening.
+**Practice could not help, though this document said it would.** FP1 and FP2 went unrecorded,
+were rebuilt from the archive afterwards, and `circuit_from_practice.py` refused both: race-lap
+trends of +0.71 and +1.54 s/lap, r² of 0.21 and 0.37. The decomposition reads race lap as fuel
+burn, and practice resets fuel between runs, so it has nothing to stand on. Madring runs on field
+averages for all four models. That costs less than it sounds: across the corpus, a 40% change in a
+circuit's degradation factor moved 2% of decisions.
 
 ---
 
@@ -116,7 +121,7 @@ recording: a practice session of raw frames is a useful thing to replay against 
 ## One command
 
 ```bash
-nohup ./scripts/race_day.sh "2026-09-06 13:45" 2026-italy-race "2026 Italian GP" "" 210 &
+nohup ./scripts/race_day.sh "2026-09-13 13:45" 2026-madrid-race "2026 Spanish GP" "" 210 &
 ```
 
 Arguments: start time (local), recording basename, ledger session name, TLA to advise (empty = the
@@ -136,7 +141,7 @@ checked before the wait rather than at launch — uvicorn cannot bind a taken po
 kill the engine the instant it finally started, hours later with the race under way. This is not
 hypothetical: the `smishing-web` backend held 8000 for seventeen days until it was stopped on the
 eve of the Dutch GP. If something is on 8000 again, pass a free port instead:
-`... "2026 Italian GP" "" 210 8010`.
+`... "2026 Spanish GP" "" 210 8010`.
 
 **Do not also run `scripts/record.py`.** It would open a second connection to an undocumented
 endpoint from one address, which is exactly what this project's disclaimer promises not to do. The
@@ -265,8 +270,8 @@ within a second or two. (Ctrl-C works if it is in the foreground.)
 The `--session` name must be identical or you get a second ledger file.
 
 ```bash
-.venv/bin/pitwall dashboard --record data/raw/2026-italy-race.txt \
-    --log-predictions --session "2026 Italian GP"
+.venv/bin/pitwall dashboard --record data/raw/2026-madrid-race.txt \
+    --log-predictions --session "2026 Spanish GP"
 ```
 
 **Commits failing** (`ledger.commits_failed` climbing). The predictions are still on disk; only the
@@ -285,8 +290,8 @@ arrived, that is the guard doing its job on bad state, not a bug to override mid
 ## Afterwards
 
 ```bash
-uv run pitwall report data/raw/2026-italy-race.txt \
-    --log predictions/2026-italian-gp.jsonl --out reports/2026-italy.md
+uv run pitwall report data/raw/2026-madrid-race.txt \
+    --log predictions/2026-spanish-gp.jsonl --out reports/2026-madrid.md
 ```
 
 The field forecasts written alongside the calls are picked up automatically from

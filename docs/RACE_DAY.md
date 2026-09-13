@@ -1,54 +1,64 @@
 # Race day
 
-> **Next up: Spanish GP at Madrid — `Madring` on the feed — Sunday 13 September, 14:00 Irish.** A brand-new circuit with no
-> history in any model — see "Madrid" below before running anything. The Monza sections that follow
-> are kept as the worked example; their numbers are Monza's, not Madrid's.
+> **Next up: Azerbaijan GP, Baku — Saturday 26 September, 12:00 Irish.** A Saturday race at noon,
+> not the Sunday afternoon every earlier race used, so it is armed on Friday night. See "Baku" below.
+> The Monza sections further down are kept as the worked example; their numbers are Monza's.
 
-## Madrid, and running blind
+## Baku
 
-Madrid is the first circuit in this project with **no history at all**. All four per-circuit models
-fall back to the field average, and the engine will say so rather than hide it — the dashboard shows
-`fitted: false, races: 0`, and every ledger row carries
-`unfitted: "attrition,degradation,pit_loss,safety_car"`. The post-race report prints a banner above
-the scores saying the calls are live and real but are not evidence about this circuit.
+**Race: Saturday 26 September, 12:00 Irish** (13:00 local). Practice is Thursday 24 at 09:30 and
+13:00, and FP3 and qualifying are Friday 25 at 09:30 and 13:00 — all in working hours, and none of
+them needed: the archive has every session afterwards, and practice does not feed the model.
 
-**Check the two windows overlap, or the calls are not calls.** Monza produced 110 recommendations
-on 6 September and not one was a decision: the pace fit did not become identifiable until lap 32,
-and the break-even said a stop stopped paying at lap 22. Ten laps of gap, so every call was "stay
-out" by arithmetic rather than by judgement, and nothing in the system noticed.
+**The Spanish GP was lost to the launcher, not the engine.** It was armed at 08:08, passed every
+preflight check, and died at 13:45 on `REHEARSE_FLAG[@]: unbound variable` — macOS's
+`/bin/bash` 3.2 treats an empty array under `set -u` as unset, and a real race always passes an
+empty one. Fixed, and now covered: `--dry-run` runs this whole script with a stub in place of the
+engine, and `tests/test_race_day.py` runs it under `/bin/bash` on a macOS CI runner, including a
+version with the old line put back, which must fail.
 
-So during the race, note the lap of the **first published call** and compare it with the break-even
-lap for the circuit. If the first call comes after it, the engine had no lap on which it could both
-speak and choose, and the race should be written up that way. At a new circuit with a slow fit this
-is the likeliest thing to go quietly wrong.
+**Friday night, in this order:**
 
-**What good looks like at Madring**, because every "healthy" value further down this document is
-Monza's:
+```bash
+./scripts/race_day.sh --dry-run "2026-09-26 11:45" 2026-baku-race "2026 Azerbaijan GP" "" 210
+```
+
+It must end with `dry run OK - the launch line ran under bash 3.2…`. Anything else, and do not arm.
+Then arm it — it waits on its own until 11:45 and records until 15:15:
+
+```bash
+nohup ./scripts/race_day.sh "2026-09-26 11:45" 2026-baku-race "2026 Azerbaijan GP" "" 210 &
+```
+
+And confirm it is really armed rather than assuming: `ps -o pid,ppid -p <pid>` shows a parent of
+`1` (detached, survives the terminal closing), `pmset -g assertions` shows `caffeinate` holding
+`PreventSystemSleep`, and `data/raw/2026-baku-race-engine.log` shows the target line. Lid open,
+plugged in. Locking the screen is fine; closing the lid, sleeping or logging out is not.
+
+**What good looks like at Baku.** Unlike Madring, every model has history here:
 
 | field | expected |
 |---|---|
-| `circuit` | **`Madring`** — the feed's name; the schedule and this document say Madrid |
-| `total_laps` | non-zero, from `LapCount`. The race distance is in no local data, so note what it reads |
-| `model.pit_loss` | `{"seconds": 22.15, "expected": 22.44, "fitted": false, "races": 0}` |
-| `model.prior` | `{"factor": 1.0, "fitted": false, "races": 0, "pooled_races": 80}` |
+| `circuit` | `Baku` |
+| `total_laps` | **51** |
+| `model.pit_loss` | `{"seconds": 21.73, "expected": 22.02, "fitted": true, "races": 4}` |
+| `model.prior` | `{"factor": 0.92, "fitted": true, "races": 3, "pooled_races": 81}` |
+| ledger rows | `unfitted: ""` |
 
-**`fitted: false` is correct here, not a fault.** The Monza section below says a false `fitted`
-means the circuit name failed to resolve; at Madring there is simply nothing to resolve to. The
-whole circuit-blind path — fit, simulate, write a ledger row — was run end to end on 11 September
-and produces calls.
+Here `fitted: false` *would* be a fault — the name did not resolve.
 
-**The break-even, from field averages.** A second stop on a 26-lap-old hard needs **22 laps** of
-remaining running to pay for itself (a 15-lap-old hard needs 39; a 26-lap-old medium, 19). So the
-last lap on which a second stop can be recommended is roughly **race distance − 22**. That is the
-number to hold the first published call against — the window check above, with a figure in it.
+**What to expect from the models.** Safety car expectation 1.25 over 51 laps, a 73% chance of at
+least one, 10th of 26 circuits — and a **22.5% hazard on lap 1** alone. Expected retirements 2.10.
 
-**Practice could not help, though this document said it would.** FP1 and FP2 went unrecorded,
-were rebuilt from the archive afterwards, and `circuit_from_practice.py` refused both: race-lap
-trends of +0.71 and +1.54 s/lap, r² of 0.21 and 0.37. The decomposition reads race lap as fuel
-burn, and practice resets fuel between runs, so it has nothing to stand on. Madring runs on field
-averages for all four models. That costs less than it sounds: across the corpus, a 40% change in a
-circuit's degradation factor moved 2% of decisions.
+**The window, and why it is tight here.** A second stop on a 26-lap-old hard needs **25 laps** of
+remaining running to pay (a 26-lap-old medium, 21), so the last lap one can be recommended is about
+**lap 26 of 51**. The pace fit became usable at lap 17 at Madring and not until lap 32 at Monza. If
+Baku's first published call lands after lap 26, every call after it is "stay out" by arithmetic —
+write the race up that way rather than as a series of judgements. Note the lap of the first call.
 
+**If the recorder dies.** Check `data/raw/2026-baku-race-nohup.log` first: a script-level error
+lands there, not in the engine log, which is where the Spanish GP's showed up. One recorder at a
+time, always — confirm nothing is running before starting another.
 ---
 
 The procedure for a live race. Written 22 August 2026 for Zandvoort; retargeted 28 August for
@@ -121,7 +131,7 @@ recording: a practice session of raw frames is a useful thing to replay against 
 ## One command
 
 ```bash
-nohup ./scripts/race_day.sh "2026-09-13 13:45" 2026-madrid-race "2026 Spanish GP" "" 210 &
+nohup ./scripts/race_day.sh "2026-09-26 11:45" 2026-baku-race "2026 Azerbaijan GP" "" 210 &
 ```
 
 Arguments: start time (local), recording basename, ledger session name, TLA to advise (empty = the
@@ -141,7 +151,7 @@ checked before the wait rather than at launch — uvicorn cannot bind a taken po
 kill the engine the instant it finally started, hours later with the race under way. This is not
 hypothetical: the `smishing-web` backend held 8000 for seventeen days until it was stopped on the
 eve of the Dutch GP. If something is on 8000 again, pass a free port instead:
-`... "2026 Spanish GP" "" 210 8010`.
+`... "2026 Azerbaijan GP" "" 210 8010`.
 
 **Do not also run `scripts/record.py`.** It would open a second connection to an undocumented
 endpoint from one address, which is exactly what this project's disclaimer promises not to do. The
@@ -270,8 +280,8 @@ within a second or two. (Ctrl-C works if it is in the foreground.)
 The `--session` name must be identical or you get a second ledger file.
 
 ```bash
-.venv/bin/pitwall dashboard --record data/raw/2026-madrid-race.txt \
-    --log-predictions --session "2026 Spanish GP"
+.venv/bin/pitwall dashboard --record data/raw/2026-baku-race.txt \
+    --log-predictions --session "2026 Azerbaijan GP"
 ```
 
 **Commits failing** (`ledger.commits_failed` climbing). The predictions are still on disk; only the
@@ -290,8 +300,8 @@ arrived, that is the guard doing its job on bad state, not a bug to override mid
 ## Afterwards
 
 ```bash
-uv run pitwall report data/raw/2026-madrid-race.txt \
-    --log predictions/2026-spanish-gp.jsonl --out reports/2026-madrid.md
+uv run pitwall report data/raw/2026-baku-race.txt \
+    --log predictions/2026-azerbaijan-gp.jsonl --out reports/2026-baku.md
 ```
 
 The field forecasts written alongside the calls are picked up automatically from

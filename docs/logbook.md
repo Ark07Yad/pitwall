@@ -4,6 +4,54 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-13 (evening) — A launcher that gets run before it is trusted
+
+The Spanish GP died on one line that every check had walked past. So the rule
+for the launcher now is the rule the rest of this project learned the hard way:
+check the claim by running the thing, not by reading it.
+
+**`race_day.sh --dry-run`** runs the whole script now — real preflight, real
+`caffeinate`, real trap handling — with a stub in place of the engine executable
+and nothing else changed. The launch line and its array expansion run exactly as
+on race day. The verdict is whether the stub was actually reached, and the
+dry-run log is truncated first, because a success line left by an earlier run
+would otherwise pass a launch that failed.
+
+**`tests/test_race_day.py`** runs it inside a throwaway git repository under
+`/bin/bash`, and CI gains a **macOS job** for it: Linux's bash 5 accepts the
+construct that failed, so a Linux run would pass whether or not the bug was
+there. The test that matters puts the old line back and requires the dry run to
+say FAILED. Checked on this Mac, bash 3.2.57: passes with the fix, fails without
+it.
+
+My first version of the guard test failed against the correct script. It asserted
+the broken form `"${REHEARSE_FLAG[@]}"` was absent, and the broken form is a
+substring of the fix. A check written to catch a silent pass, caught instead by
+failing loudly for the wrong reason — the better way round, but the same lesson.
+
+A real dry run on this repository with Baku's arguments: `dry run OK - the launch
+line ran under bash 3.2.57`.
+
+**History refit through Madrid.** Every season preserved (checked against a
+backup taken first); 106, 106 and 97 races. Baku moved slightly: degradation
+factor 0.908 → 0.921, second-stop break-even 24 → 25 laps.
+
+**And the alias gap, again.** Madrid's race was filed as `Madrid` in the
+safety-car history and queried as `Madring` by the feed, so a circuit with a race
+of history still read as having none there — the 22 August bug on a new circuit.
+`circuit_aliases.py` says to re-run it whenever a season is added, and nobody had
+for 2026's new track. F1's session info confirms the pair; with `Madring →
+Madrid` added it resolves for safety car, attrition and pit loss. Degradation
+still declines on a single race whose scale did not come out usable, which is the
+fit refusing, not the lookup missing.
+
+**The runbook is retargeted at Baku**: Saturday 26 September at 12:00 Irish, so
+armed Friday night, after a dry run that must say OK. The window is tight — last
+useful second stop about lap 26 of 51, against a first usable fit at lap 17 at
+Madring and lap 32 at Monza.
+
+---
+
 ## 2026-09-13 — The Spanish GP, recorded by nobody
 
 Armed unattended at 08:08, verified detached and awake, and dead at 13:45:23:

@@ -4340,5 +4340,37 @@
       "implausible": 0,
       "penalty": 0
     }
+  },
+  {
+    "season": 2026,
+    "round": 14,
+    "event": "Spanish Grand Prix",
+    "circuit": "Madring",
+    "location": "Madrid",
+    "circuit_key": 153,
+    "n_stops": 9,
+    "median_loss": 26.442,
+    "q1": 25.959,
+    "q3": 26.843,
+    "sd": 0.714,
+    "excess": [
+      -0.635,
+      -0.575,
+      -0.483,
+      -0.058,
+      0.0,
+      0.242,
+      0.401,
+      0.554,
+      1.809
+    ],
+    "rejected": {
+      "neutralised": 11,
+      "no_time": 0,
+      "thin_baseline": 0,
+      "unstable": 3,
+      "implausible": 0,
+      "penalty": 2
+    }
   }
 ]

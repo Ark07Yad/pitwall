@@ -72,6 +72,11 @@ CIRCUIT_ALIASES: dict[str, str] = {
     "Catalunya": "Barcelona",
     "Hungaroring": "Budapest",
     "Interlagos": "São Paulo",
+    # New for 2026, confirmed from F1's session info rather than written from
+    # memory. Missing, the Spanish GP was filed under "Madrid" in the safety-car
+    # history and queried as "Madring" by the feed, so a circuit with a race of
+    # history still read as having none.
+    "Madring": "Madrid",
     "Montreal": "Montréal",
     "Paul Ricard": "Le Castellet",
     "Singapore": "Marina Bay",

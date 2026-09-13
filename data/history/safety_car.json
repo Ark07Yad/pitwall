@@ -2910,5 +2910,26 @@
     "red_starts": [
       2
     ]
+  },
+  {
+    "season": 2026,
+    "round": 14,
+    "event": "Spanish Grand Prix",
+    "circuit": "Madrid",
+    "total_laps": 57,
+    "sc_laps": [],
+    "vsc_laps": [
+      13,
+      14,
+      15
+    ],
+    "red_laps": [],
+    "starters": 22,
+    "retirements": [],
+    "sc_starts": [],
+    "vsc_starts": [
+      13
+    ],
+    "red_starts": []
   }
 ]

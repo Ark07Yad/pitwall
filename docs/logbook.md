@@ -4,6 +4,54 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-13 — The Spanish GP, recorded by nobody
+
+Armed unattended at 08:08, verified detached and awake, and dead at 13:45:23:
+
+    ./scripts/race_day.sh: line 140: REHEARSE_FLAG[@]: unbound variable
+
+macOS runs the script under `/bin/bash` 3.2, where expanding an *empty* array under
+`set -u` is an error. On a real race that array is always empty. It came in with
+`--rehearse` on 29 August, and the one path that would have exercised it was a
+live race — Monza went unrecorded and no rehearsal ever ran, so it waited for
+today. The engine launch aborted in its own subshell, the script logged "no ledger
+written" and exited, and the 14:13 health check found nothing running. **Zero live
+calls.** Fixed in `47722b9` and verified under bash 3.2 for both the empty and
+`--rehearse` cases; not restarted, because the check was written to report rather
+than open a feed connection unsupervised.
+
+Every guard in `race_day.sh` checks something before the wait — branch, identity,
+port. None checks that the launch line itself parses under the shell that will run
+it, and that is the one thing that failed.
+
+**What the race was, from the archive.** 57 laps at Madring. ANT won from VER and
+NOR, all three stopping once on lap 13–14 and running 43 laps on hards; RUS
+two-stopped to P5; PIA, LAW and LEC ran long and stopped on laps 41–47.
+
+**Backtest, rebuilt from the archive** (`backtest of 2026-r14-archive.txt`, all
+four models `unfitted`, 176 calls across 22 cars at laps 20–55):
+
+| | |
+|---|---|
+| first usable fit | refused at 15, usable by 20 |
+| window line | 57 − 22 = lap 35 |
+| stop calls per lap, 20→55 | 12, 11, 14, 8, 6, 6, 2, 2 |
+| Brier top-3 skill | +73.4% |
+| mean position error | 1.02 vs 1.16 baseline |
+
+Unlike Monza, the window was open: the engine could speak from lap 20 and a stop
+could still pay until 35, and the stop calls thin out after 35 as the arithmetic
+says they should. That is the first race where the decision layer had room to
+decide, and it did so running blind on field averages.
+
+None of it is evidence. The rows were made against a file containing the result,
+they cover all 22 cars rather than the leader, and the calibration bands between
+20% and 80% hold six or seven forecasts each, which is too few to read. What it
+shows is that the engine *would* have produced usable calls at a circuit it had
+never seen — the claim the live run was meant to prove, and did not.
+
+---
+
 ## 2026-09-11 — Madring, and a tool only ever tested on the wrong kind of session
 
 FP1 and FP2 went by unrecorded again. The reason for recording FP2 was the tyre

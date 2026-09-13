@@ -15,6 +15,16 @@
 #
 #   scripts/race_day.sh --rehearse "2026-09-04 14:45" 2026-italy-fp2 "2026 Italy FP2" "" 105
 #
+# Pass --dry-run to run this whole script now, preflight included, with a stub
+# in place of the engine. Nothing connects to F1. Run it the night before:
+#
+#   scripts/race_day.sh --dry-run "2026-09-26 11:45" 2026-baku-race "2026 Azerbaijan GP" "" 210
+#
+# It exists because the 2026 Spanish GP was lost to a line that only fails when
+# it runs: an empty array under `set -u` in macOS's /bin/bash 3.2, in the engine
+# launch itself. Every preflight check passed at 08:08 and the launch died at
+# 13:45. A syntax check cannot see that; running the launch line can.
+#
 # A rehearsal never commits and stamps every ledger row "rehearsal of ...", so
 # it cannot reach the evidence. It exists because practice never sends
 # `LapCount`: without lifting the engine's race-only guard, a dashboard run
@@ -35,12 +45,17 @@
 set -uo pipefail
 
 REHEARSE=0
-if [[ "${1:-}" == "--rehearse" ]]; then
-    REHEARSE=1
+DRY_RUN=0
+while [[ "${1:-}" == --* ]]; do
+    case "$1" in
+        --rehearse) REHEARSE=1 ;;
+        --dry-run) DRY_RUN=1 ;;
+        *) echo "unknown flag: $1" >&2; exit 2 ;;
+    esac
     shift
-fi
+done
 
-START_AT="${1:?usage: race_day.sh [--rehearse] \"YYYY-MM-DD HH:MM\" BASENAME SESSION [TLA] [MINUTES]}"
+START_AT="${1:?usage: race_day.sh [--rehearse] [--dry-run] \"YYYY-MM-DD HH:MM\" BASENAME SESSION [TLA] [MINUTES] [PORT]}"
 BASENAME="${2:?missing recording basename}"
 SESSION="${3:?missing ledger session name}"
 DRIVER="${4:-}"
@@ -51,6 +66,12 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT="${REPO}/data/raw/${BASENAME}.txt"
 LOG="${REPO}/data/raw/${BASENAME}-engine.log"
 mkdir -p "$(dirname "$OUTPUT")"
+if (( DRY_RUN )); then
+    # Its own log, truncated. The verdict below is read from this file, and a
+    # success line left by an earlier dry run would pass a launch that failed.
+    LOG="${REPO}/data/raw/${BASENAME}-dryrun.log"
+    : >"$LOG"
+fi
 
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"; }
 
@@ -63,6 +84,7 @@ target_epoch=$(date -j -f "%Y-%m-%d %H:%M" "$START_AT" +%s 2>/dev/null) || {
 # each prediction is committed with `--only`, staging just the log file - but a
 # detached HEAD or a missing identity means every commit fails silently for two
 # hours and the timestamps that are the whole point are lost.
+(( DRY_RUN )) && log "DRY RUN - preflight is real, the engine is a stub, nothing connects to F1"
 if (( REHEARSE )); then
     log "REHEARSAL - the ledger will be written but never committed"
 elif ! git -C "$REPO" rev-parse --abbrev-ref HEAD >/dev/null 2>&1; then
@@ -86,6 +108,9 @@ if lsof -ti:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
     exit 1
 fi
 
+# A dry run still parses the start time - a malformed one should fail tonight,
+# not on race morning - but does not wait for it.
+(( DRY_RUN )) && target_epoch=$(date +%s)
 now_epoch=$(date +%s)
 wait_seconds=$(( target_epoch - now_epoch ))
 if (( wait_seconds < 0 )); then
@@ -142,7 +167,18 @@ log "starting the engine"
 # rehearsal path passes a non-empty array and would never have shown it.
 REHEARSE_FLAG=()
 (( REHEARSE )) && REHEARSE_FLAG=(--rehearse)
-"${REPO}/.venv/bin/pitwall" dashboard \
+# A dry run swaps only the executable. Everything the launch line does to its
+# arguments - including the expansion that lost the Spanish GP - runs exactly as
+# it will on race day, under whichever shell is running this script.
+dry_run_engine() {
+    printf 'dry-run engine argv:'
+    printf ' [%s]' "$@"
+    printf '\n'
+    sleep 1
+}
+ENGINE=("${REPO}/.venv/bin/pitwall")
+(( DRY_RUN )) && ENGINE=(dry_run_engine)
+"${ENGINE[@]}" dashboard \
     --record "$OUTPUT" \
     --log-predictions \
     ${REHEARSE_FLAG[@]+"${REHEARSE_FLAG[@]}"} \
@@ -152,11 +188,25 @@ REHEARSE_FLAG=()
     >>"$LOG" 2>&1 &
 ENGINE_PID=$!
 
-( sleep $(( MINUTES * 60 )); kill -TERM "$ENGINE_PID" 2>/dev/null ) &
+TIMER_SECONDS=$(( MINUTES * 60 ))
+(( DRY_RUN )) && TIMER_SECONDS=5
+( sleep "$TIMER_SECONDS"; kill -TERM "$ENGINE_PID" 2>/dev/null ) &
 TIMER_PID=$!
 
 wait "$ENGINE_PID" 2>/dev/null
 kill "$TIMER_PID" 2>/dev/null
+
+if (( DRY_RUN )); then
+    # The verdict is whether the stub was actually reached. A launch line that
+    # fails to expand dies before exec, prints to this script's stderr rather
+    # than the log, and never produces this line.
+    if grep -q '^dry-run engine argv:' "$LOG"; then
+        log "dry run OK - the launch line ran under bash ${BASH_VERSION}"
+        exit 0
+    fi
+    log "dry run FAILED - the engine was never reached; the error is on stderr"
+    exit 1
+fi
 
 if [[ -f "$OUTPUT" ]]; then
     size=$(du -h "$OUTPUT" | cut -f1)

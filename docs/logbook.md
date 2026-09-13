@@ -33,13 +33,13 @@ four models `unfitted`, 176 calls across 22 cars at laps 20–55):
 
 | | |
 |---|---|
-| first usable fit | refused at 15, usable by 20 |
+| first usable fit | **lap 17** (lap 16 refused on trend) |
 | window line | 57 − 22 = lap 35 |
 | stop calls per lap, 20→55 | 12, 11, 14, 8, 6, 6, 2, 2 |
 | Brier top-3 skill | +73.4% |
 | mean position error | 1.02 vs 1.16 baseline |
 
-Unlike Monza, the window was open: the engine could speak from lap 20 and a stop
+Unlike Monza, the window was open: the engine could speak from lap 17 and a stop
 could still pay until 35, and the stop calls thin out after 35 as the arithmetic
 says they should. That is the first race where the decision layer had room to
 decide, and it did so running blind on field averages.

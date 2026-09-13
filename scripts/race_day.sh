@@ -135,12 +135,17 @@ while (( $(date +%s) < target_epoch )); do
 done
 
 log "starting the engine"
+# Expanded with ${X[@]+...} rather than "${X[@]}": macOS runs this under
+# /bin/bash 3.2, where an *empty* array under `set -u` is "unbound variable".
+# On a real race the array is empty, so the engine launch aborted the instant
+# it ran - which is how the 2026 Spanish GP went unrecorded at 13:45. The
+# rehearsal path passes a non-empty array and would never have shown it.
 REHEARSE_FLAG=()
 (( REHEARSE )) && REHEARSE_FLAG=(--rehearse)
 "${REPO}/.venv/bin/pitwall" dashboard \
     --record "$OUTPUT" \
     --log-predictions \
-    "${REHEARSE_FLAG[@]}" \
+    ${REHEARSE_FLAG[@]+"${REHEARSE_FLAG[@]}"} \
     --session "$SESSION" \
     --driver "$DRIVER" \
     --port "$PORT" \

@@ -50,11 +50,31 @@ Here `fitted: false` *would* be a fault — the name did not resolve.
 **What to expect from the models.** Safety car expectation 1.25 over 51 laps, a 73% chance of at
 least one, 10th of 26 circuits — and a **22.5% hazard on lap 1** alone. Expected retirements 2.10.
 
-**The window, and why it is tight here.** A second stop on a 26-lap-old hard needs **25 laps** of
-remaining running to pay (a 26-lap-old medium, 21), so the last lap one can be recommended is about
-**lap 26 of 51**. The pace fit became usable at lap 17 at Madring and not until lap 32 at Monza. If
-Baku's first published call lands after lap 26, every call after it is "stay out" by arithmetic —
-write the race up that way rather than as a series of judgements. Note the lap of the first call.
+**The window, and when it actually binds.** A second stop on a 26-lap-old hard needs **25 laps** of
+remaining running to pay (a 26-lap-old medium, 21), so for a car that has **already made its stop**
+the last lap another can be recommended is about **lap 26 of 51**. For a car still on its first
+stint that line does not apply: the stop is mandatory, and the engine is choosing when, not whether.
+
+Measured on the last four Baku races rebuilt from the archive (`scripts/window_sweep.py` for when
+the pace fit stays usable; backtests for what the calls then were):
+
+| year | early neutralisation | pace fit stable from | what the calls were |
+|---|---|---|---|
+| 2022 | VSC laps 9–10 | lap 12 | not checked |
+| 2023 | **SC laps 10–13** | lap 26 | field stopped laps 4–10; at lap 26, **3 stop calls of 20 — exactly the three cars yet to stop** (OCO, HUL, DEV); everyone else "stay out" |
+| 2024 | none | lap 24 (usable from 16, one refusal at 23) | not checked |
+| 2025 | **SC laps 1–4** | lap 20 | laps 20–26: **13–17 stop calls of 20** — first stops, most still to come (VER 39, RUS 38); SAI called for lap 26, pitted lap 26 |
+
+**The bad case is an early mass stop, not an early safety car as such.** In 2023 the field made its
+one stop by lap 10, so by the time the fit was usable (lap 26) almost every car was past the only
+decision the race had, and the calls were "stay out" by arithmetic — correctly, but not as a
+judgement. Pooled stops also put every car on one stint and one compound, which is why the fit
+refused until 25. In 2025 the safety car came on lap 1, too early to stop under, and the window for
+first-stop timing stayed open past lap 26.
+
+So, on Saturday: **note when most of the field makes its stop, and the lap of the first published
+call.** If the field has already stopped and the first call comes after about lap 26, write the race
+up as having had no decision window — not as the model being right.
 
 **If the recorder dies.** Check `data/raw/2026-baku-race-nohup.log` first: a script-level error
 lands there, not in the engine log, which is where the Spanish GP's showed up. One recorder at a

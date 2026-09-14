@@ -4,6 +4,50 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-14 — Does Baku leave the engine anything to decide?
+
+Monza's calls were all "stay out" because the fit became usable ten laps after
+the last lap a stop could pay. Baku's runbook said the window closes around lap
+26, but nobody knew when the fit becomes usable there. So I measured it on the
+last four Baku races, rebuilt from the archive, before the race rather than after.
+
+**A sweep that reads each recording once.** `fold_to_lap` re-reads the file for
+every lap; `scripts/window_sweep.py` reads it once and fits at each lap boundary.
+Checked against `fold_to_lap` at Madring laps 12, 13, 16 and 17: identical. It
+reports the lap the fit *stays* usable from, because a fit can flicker — Madring
+was usable at 12, refused 13–16, usable from 17.
+
+| year | early neutralisation | fit stable from |
+|---|---|---|
+| 2022 | VSC laps 9–10 | 12 |
+| 2023 | SC laps 10–13 | 26 |
+| 2024 | none | 24 (usable from 16) |
+| 2025 | SC laps 1–4 | 20 |
+
+**Then I wrote the wrong conclusion and caught it.** I turned that into a column
+of "laps of real decisions" — 14, 0, 2, 6 — and put it in the runbook. The 2025
+backtest disagreed: across laps 20–26 the engine gave 13 to 17 stop calls of 20,
+and at lap 20 and again at 26 it called SAI in for lap 26, which is when he
+pitted. Those were *first* stops. The lap-26 break-even is for a second stop;
+for a car that has not stopped, the stop is mandatory and the engine is choosing
+when. The column counted a window that did not apply.
+
+**The case that does close it is a mass stop.** In 2023 the field made its one
+stop between laps 4 and 10, around the safety car. At lap 26 the backtest gave
+three stop calls of twenty — OCO, HUL and DEV, precisely the three cars that had
+not yet stopped — and "stay out" to everyone else. Correct, and not a decision.
+The pooled stops are also why the fit refused until lap 25: every car on one stint
+and one compound is the rank deficiency from 8 September.
+
+So the Saturday note is not "was there an early safety car" but "did the field
+make its stop early", and the runbook now says that.
+
+**The launcher's CI job is real.** Its first run on GitHub's macOS runner:
+5 passed, 0 skipped — the runner's `/bin/bash` is 3.2, so the test that puts the
+Spanish GP's line back and requires the dry run to fail actually ran.
+
+---
+
 ## 2026-09-13 (evening) — A launcher that gets run before it is trusted
 
 The Spanish GP died on one line that every check had walked past. So the rule

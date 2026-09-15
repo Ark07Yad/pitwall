@@ -18,6 +18,7 @@ would pass whether or not the bug was there. CI runs this file on a macOS runner
 
 from __future__ import annotations
 
+import os
 import socket
 import subprocess
 import sys
@@ -66,7 +67,7 @@ def _sandbox(tmp_path: Path, script_text: str | None = None) -> Path:
     return script
 
 
-def _dry_run(script: Path, *flags: str) -> subprocess.CompletedProcess[str]:
+def _dry_run(script: Path, *flags: str, **env: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
             BASH,
@@ -83,6 +84,7 @@ def _dry_run(script: Path, *flags: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         timeout=60,
+        env={**os.environ, **env},
     )
 
 
@@ -114,6 +116,8 @@ def test_a_race_dry_run_reaches_the_engine(tmp_path):
     assert "[--log-predictions]" in argv
     assert "[Test GP]" in argv
     assert "[--rehearse]" not in argv
+    # An engine that runs to the deadline is not a crash.
+    assert "relaunching" not in log
 
 
 def test_a_rehearsal_dry_run_passes_the_flag_through(tmp_path):
@@ -149,3 +153,37 @@ def test_a_stale_success_line_cannot_pass_a_failing_launch(tmp_path):
 
     assert result.returncode != 0
     assert "left over" not in _log(script)
+
+
+def test_an_engine_that_dies_early_is_relaunched(tmp_path):
+    """Two races have now been armed and left. An engine exiting mid-race used to
+    end the recording for the afternoon; it is relaunched instead, and the
+    recording and ledger append."""
+    script = _sandbox(tmp_path)
+    result = _dry_run(script, DRY_RUN_ENGINE_EXIT="1")
+    log = _log(script)
+
+    assert result.returncode == 0, result.stderr
+    assert "engine exited early with code 1" in log
+    assert "restart 1 of" in log
+    assert log.count("dry-run engine argv:") >= 2
+
+
+def test_relaunching_gives_up_at_the_cap(tmp_path):
+    """An engine that cannot start at all must not be relaunched without end
+    against F1's endpoint."""
+    script = _sandbox(tmp_path)
+    # A longer dry-run deadline than the default five seconds: two one-second
+    # crashes, a poll and a backoff fit inside five with a second to spare, and a
+    # slow CI runner does not have a second to spare.
+    result = _dry_run(
+        script,
+        DRY_RUN_ENGINE_EXIT="3",
+        RACE_DAY_MAX_RESTARTS="1",
+        RACE_DAY_DRY_RUN_SECONDS="12",
+    )
+    log = _log(script)
+
+    assert result.returncode == 0, result.stderr
+    assert "giving up" in log
+    assert log.count("dry-run engine argv:") == 2

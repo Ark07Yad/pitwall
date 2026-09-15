@@ -76,9 +76,15 @@ So, on Saturday: **note when most of the field makes its stop, and the lap of th
 call.** If the field has already stopped and the first call comes after about lap 26, write the race
 up as having had no decision window — not as the model being right.
 
-**If the recorder dies.** Check `data/raw/2026-baku-race-nohup.log` first: a script-level error
-lands there, not in the engine log, which is where the Spanish GP's showed up. One recorder at a
-time, always — confirm nothing is running before starting another.
+**If the engine dies, the script relaunches it.** An engine that exits before the deadline is
+restarted after 30 seconds, up to 10 times, and the log says `engine exited early with code N -
+relaunching`. That is safe: the recording opens in append mode, and a new engine loads the laps
+already in the ledger, so none is logged twice. Still one connection at a time — the next engine
+starts only once the last has gone. Ten failures in a row ends in `giving up`; that is the case to
+read `data/raw/2026-baku-race-engine.log` for. A script-level error — the kind that lost the Spanish
+GP — lands in `data/raw/2026-baku-race-nohup.log` instead. One recorder at a time, always: confirm
+nothing is running before starting another.
+
 ---
 
 The procedure for a live race. Written 22 August 2026 for Zandvoort; retargeted 28 August for
@@ -296,8 +302,10 @@ ten.
 **Stopping it early.** `kill` the `race_day.sh` PID — it shuts the engine and caffeinate down
 within a second or two. (Ctrl-C works if it is in the foreground.)
 
-**Engine dies.** Restart the same command; it appends to the recording and the ledger.
-The `--session` name must be identical or you get a second ledger file.
+**Engine dies.** `race_day.sh` relaunches it by itself. Only if `race_day.sh` itself has gone —
+nothing listed by `pgrep -fl race_day.sh` — run the engine directly; it appends to the recording
+and the ledger, and skips laps already logged. The `--session` name must be identical or you get a
+second ledger file.
 
 ```bash
 .venv/bin/pitwall dashboard --record data/raw/2026-baku-race.txt \

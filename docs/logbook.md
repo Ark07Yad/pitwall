@@ -4,6 +4,43 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-15 — The recorder gets back up
+
+Two races have been armed and left, and on neither was anybody there when it went
+wrong. So the launcher now relaunches an engine that exits before its deadline.
+Before relaunching anything, two questions.
+
+**Does the recording survive a restart?** Yes — the SignalR feed opens it in
+append mode.
+
+**Does the ledger?** It did not. The laps already logged were held in two sets in
+memory, started empty in every process, and never read back from the file. A
+relaunched engine would log every earlier lap again, into the same file — the
+session name is the same — and every score computed from it would count those
+calls twice. The runbook said "the ledger will not re-log a lap it already
+wrote". True inside one process, which is all a reconnection is; false across a
+restart, which nothing had ever done. The engine now seeds both sets from the
+ledger files, and skips a torn last line rather than failing on it.
+
+**The watchdog.** The one-shot timer is replaced by a deadline and a two-second
+poll: an engine found dead is logged, relaunched after 30 seconds, up to ten
+times; the deadline stops it. Still one connection at a time — the next engine
+starts only once the last has gone. A dry run can make the stub crash, which is
+how the relaunch is tested without a real one.
+
+**The give-up test failed first, and it was right to.** It looked like timing —
+two one-second crashes, a poll and a backoff in a five-second dry run — and it
+was, but underneath was an ordering bug: the loop checked the deadline before it
+checked the engine. An engine that died between polls, with the deadline reached
+on that same poll, ended as a normal finish and the crash was never logged.
+Reordered, and the test now takes a longer dry-run deadline instead of a
+one-second margin on a CI runner.
+
+422 tests; the seven launcher tests pass under `/bin/bash` 3.2; a real dry run on
+this repository passes with no false relaunch.
+
+---
+
 ## 2026-09-14 — Does Baku leave the engine anything to decide?
 
 Monza's calls were all "stay out" because the fit became usable ten laps after

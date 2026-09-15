@@ -132,7 +132,6 @@ cleanup() {
     trap - EXIT INT TERM
     log "shutting down"
     [[ -n "${ENGINE_PID:-}" ]] && kill "$ENGINE_PID" 2>/dev/null
-    [[ -n "${TIMER_PID:-}" ]] && kill "$TIMER_PID" 2>/dev/null
     kill "$CAFFEINATE_PID" 2>/dev/null
     exit "$code"
 }
@@ -174,27 +173,76 @@ dry_run_engine() {
     printf 'dry-run engine argv:'
     printf ' [%s]' "$@"
     printf '\n'
-    sleep 1
+    # A test sets DRY_RUN_ENGINE_EXIT to make the stub die early, which is how
+    # the relaunch below is exercised without a real crash. Otherwise it runs
+    # until the deadline kills it, the way the real engine does. Short sleeps
+    # rather than one long one, so a killed stub leaves nothing behind.
+    if [[ -n "${DRY_RUN_ENGINE_EXIT:-}" ]]; then
+        sleep 1
+        return "$DRY_RUN_ENGINE_EXIT"
+    fi
+    while :; do sleep 1; done
 }
 ENGINE=("${REPO}/.venv/bin/pitwall")
 (( DRY_RUN )) && ENGINE=(dry_run_engine)
-"${ENGINE[@]}" dashboard \
-    --record "$OUTPUT" \
-    --log-predictions \
-    ${REHEARSE_FLAG[@]+"${REHEARSE_FLAG[@]}"} \
-    --session "$SESSION" \
-    --driver "$DRIVER" \
-    --port "$PORT" \
-    >>"$LOG" 2>&1 &
-ENGINE_PID=$!
 
-TIMER_SECONDS=$(( MINUTES * 60 ))
-(( DRY_RUN )) && TIMER_SECONDS=5
-( sleep "$TIMER_SECONDS"; kill -TERM "$ENGINE_PID" 2>/dev/null ) &
-TIMER_PID=$!
+launch_engine() {
+    "${ENGINE[@]}" dashboard \
+        --record "$OUTPUT" \
+        --log-predictions \
+        ${REHEARSE_FLAG[@]+"${REHEARSE_FLAG[@]}"} \
+        --session "$SESSION" \
+        --driver "$DRIVER" \
+        --port "$PORT" \
+        >>"$LOG" 2>&1 &
+    ENGINE_PID=$!
+}
 
-wait "$ENGINE_PID" 2>/dev/null
-kill "$TIMER_PID" 2>/dev/null
+# Watch the engine until the deadline, and relaunch it if it dies first.
+#
+# Unattended is the normal case - two races have been armed and left - and an
+# engine that exits mid-race used to end the recording for the rest of the
+# afternoon. Relaunching is safe: the recording is opened in append mode, and the
+# engine seeds the laps it has already logged from the ledger files, so a new
+# process does not write them again. Still one connection at a time: the next
+# engine starts only after the last one has gone, after a backoff, and the count
+# is capped so an engine that cannot start at all does not hammer F1's endpoint.
+DEADLINE=$(( $(date +%s) + MINUTES * 60 ))
+RESTART_BACKOFF=30
+MAX_RESTARTS="${RACE_DAY_MAX_RESTARTS:-10}"
+if (( DRY_RUN )); then
+    DEADLINE=$(( $(date +%s) + ${RACE_DAY_DRY_RUN_SECONDS:-5} ))
+    RESTART_BACKOFF=1
+fi
+restarts=0
+launch_engine
+while :; do
+    # A dead engine is checked before the clock. The other way round, an engine
+    # that died between polls and a deadline reached on the same poll ended the
+    # loop as a normal finish, and the crash was never logged.
+    if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+        wait "$ENGINE_PID" 2>/dev/null
+        code=$?
+        if (( restarts >= MAX_RESTARTS )); then
+            log "engine exited with code $code after $restarts restarts - giving up"
+            break
+        fi
+        restarts=$(( restarts + 1 ))
+        log "engine exited early with code $code - relaunching in ${RESTART_BACKOFF}s (restart $restarts of $MAX_RESTARTS)"
+        sleep "$RESTART_BACKOFF" &
+        wait $! 2>/dev/null || true
+        (( $(date +%s) >= DEADLINE )) && break
+        launch_engine
+        continue
+    fi
+    if (( $(date +%s) >= DEADLINE )); then
+        kill -TERM "$ENGINE_PID" 2>/dev/null
+        wait "$ENGINE_PID" 2>/dev/null
+        break
+    fi
+    sleep 2 &
+    wait $! 2>/dev/null || true
+done
 
 if (( DRY_RUN )); then
     # The verdict is whether the stub was actually reached. A launch line that

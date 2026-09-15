@@ -58,6 +58,19 @@ def _is_gap(value: object) -> bool:
     return bool(text) and not text.upper().startswith("LAP")
 
 
+def _laps_in(ledger: PredictionLog | ForecastLog | None) -> set[int]:
+    """Laps a ledger file already holds a row for, so a relaunch does not repeat them."""
+    if ledger is None:
+        return set()
+    laps: set[int] = set()
+    for row in ledger.entries():
+        try:
+            laps.add(int(row["lap"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return laps
+
+
 # Recompute at most this often. A decision costs a second or two of CPU, and the
 # answer does not move meaningfully between consecutive laps.
 MIN_SECONDS_BETWEEN_ADVICE = 8.0
@@ -158,8 +171,15 @@ class Engine:
         # Laps already written. `_compute` is gated to one run per lap, but a
         # reconnection mid-race replays the snapshot and can revisit a lap, and
         # a ledger that records the same lap twice is not a track record.
-        self._logged_laps: set[int] = set()
-        self._forecast_laps: set[int] = set()
+        #
+        # Seeded from the files rather than started empty. A reconnection is
+        # handled inside this process, but race_day.sh relaunches an engine that
+        # dies, and a fresh process with empty sets would write every lap the
+        # last one had logged a second time - into the same file, because the
+        # session name is the same - and every score computed from it would
+        # count those calls twice.
+        self._logged_laps: set[int] = _laps_in(log)
+        self._forecast_laps: set[int] = _laps_in(forecasts)
 
         # Where each car started, so the screen can show positions gained
         # rather than only where everyone is now. Captured the first time a car

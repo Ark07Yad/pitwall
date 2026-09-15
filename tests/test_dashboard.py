@@ -551,3 +551,47 @@ def test_the_rehearse_flag_reaches_the_engine(tmp_path, monkeypatch):
         "commit": False,
         "source": "rehearsal of Italy FP2",
     }
+
+
+# -- relaunch safety ---------------------------------------------------
+
+
+def test_a_relaunched_engine_knows_the_laps_already_logged(tmp_path: Path):
+    """race_day.sh relaunches an engine that dies mid-race. The laps already
+    written were held only in memory, so a fresh process would log every one of
+    them again into the same file - the session name is the same - and every
+    score computed from it would count those calls twice."""
+    from pitwall.ledger import ForecastLog, PredictionLog
+
+    log = PredictionLog("Relaunch GP", directory=tmp_path, commit=False)
+    forecasts = ForecastLog("Relaunch GP", directory=tmp_path, commit=False)
+    log.path.write_text('{"lap": 30}\n{"lap": 31}\n', encoding="utf-8")
+    forecasts.path.write_text('{"lap": 30, "driver": "1"}\n{"lap": 30, "driver": "4"}\n')
+
+    engine = Engine(ReplayFeed("unused"), log=log, forecasts=forecasts)
+
+    assert engine._logged_laps == {30, 31}
+    assert engine._forecast_laps == {30}
+
+
+def test_a_first_launch_starts_with_nothing_logged(tmp_path: Path):
+    from pitwall.ledger import ForecastLog, PredictionLog
+
+    engine = Engine(
+        ReplayFeed("unused"),
+        log=PredictionLog("Fresh GP", directory=tmp_path, commit=False),
+        forecasts=ForecastLog("Fresh GP", directory=tmp_path, commit=False),
+    )
+
+    assert engine._logged_laps == set()
+    assert engine._forecast_laps == set()
+
+
+def test_a_malformed_ledger_row_does_not_stop_a_relaunch(tmp_path: Path):
+    """A half-written last line from a crash must not take the engine down with it."""
+    from pitwall.ledger import PredictionLog
+
+    log = PredictionLog("Torn GP", directory=tmp_path, commit=False)
+    log.path.write_text('{"lap": 12}\n{"lap": "x"}\n{"no_lap": 1}\n{"lap": 1', encoding="utf-8")
+
+    assert Engine(ReplayFeed("unused"), log=log)._logged_laps == {12}

@@ -4,6 +4,52 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-26 — Baku: a live ledger again, and twenty-three laps of silence
+
+The first live race since Zandvoort on 23 August. Armed at 07:30 after a dry run
+that passed, engine up at 11:45:51, clean finish at 15:15: **11 MB and 65,064
+lines recorded, 15 calls committed to git as they were made** (12:22, 12:23,
+12:30, 12:32 …), no engine relaunches, `commits_failed: 0`. Every row stamped
+`source: live`, `unfitted: ""`, `models: ca394ab+dirty` — the `+dirty` is an
+uncommitted `.gitignore` line of the user's, left alone, and cannot change engine
+behaviour.
+
+**The window check the runbook asks for: passed.** The first published call came
+on **lap 11**, well before the lap-26 line, and no car had stopped. Laps 11, 12,
+16 and 17 are genuine first-stop timing — pit lap 17, 18, 16, 23 on mediums — not
+"stay out" by arithmetic. That is the first race where the decision layer had room
+to decide and used it.
+
+**Then nothing from lap 18 to lap 40.** Not throttling, and not the ledger: the
+forecast file stops at the same laps, and forecasts need the same pace fit. The
+sweep over the recording says why — the fit refused on a **positive race-lap
+trend, +0.04 to +0.13 s/lap**, above the 0.035 tolerance set on 8 September, for
+twenty-eight consecutive laps.
+
+Laps 31 to 39 report *exactly* +0.0726, to four decimals, nine laps running. An
+unchanging fit means no new clean laps arrived at all in that stretch. The race
+explains both: **two safety-car deployments and eight yellow-flag periods**. The
+clean-lap filter drops neutralised laps, so the sample stopped growing, and laps
+after a restart are slower than the ones before it, which is exactly what a
+positive trend measures.
+
+So the guard is doing its job — those laps genuinely cannot support a fuel model —
+and the cost is that at a heavily neutralised street race the engine goes quiet
+through the middle of the race. The four archive sweeps of past Baku races did not
+show this: 2025 was usable from lap 20 onward. Neutralisation is the variable, and
+it is not something the pre-race window check can predict.
+
+From lap 41 it spoke again and stayed decisive: stay out on softs, margins +4.4 to
++4.7. RUS won on a two-stop.
+
+**Scorecard.** The recommendation-only numbers read "worse" — 15 calls all on the
+leader, and the hold-position baseline was flawless on him, exactly the degenerate
+baseline written up on 26 August. The field forecast is the readable half: 330
+claims, **Brier top-3 +36.8%**, points +22.5%, win worse, mean position error 1.83
+against 1.50, and reliability bands that track claimed against observed.
+
+---
+
 ## 2026-09-15 — The recorder gets back up
 
 Two races have been armed and left, and on neither was anybody there when it went

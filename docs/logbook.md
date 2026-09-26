@@ -27,17 +27,22 @@ trend, +0.04 to +0.13 s/lap**, above the 0.035 tolerance set on 8 September, for
 twenty-eight consecutive laps.
 
 Laps 31 to 39 report *exactly* +0.0726, to four decimals, nine laps running. An
-unchanging fit means no new clean laps arrived at all in that stretch. The race
-explains both: **two safety-car deployments and eight yellow-flag periods**. The
-clean-lap filter drops neutralised laps, so the sample stopped growing, and laps
-after a restart are slower than the ones before it, which is exactly what a
-positive trend measures.
+unchanging fit means no new clean laps arrived at all in that stretch.
 
-So the guard is doing its job — those laps genuinely cannot support a fuel model —
-and the cost is that at a heavily neutralised street race the engine goes quiet
-through the middle of the race. The four archive sweeps of past Baku races did not
-show this: 2025 was usable from lap 20 onward. Neutralisation is the variable, and
-it is not something the pre-race window check can predict.
+*(Corrected after auditing the recording, an hour after this entry first said
+neutralisation explained the whole gap.)* The track-status timeline puts the two
+safety cars at **laps 31–35 and 36–38**. That matches the frozen fit exactly: the
+clean-lap filter drops neutralised laps, the sample stopped growing, and laps after
+a restart are slower than the ones before, which is what a positive trend measures.
+It explains laps 31 to 39 and nothing else.
+
+**Laps 18 to 30 were green.** Brief yellows at lap 9 and lap 30, nothing more, and
+the fit still refused on trends of +0.05 to +0.13 under green running. So there are
+two findings here, not one: a neutralisation effect from lap 31, and an unexplained
+positive trend through the middle third of a green race. The second is the
+interesting one and is not diagnosed. Both are why the pre-race window sweep could
+not predict this race - 2025 Baku was usable from lap 20 - but only the first has a
+cause attached to it.
 
 From lap 41 it spoke again and stayed decisive: stay out on softs, margins +4.4 to
 +4.7. RUS won on a two-stop.

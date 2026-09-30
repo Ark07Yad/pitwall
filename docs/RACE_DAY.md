@@ -60,16 +60,23 @@ the pace fit stays usable; backtests for what the calls then were):
 
 | year | early neutralisation | pace fit stable from | what the calls were |
 |---|---|---|---|
-| 2022 | VSC laps 9–10 | lap 12 | not checked |
+| 2022 | VSC laps 9–10 | lap 17 | not checked |
 | 2023 | **SC laps 10–13** | lap 26 | field stopped laps 4–10; at lap 26, **3 stop calls of 20 — exactly the three cars yet to stop** (OCO, HUL, DEV); everyone else "stay out" |
-| 2024 | none | lap 24 (usable from 16, one refusal at 23) | not checked |
-| 2025 | **SC laps 1–4** | lap 20 | laps 20–26: **13–17 stop calls of 20** — first stops, most still to come (VER 39, RUS 38); SAI called for lap 26, pitted lap 26 |
+| 2024 | none | lap 24 (first usable 18) | not checked |
+| 2025 | **SC laps 1–4** | lap 25 (first usable 20) | laps 20–26: **13–17 stop calls of 20** — first stops, most still to come (VER 39, RUS 38); SAI called for lap 26, pitted lap 26 |
+| 2026 | SC laps 31–35, 36–38 | **lap 41** | 15 calls committed live; nothing before 41 — the field ran one stint to lap 39 |
+
+These moved on 30 September when two new refusals went in (age/race-lap
+collinearity, and a trend outside the physics). 2022 went from 12 to 17 and 2025
+from 20 to 25; the laps taken away were fits claiming the car gained 0.17–0.23 s
+a lap from fuel burn, and 2024's lap 15 claimed **0.91 s a lap**. Read the change
+as the old numbers having been optimistic rather than the model having got worse.
 
 **The bad case is an early mass stop, not an early safety car as such.** In 2023 the field made its
 one stop by lap 10, so by the time the fit was usable (lap 26) almost every car was past the only
 decision the race had, and the calls were "stay out" by arithmetic — correctly, but not as a
 judgement. Pooled stops also put every car on one stint and one compound, which is why the fit
-refused until 25. In 2025 the safety car came on lap 1, too early to stop under, and the window for
+refused until 26. In 2025 the safety car came on lap 1, too early to stop under, and the window for
 first-stop timing stayed open past lap 26.
 
 So, on Saturday: **note when most of the field makes its stop, and the lap of the first published
@@ -221,6 +228,18 @@ Check the dashboard in the first few laps:
 **No call for the first ~20 laps.** The pace model refuses to publish until the design is
 identified. It says so in the refusal line. On the Hungary recording the first usable call was lap
 24. Refusing is the feature; a confident number from a degenerate fit is the failure.
+
+Three of those refusal lines name a cause worth knowing on the day:
+
+- **"tyre age and race lap are 0.9x correlated"** — the field is still on its first set, so fuel
+  burn and tyre wear are the same column and cannot be separated. It clears itself as the stops
+  stagger; watch `age/lap corr` on the model panel fall below 0.85. At Baku 2026 it did not clear
+  until lap 41, and the engine was right to say nothing until then.
+- **"s/kg of fuel, far outside the 0.030–0.040 s/kg cars actually gain"** — the trend has picked up
+  something other than fuel, usually because it is being fitted on eight laps. Expect it early and
+  not after about lap 30.
+- **"effects are not separately identified"** — rank deficiency, normally a compound only one or two
+  cars have run. Also clears itself.
 
 **The simulation count moving around.** It adapts to hold a p99 ≤ 2 s budget, starting at 600 and
 ramping toward 1500 when there is headroom. Falling is the controller working, not a fault. Only

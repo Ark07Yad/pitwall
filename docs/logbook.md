@@ -4,6 +4,139 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-09-30 — One column pretending to be two, and a guard that could never fire
+
+Four days ago the Baku recording showed the engine silent for laps 18–30 under
+green running, and the neutralisation story only covered 31–39. This closes
+that: the cause was that tyre age and race lap were the same number, and none
+of the three guards that fired named it.
+
+**The symptom made no sense on its own.** Median clean lap time *fell* through
+the window — 109.5 s at lap 2 to 108.26 s at lap 28, about −0.046 s/lap, which
+is what fuel burn looks like — while the fit reported a race-lap trend of
+**+0.0726 s/lap** with negative degradation on both compounds (MED −0.0279,
+SOF −0.0172; pre-blend, −0.1073 and −0.1441). Both halves are wrong and their
+sum is right: least squares split one falling curve into a rising fuel term and
+a tyre that improves with age, because nothing in the data said which was which.
+
+**Why it could not tell.** At lap 30, 288 of 297 clean laps were in stint 0 —
+pit entries only at laps 19, 20, 25 and 26. For a car that has not stopped,
+tyre age *is* the race lap. Measured: `corr(tyre_age, race_lap)` was **0.9028**
+at lap 30 against **0.4851** at lap 45, where the fit was usable.
+
+**The guard for this existed and was dead code.** `MIN_STINTS = 2` counted
+distinct `(driver, stint)` pairs, and a twenty-two-car field on its first set
+already has twenty-two. It was 21 at lap 30. The warning it was written to
+raise — "only one stint in the data, fuel and degradation are collinear" —
+could not fire in any race, only in a single-driver fixture. It had been there
+for three weeks looking like protection.
+
+**Setting the threshold, and getting it wrong first.** I took seven folds where
+fits had come out sound, found them at r = 0.38–0.56 against Baku's 0.90, and
+put the line at 0.75. Then I ran the whole recording corpus: every lap that
+passed all the *other* guards, scored against whether the trend it produced was
+physically possible at all (fuel is 0.030–0.040 s/kg, so fuel plus track
+evolution lives in roughly [−0.15, +0.035] s/lap).
+
+| r(age, lap) | laps | trend outside the physics |
+|---|---|---|
+| 0.00–0.50 | 217 | 7% |
+| 0.50–0.65 | 82 | 7% |
+| 0.65–0.75 | 27 | 7% |
+| 0.75–0.85 | 16 | 12% |
+| 0.85–0.95 | 24 | 50% |
+| 0.95–1.00 | 23 | 70% (median trend −0.35 s/lap) |
+
+The knee is at **0.85**. Below it the failure rate is flat, so the correlation
+carries no information there and refusing on it would have cost sound fits —
+the 0.75–0.85 band holds laps 34–40 of the 2023 race at −0.04 to −0.09 s/lap,
+which is exactly what fuel burn looks like. My seven folds had missed that band
+entirely. A threshold set from folds picked by hand is a threshold set from my
+own sampling; the corpus moved it, and the constant now carries the table.
+
+**A second finding, and not the same one.** Of the laps whose columns *were*
+well separated, 23 still produced impossible trends: Montreal laps 8–11 at
+−0.63, −0.51, −0.31, −0.28 s/lap, Monte Carlo at −0.49. `MAX_POSITIVE_TREND`
+guards the sign the trend should not have; the side it *should* have was
+unbounded, so a fit claiming the car gained twelve times its fuel effect — 44
+seconds of lap time across a race — passed every check and informed calls.
+`implied_seconds_per_kg` has documented the right test since it was written and
+nothing ever called it.
+
+So the trend is now checked in the unit fuel sensitivity is published in, at
+three times the top of the band, which leaves room for real track evolution on
+a green surface. Seconds per kilogram and not seconds per lap because a 44-lap
+Spa burns 1.6 kg a lap and a 78-lap Monaco 0.9 — the same lap-time trend is
+ordinary at one and impossible at the other. What it costs, by race phase:
+
+| laps | refused of otherwise-usable |
+|---|---|
+| 8–15 | 12 of 17 |
+| 16–23 | 13 of 67 |
+| 24–31 | 1 of 115 |
+| 32–39 | 0 of 136 |
+| 40–47 | 0 of 17 |
+
+Nothing after lap 31 is touched, which is where the decision window sits at
+most circuits. It refuses trends fitted on eight laps and leaves the race alone.
+
+Re-sweeping the four Baku archives afterwards turned up the worst single case,
+which had been passing quietly for as long as the recordings have existed: lap
+15 of the 2024 race fitted **−0.9091 s/lap**, 0.662 s/kg, a car gaining nearly a
+second a lap from burning 1.4 kg of fuel. It was usable before today.
+
+**What the two together do to the corpus.** On laps 8–40 across 19 recordings,
+refusal goes from **36.4% to 48.0%** — 73 laps that previously produced a
+number now refuse with a named cause. That is not a comparison against the
+9.4% silence figure from 7 September, which was measured on late-race decision
+laps; this window deliberately includes the opening third, where refusing is
+correct.
+
+**The validation is at Baku itself.** With both checks in, the 2026 race has no
+usable fit at all through lap 40 — it stayed on one stint until 39, r above 0.90
+the whole way. From lap 41 the field splits, r falls 0.77 → 0.37, and the trend
+lands at −0.049 to −0.065 s/lap: **0.035 to 0.047 s/kg**, inside the published
+0.030–0.040 band that the model is never told about. The moment the columns
+come apart, the number it produces is right. Monte Carlo goes to zero usable in
+the window too, and the four laps it used to allow claimed gains of 0.2–0.5
+s/lap.
+
+**What it says about the calls already in the ledger.** The Azerbaijan entry
+four days ago recorded the first call at lap 11, with no car yet stopped, and
+called it "the first race where the decision layer had room to decide". Four of
+those fifteen calls — laps 11, 12, 16 and 17 — came from fits this model now
+refuses, at r = 0.93 to 0.98. The remaining eleven, laps 41–51, sit exactly in
+the stretch where the columns had come apart and the trend was in the fuel band.
+So eleven of the fifteen stand and four were made on a fit that could not tell
+fuel from tyre wear. They are stamped with the model that made them, which is
+what the fingerprint is for; rescoring the race under today's model is the next
+obvious use of `scripts/rescore.py`.
+
+**Being clear about what this is.** It is not a capability gain. The engine does
+not speak earlier than it did — it speaks *less*, and what it says is no longer
+two cancelling halves. Making it speak during a first-stint-only phase needs the
+fuel term fixed to the physics prior rather than fitted, so degradation is
+identifiable against it instead of trading against it. That is the next job, and
+it is a different kind of change: this one removes false confidence, that one
+buys back the laps.
+
+**Found on the way out: the README had rotted, and its own tool said so.**
+`scripts/readme_examples.py` exists because two blocks drifted on 8 August. Run
+today it showed three: the hazard baselines and circuit factors (the history
+refit moved them to 106 races), the pooled degradation table (HAR +0.0394 →
++0.0378, 80 of 95 races → 81), and the lap-34 strategy call, which no longer
+recommends a stop at all — "now on SOF marginally ahead; no clear call" at
+P5.11 where the file claimed "PIT now on HAR" at P4.85. Confirmed against a
+worktree at HEAD that today's change did not cause it: the drift came from the
+September refits, and nobody had run the check since. The tool worked. Writing
+the tool is not the same as running it, which is the same shape of mistake as
+writing `MIN_STINTS` and never watching it fire.
+
+`n_stints` is also now labelled *car-stints* on the screen and in the fit
+summary, because that is what it counts, and a guard already misread it once.
+
+---
+
 ## 2026-09-26 — Baku: a live ledger again, and twenty-three laps of silence
 
 The first live race since Zandvoort on 23 August. Armed at 07:30 after a dry run

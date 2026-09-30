@@ -18,7 +18,7 @@ from pitwall.models.fuel import (
     DEFAULT_START_FUEL_KG,
     FuelModel,
 )
-from pitwall.models.pace import PaceFit, fit_pace
+from pitwall.models.pace import MAX_AGE_LAP_CORRELATION, PaceFit, fit_pace
 from pitwall.models.pit_loss import (
     DEFAULT_PIT_LOSS,
     PitLossModel,
@@ -36,6 +36,7 @@ from pitwall.models.safety_car import (
 
 __all__ = [
     "AttritionModel",
+    "MAX_AGE_LAP_CORRELATION",
     "DegradationPrior",
     "DEFAULT_PIT_LOSS",
     "DEFAULT_SECONDS_PER_KG",

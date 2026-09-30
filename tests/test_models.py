@@ -6,7 +6,7 @@ import pytest
 
 from pitwall.laps.records import LapRecord
 from pitwall.models import DEFAULT_START_FUEL_KG, FuelModel, fit_pace
-from pitwall.models.pace import MIN_LAPS
+from pitwall.models.pace import MAX_AGE_LAP_CORRELATION, MIN_LAPS
 from pitwall.state.models import Compound, TrackStatus
 
 GREEN = frozenset({TrackStatus.ALL_CLEAR})
@@ -694,3 +694,179 @@ def test_a_compound_without_a_slope_takes_the_prior_rate():
     fit = fit_pace(laps, prior=prior, circuit="Monza")
     expected = prior.linear[Compound.SOFT] * prior.circuit_factor.get("Monza", 1.0)
     assert fit.degradation[Compound.SOFT] == pytest.approx(expected, rel=1e-6)
+
+
+# -- separating fuel burn from tyre wear --------------------------------
+
+
+def _field_mostly_on_one_stint(
+    *, through: int, pitters: int, n_drivers: int = 12, seed: int = 3
+) -> list[LapRecord]:
+    """A race caught mid-first-stint, with `pitters` drivers already stopped.
+
+    Built from a known model - a -0.11 s/lap race-lap trend and +0.06 s/lap of
+    tyre wear - so what the fit recovers can be checked against truth as the
+    field splits. Stops are staggered a lap apart, as a real field's are;
+    synchronising them makes the design matrix rank deficient on its own and
+    the collinearity here would not be what was being measured.
+    """
+    rng = random.Random(seed)
+    laps: list[LapRecord] = []
+    for d in range(n_drivers):
+        base = 84.0 + d * 0.15
+        stop = 18 + d if d < pitters else None
+        stint, age = 0, 0
+        for lap in range(1, through + 1):
+            if stop is not None and lap - 1 == stop:
+                stint, age = 1, 0
+            age += 1
+            compound = Compound.MEDIUM if stint == 0 else Compound.SOFT
+            laps.append(
+                LapRecord(
+                    driver=str(d),
+                    tla=f"D{d:02d}",
+                    team="T",
+                    lap=lap,
+                    lap_time=(
+                        base
+                        - 0.11 * lap
+                        + 0.06 * age
+                        + (-0.4 if compound is Compound.SOFT else 0.0)
+                        + rng.gauss(0.0, 0.15)
+                    ),
+                    compound=compound,
+                    tyre_age=age,
+                    stint=stint,
+                    position=d + 1,
+                    interval=5.0,
+                    gap_to_leader="+5.0",
+                    track_statuses=GREEN,
+                    entered_pit=False,
+                    exited_pit=False,
+                    retired=False,
+                )
+            )
+    return laps
+
+
+def test_a_field_still_on_one_stint_is_refused_for_the_right_reason():
+    """The 2026 Azerbaijan GP, laps 18-30. With 97% of clean laps on the first
+    set, tyre age *is* the race lap, and least squares split one falling curve
+    into a positive trend and negative degradation that cancelled. Both numbers
+    were symptoms; neither was real.
+
+    The fixture holds 94% of its laps on the first stint and lands at r = 0.86,
+    which is the same condition a lap either side of the measured knee."""
+    fit = fit_pace(_field_mostly_on_one_stint(through=30, pitters=2))
+
+    assert fit.age_lap_correlation > MAX_AGE_LAP_CORRELATION
+    assert not fit.usable
+    assert any("tyre age and race lap" in r for r in fit.unusable_reasons)
+
+
+def test_the_rank_check_does_not_catch_it():
+    """Why this check has to exist separately. The columns are nearly the same
+    column, not exactly - the matrix is full rank, `lstsq` has a unique answer,
+    and it is still meaningless. At Baku the fit was refused for a positive
+    trend, which is downstream of the cause and does not name it."""
+    fit = fit_pace(_field_mostly_on_one_stint(through=30, pitters=2))
+
+    assert not any("rank deficient" in w for w in fit.warnings)
+    assert fit.unusable_reasons == tuple(
+        r for r in fit.unusable_reasons if "tyre age and race lap" in r
+    )
+
+
+def test_counting_stints_could_never_have_caught_it():
+    """What this replaced. The old guard required two distinct (driver, stint)
+    pairs, and a twelve-car field on its first set already has twelve - so the
+    warning it was written to raise could not fire in any race, only in a
+    single-driver fixture."""
+    laps = _field_mostly_on_one_stint(through=30, pitters=2)
+    fit = fit_pace(laps)
+
+    assert fit.n_stints >= 2
+    assert len({record.stint for record in laps}) == 2
+    assert not fit.usable
+
+
+def test_a_split_field_is_not_refused_and_recovers_the_trend():
+    """The other side of the threshold. Once the field is through its stops a
+    given race lap carries several tyre ages, the columns come apart, and the
+    fit returns the trend it was built from."""
+    fit = fit_pace(_field_mostly_on_one_stint(through=45, pitters=12))
+
+    assert fit.age_lap_correlation < MAX_AGE_LAP_CORRELATION
+    assert fit.usable, fit.unusable_reasons
+    assert fit.race_lap_coef == pytest.approx(-0.11, abs=0.02)
+    assert fit.degradation[Compound.MEDIUM] == pytest.approx(0.06, abs=0.02)
+
+
+def test_the_trend_converges_on_truth_as_the_field_splits():
+    """The threshold is not a cliff in the physics, so this is the evidence for
+    putting it where it is: the further the stints stagger, the less correlated
+    the columns and the closer the trend gets to the -0.11 it was built from."""
+    measured = [
+        (fit.age_lap_correlation, abs(fit.race_lap_coef - (-0.11)))
+        for fit in (
+            fit_pace(_field_mostly_on_one_stint(through=30, pitters=2)),
+            fit_pace(_field_mostly_on_one_stint(through=36, pitters=6)),
+            fit_pace(_field_mostly_on_one_stint(through=45, pitters=12)),
+        )
+    ]
+
+    correlations = [r for r, _ in measured]
+    errors = [e for _, e in measured]
+    assert correlations == sorted(correlations, reverse=True)
+    assert errors == sorted(errors, reverse=True)
+
+
+def test_a_sound_fit_is_not_penalised_by_the_check():
+    """The staggered synthetic race is the reference sound fit in this file. The
+    threshold has to leave it alone, and the corpus fits it stands in for: the
+    ones observed sound sat at r = 0.38-0.56."""
+    fit = fit_pace(synthetic_race(noise=0.05))
+
+    assert fit.age_lap_correlation < MAX_AGE_LAP_CORRELATION
+    assert not any("tyre age and race lap" in r for r in fit.unusable_reasons)
+
+
+# -- the side of the trend that was never checked -----------------------
+
+
+def test_an_impossibly_steep_trend_is_refused():
+    """`MAX_POSITIVE_TREND` guards the sign the trend should not have. The sign
+    it should have was unbounded, so a fit claiming the car gained 0.63 s/lap -
+    twelve times fuel burn - passed every guard at the 2026 Canadian GP."""
+    fit = fit_pace(synthetic_race(beta=-0.6), total_laps=70)
+
+    assert not fit.usable
+    assert any("s/kg of fuel" in r for r in fit.unusable_reasons)
+
+
+def test_an_ordinary_trend_is_left_alone():
+    fit = fit_pace(synthetic_race(beta=-0.05), total_laps=70)
+
+    assert not any("s/kg of fuel" in r for r in fit.unusable_reasons)
+
+
+def test_the_limit_follows_the_race_distance():
+    """Why the check is in seconds per kilogram and not seconds per lap. A
+    44-lap Spa burns 1.6 kg a lap and a 78-lap Monaco 0.9, so the same lap-time
+    trend is ordinary fuel burn at one and impossible at the other."""
+    trend = -0.14
+    short = fit_pace(synthetic_race(beta=trend), total_laps=44)
+    long = fit_pace(synthetic_race(beta=trend), total_laps=78)
+
+    assert not any("s/kg of fuel" in r for r in short.unusable_reasons)
+    assert any("s/kg of fuel" in r for r in long.unusable_reasons)
+
+
+def test_an_unknown_race_distance_still_catches_the_gross_case():
+    """Practice sessions and folds taken before the feed publishes a lap count
+    have no distance. A nominal burn is coarser, and still refuses a trend
+    several times the physics."""
+    fit = fit_pace(synthetic_race(beta=-0.6))
+
+    assert fit.burn_per_lap_kg == 0.0
+    assert any("s/kg of fuel" in r for r in fit.unusable_reasons)

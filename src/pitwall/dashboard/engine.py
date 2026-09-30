@@ -29,6 +29,7 @@ from pitwall.laps import LapCollector, filter_laps
 from pitwall.latency import LatencyLog, LatencySample
 from pitwall.ledger import Forecast, ForecastLog, PredictionLog, prediction_from
 from pitwall.models import (
+    MAX_AGE_LAP_CORRELATION,
     AttritionModel,
     DegradationPrior,
     HazardModel,
@@ -336,7 +337,12 @@ class Engine:
         state = self.state
         clean, _ = filter_laps(self.collector.laps)
         self._clean_laps = len(clean)
-        pace: PaceFit | None = fit_pace(clean, prior=self.degradation, circuit=state.circuit)
+        pace: PaceFit | None = fit_pace(
+            clean,
+            prior=self.degradation,
+            circuit=state.circuit,
+            total_laps=state.total_laps,
+        )
         self._pace = pace if (pace and pace.usable) else None
 
         if pace is None:
@@ -648,6 +654,13 @@ class Engine:
             "pit_loss": stop,
             "prior": prior,
             "trend": round(pace.race_lap_coef, 4),
+            # How much of the trend is separable from tyre wear at all. Near one
+            # the field is still on one stint and the two are one effect, which
+            # is why the engine goes quiet through the opening third of a race.
+            "age_lap_corr": round(pace.age_lap_correlation, 3),
+            # The verdict travels with the number so the screen does not have to
+            # keep its own copy of the threshold.
+            "separable": pace.age_lap_correlation <= MAX_AGE_LAP_CORRELATION,
             "residual": round(pace.residual_std, 3),
             "r2": round(pace.r_squared, 3),
             "degradation": {

@@ -131,6 +131,7 @@
   .kv { display:flex; justify-content:space-between; padding:.32rem .85rem; font-size:.75rem; }
   .kv + .kv { border-top:1px solid rgba(34,42,54,.5); }
   .kv span:first-child { color:var(--dim); }
+  .kv.bad b { color:var(--bad); }
   .warn { padding:.5rem .85rem; color:var(--accent); font-size:.68rem; line-height:1.5;
           background:rgba(255,180,0,.06); border-top:1px solid var(--line); }
   .empty { padding:.8rem .85rem; color:var(--faint); font-size:.76rem; }
@@ -379,7 +380,7 @@ function renderRisk(r) {
 function renderModel(m) {
   if (!m) { $("model").innerHTML = `<div class="empty">not identified yet — no call will be offered</div>`;
             $("model-tag").textContent = ""; return; }
-  $("model-tag").textContent = `${m.clean_laps} clean laps · ${m.stints} stints`;
+  $("model-tag").textContent = `${m.clean_laps} clean laps · ${m.stints} car-stints`;
   const deg = Object.entries(m.degradation).map(([c, v]) =>
     `<div class="kv"><span><span class="tyre ${c}">${c[0]}</span> degradation</span>
      <b>${v > 0 ? "+" : ""}${v.toFixed(3)} s/lap</b></div>`).join("");
@@ -388,6 +389,11 @@ function renderModel(m) {
     deg +
     `<div class="kv"><span>residual σ</span><b>${m.residual.toFixed(2)}s</b></div>` +
     `<div class="kv"><span>r²</span><b>${m.r2.toFixed(3)}</b></div>` +
+    /* Why the engine is quiet, when it is quiet early in a race: until the
+       stints stagger, tyre age and race lap are the same column and fuel burn
+       cannot be told from tyre wear. */
+    `<div class="kv${m.separable ? "" : " bad"}"><span>age/lap corr</span>
+      <b>${m.age_lap_corr.toFixed(2)}${m.separable ? "" : " — not separable"}</b></div>` +
     (m.warnings?.length ? `<div class="warn">${m.warnings[0]}</div>` : "");
 }
 

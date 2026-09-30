@@ -58,13 +58,76 @@ from typing import Any
 import numpy as np
 
 from pitwall.laps.records import LapRecord
+from pitwall.models.fuel import DEFAULT_START_FUEL_KG
 from pitwall.models.safety_car import normalise_circuit
 from pitwall.state.models import Compound
 
 # Below this many laps the fit is not worth reporting; coefficients swing wildly.
 MIN_LAPS = 30
-# Distinct stints needed before fuel and degradation are separable at all.
-MIN_STINTS = 2
+# How correlated tyre age and race lap may be before fuel burn and tyre wear
+# stop being separable.
+#
+# This replaces a `MIN_STINTS = 2` check that counted distinct (driver, stint)
+# pairs. With twenty cars running, that count passes on lap two and the check
+# was dead code for every race it was meant to catch. What matters is not how
+# many stints exist but whether they are staggered: if the whole field is on its
+# first set, every car's tyre age *is* the race lap, and the two columns of the
+# design matrix are the same column.
+#
+# The threshold is measured against the physics, not chosen by eye. Fuel is
+# worth 0.030-0.040 s/kg and a 2026 car burns about 1.3 kg a lap, so fuel burn
+# and track evolution together live in roughly [-0.15, +0.035] s/lap. Taking
+# every lap of the recording corpus that passed all the *other* guards, and
+# asking how often the trend came out impossible:
+#
+#     r(age, lap)    laps    trend outside the physics
+#     0.00-0.50       217        7%
+#     0.50-0.65        82        7%
+#     0.65-0.75        27        7%
+#     0.75-0.85        16       12%
+#     0.85-0.95        24       50%
+#     0.95-1.00        23       70%   (median trend -0.35 s/lap)
+#
+# The line goes at the knee. Below 0.85 the failure rate is flat, so the
+# correlation carries no information there and refusing on it would cost sound
+# fits - the 0.75-0.85 band holds laps 34-40 of the 2023 Azerbaijan GP at
+# -0.04 to -0.09 s/lap, which is exactly what fuel burn looks like. Above it
+# half the fits are impossible and the number is diagnostic.
+#
+# An earlier version of this constant sat at 0.75, set from seven folds picked
+# by hand. They happened to miss the 0.75-0.85 band entirely, and the wider
+# corpus moved the line.
+MAX_AGE_LAP_CORRELATION = 0.85
+# How much lap time the trend may claim per kilogram of fuel before it is not a
+# fuel measurement any more.
+#
+# `implied_seconds_per_kg` has always documented that published sensitivity sits
+# at 0.030-0.040 s/kg and that landing far outside means the trend is picking up
+# more than fuel. Nothing ever checked it: `MAX_POSITIVE_TREND` guards the sign
+# the trend should not have, and the side it *should* have was unbounded. So a
+# fit claiming the car gained 0.63 s/lap - twelve times fuel burn, 44 seconds
+# across a race - passed every guard and went on to inform calls. Laps 8-11 of
+# the 2026 Canadian GP did exactly that.
+#
+# The limit is three times the top of the published band, which leaves room for
+# real track evolution on a green surface and still refuses the impossible. In
+# the recording corpus, of the laps that passed every other guard:
+#
+#     laps  8-15    12 of  17 refused    (a trend fitted on eight laps)
+#     laps 16-23    13 of  67 refused
+#     laps 24-31     1 of 115 refused
+#     laps 32-39     0 of 136 refused
+#     laps 40-47     0 of  17 refused
+#
+# Nothing after lap 31 is touched, which is where the decision window sits at
+# most circuits - the guard costs the engine nothing where it makes calls, and
+# takes away only the early-race fits that were never measurements.
+MAX_SECONDS_PER_KG = 0.12
+# Fuel burn to assume when the race length is not known - a practice session, or
+# a fold taken before the feed has published a lap count. The 2026 allowance over
+# a mid-length race; the guard is coarse enough that the exact figure does not
+# decide anything.
+NOMINAL_RACE_LAPS = 54
 # If two compounds' median race laps sit further apart than this fraction of the
 # race, each one effectively occupies its own phase and its degradation cannot be
 # told apart from whatever else trends with race lap.
@@ -114,6 +177,9 @@ class PaceFit:
     compound_phase: dict[Compound, float]
     driver_pace: dict[str, float]
     n_laps: int
+    # Distinct (driver, stint) pairs, not stints: a full field on its first set
+    # counts twenty-odd. A guard that read this as "how many stints has the race
+    # had" was dead code for three weeks - see `MAX_AGE_LAP_CORRELATION`.
     n_stints: int
     residual_std: float
     r_squared: float
@@ -123,6 +189,12 @@ class PaceFit:
     # Longest tyre age actually observed on each compound. Beyond it the model
     # is extrapolating, which is a different claim from interpolating.
     observed_max_age: dict[Compound, int] = field(default_factory=dict)
+    # How much of the fuel/wear separation the stint structure actually supports.
+    # Near one, the field is on one stint and the two effects are one effect.
+    age_lap_correlation: float = 0.0
+    # The race's own fuel burn, so the trend can be judged in the unit fuel
+    # sensitivity is published in. Zero means the race length was not known.
+    burn_per_lap_kg: float = 0.0
     warnings: tuple[str, ...] = field(default=())
 
     @property
@@ -177,10 +249,24 @@ class PaceFit:
         reasons: list[str] = []
         if any("rank deficient" in w for w in self.warnings):
             reasons.append("effects are not separately identified")
+        if self.age_lap_correlation > MAX_AGE_LAP_CORRELATION:
+            reasons.append(
+                f"tyre age and race lap are {self.age_lap_correlation:.2f} correlated - "
+                "the field has not split its stints yet, so fuel burn and tyre wear "
+                "cannot be told apart"
+            )
         if self.race_lap_coef > MAX_POSITIVE_TREND:
             reasons.append(
                 f"race-lap trend is positive ({self.race_lap_coef:+.4f} s/lap) by more "
                 "than the fuel effect that should dominate it"
+            )
+        burn = self.burn_per_lap_kg or DEFAULT_START_FUEL_KG / NOMINAL_RACE_LAPS
+        per_kg = self.seconds_per_lap_from_fuel / burn
+        if self.race_lap_coef < 0 and per_kg > MAX_SECONDS_PER_KG:
+            reasons.append(
+                f"race-lap trend of {self.race_lap_coef:+.4f} s/lap is {per_kg:.3f} s/kg "
+                f"of fuel, far outside the 0.030-0.040 s/kg cars actually gain - the "
+                "trend is picking up something other than fuel burn"
             )
         spread = (
             max(self.driver_pace.values()) - min(self.driver_pace.values())
@@ -201,10 +287,12 @@ class PaceFit:
 
     def __str__(self) -> str:
         lines = [
-            f"fitted on {self.n_laps:,} clean laps across {self.n_stints} stints",
+            f"fitted on {self.n_laps:,} clean laps across {self.n_stints} car-stints",
             f"  race-lap trend   {self.race_lap_coef:+.4f} s/lap (fuel burn + track evolution)",
             f"  residual std     {self.residual_std:.3f} s",
             f"  r-squared        {self.r_squared:.3f}",
+            f"  age/lap corr     {self.age_lap_correlation:+.3f}"
+            f" (fuel and wear separable below {MAX_AGE_LAP_CORRELATION:+.2f})",
             "",
             f"  degradation (s per lap of tyre age), offset vs {self.reference_compound.short}:",
         ]
@@ -292,6 +380,7 @@ def fit_pace(
     *,
     prior: Any = None,
     circuit: str = "",
+    total_laps: int = 0,
 ) -> PaceFit | None:
     """Fit the decomposition. Returns None if there is not enough to fit.
 
@@ -307,6 +396,11 @@ def fit_pace(
 
     It also extends `observed_max_age`: a 49-lap tyre is extrapolation against
     one afternoon and ordinary interpolation against five seasons.
+
+    `total_laps` is the scheduled race distance, used only to turn the fitted
+    trend into seconds per kilogram of fuel for the usability check. Without it
+    a nominal burn is assumed, which is coarser but still catches a trend several
+    times the physics.
     """
     usable = [lap for lap in laps if lap.lap_time is not None and lap.lap >= 1]
     if len(usable) < MIN_LAPS:
@@ -322,10 +416,38 @@ def fit_pace(
 
     stints = {(lap.driver, lap.stint) for lap in usable}
     warnings: list[str] = []
-    if len(stints) < MIN_STINTS:
+
+    # Whether the stint structure can separate fuel burn from tyre wear at all.
+    #
+    # The model asks for both a race-lap trend and a per-compound age slope, but
+    # for a driver who has not stopped, tyre age and race lap are the same
+    # number. It takes staggered stops across the field to break that: once some
+    # cars are on fresh tyres deep into the race, a given race lap carries
+    # several tyre ages and the columns come apart.
+    #
+    # Until then least squares still returns an answer, and the answer is a
+    # split of one falling curve into two cancelling halves. Through laps 18-30
+    # of the 2026 Azerbaijan GP the median clean lap fell from 109.5s to 108.3s
+    # - about -0.046 s/lap, exactly what fuel burn predicts - and the fit
+    # reported a *positive* +0.0726 s/lap trend against negative degradation on
+    # both compounds. Neither number was real; their sum was.
+    ages = np.array([lap.tyre_age for lap in usable], dtype=float)
+    lap_numbers = np.array([lap.lap for lap in usable], dtype=float)
+    if ages.std() > 0 and lap_numbers.std() > 0:
+        age_lap_correlation = float(np.corrcoef(ages, lap_numbers)[0, 1])
+    else:
+        # One of the two does not vary, so there is no shared variance to worry
+        # about. Whether the slope is estimable at all is the rank question
+        # handled per compound below.
+        age_lap_correlation = 0.0
+    if age_lap_correlation > MAX_AGE_LAP_CORRELATION:
+        share = Counter(lap.stint for lap in usable)
+        first = 100.0 * share.get(0, 0) / len(usable)
         warnings.append(
-            "only one stint in the data - fuel and degradation are collinear "
-            "and cannot be separated"
+            f"tyre age and race lap are {age_lap_correlation:.2f} correlated "
+            f"({first:.0f}% of clean laps are on the first stint) - fuel burn and "
+            "tyre wear are not separately identified, and the trend and degradation "
+            "terms below are two halves of one number rather than two measurements"
         )
 
     # The most-used compound is the reference: its offset is folded into the
@@ -552,6 +674,8 @@ def fit_pace(
         degradation_curvature=degradation_curvature,
         observed_max_age=observed_max_age,
         n_stints=len(stints),
+        age_lap_correlation=age_lap_correlation,
+        burn_per_lap_kg=(DEFAULT_START_FUEL_KG / total_laps if total_laps > 0 else 0.0),
         residual_std=float(np.std(residuals, ddof=min(n_cols, len(usable) - 1))),
         r_squared=(1.0 - ss_res / ss_tot) if ss_tot > 0 else 0.0,
         warnings=tuple(warnings),

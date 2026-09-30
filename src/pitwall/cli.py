@@ -308,7 +308,7 @@ def _strategy(args: argparse.Namespace) -> int:
     state = collector.state
     clean, _ = filter_laps(collector.laps)
     prior = _load_degradation(args.degradation_history, args.history)
-    pace = fit_pace(clean, prior=prior, circuit=state.circuit)
+    pace = fit_pace(clean, prior=prior, circuit=state.circuit, total_laps=state.total_laps)
     if pace is None:
         print("not enough clean laps to fit a pace model", file=sys.stderr)
         return 1
@@ -453,7 +453,7 @@ def _backtest(args: argparse.Namespace) -> int:
             continue
 
         clean, _ = filter_laps(collector.laps)
-        pace = fit_pace(clean, prior=prior, circuit=state.circuit)
+        pace = fit_pace(clean, prior=prior, circuit=state.circuit, total_laps=state.total_laps)
         if pace is None:
             print(f"lap {lap}: too few clean laps to fit yet, skipping", file=sys.stderr)
             continue

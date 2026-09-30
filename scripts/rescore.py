@@ -121,7 +121,7 @@ def main() -> int:
             continue
 
         clean, _ = filter_laps(collector.laps)
-        pace = fit_pace(clean, prior=prior, circuit=state.circuit)
+        pace = fit_pace(clean, prior=prior, circuit=state.circuit, total_laps=state.total_laps)
         if pace is None or not pace.usable:
             skipped.append(f"lap {lap}: fit not usable")
             continue

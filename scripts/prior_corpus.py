@@ -175,7 +175,9 @@ def main() -> int:
             calls: dict[str, dict[str, str]] = {}
             usable = True
             for name, prior in (("old", baseline), ("new", current)):
-                pace = fit_pace(clean, prior=prior, circuit=state.circuit)
+                pace = fit_pace(
+                    clean, prior=prior, circuit=state.circuit, total_laps=state.total_laps
+                )
                 if pace is None or not pace.usable:
                     usable = False
                     break
@@ -241,7 +243,7 @@ def main() -> int:
                 for car in state.running_order()
                 if car.position is not None
             }
-            pace = fit_pace(clean, prior=scaled, circuit=state.circuit)
+            pace = fit_pace(clean, prior=scaled, circuit=state.circuit, total_laps=state.total_laps)
             if pace is None or not pace.usable:
                 continue
             entries = entries_from_state(state, pace)

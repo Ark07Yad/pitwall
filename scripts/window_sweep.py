@@ -57,7 +57,12 @@ def sweep(path: Path, prior: object, first: int, last: int) -> dict[str, object]
             continue
         seen.add(lap)
         clean, _ = filter_laps(collector.laps)
-        pace = fit_pace(clean, prior=prior, circuit=collector.state.circuit)
+        pace = fit_pace(
+            clean,
+            prior=prior,
+            circuit=collector.state.circuit,
+            total_laps=collector.state.total_laps,
+        )
         if pace is not None and pace.usable:
             usable.append(lap)
         else:

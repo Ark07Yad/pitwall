@@ -209,17 +209,17 @@ exactly, and the in/out-lap counts match the 47 recorded pit stops.
 Race @ Hungaroring  lap 34/70
 
 LEC P3, lap 34 (3,000 sims)
-  → PIT now on HAR
-     expected P4.85, margin +0.25 to next option
+  → now on SOF marginally ahead; no clear call
+     expected P5.11, margin +0.01 to next option
 
   option              exp. pos    top3  points    gain
-  now on HAR              4.85  37.5%   95.6%   24.5%
-  now on MED              5.09  33.8%   95.6%   24.6%
-  now on SOF              5.16  32.1%   95.6%   23.9%
+  now on SOF              5.11  24.8%   97.3%   17.4%
+  now on MED              5.13  24.5%   97.3%   14.2%
+  now on HAR              5.29  20.1%   97.3%   10.2%
   ...
 
   undercut threats:
-    ANT  +0.9s behind   P(jumps us) 46.3%
+    ANT  +0.9s behind   P(jumps us) 47.4%
 ```
 
 Three things carry the realism. **Track position is enforced** — cars cannot pass through each
@@ -261,7 +261,7 @@ limitation:
 A cliff needs stints long enough to contain one, which no single race provides. `scripts/
 fetch_degradation.py` collects **95 races** out of the local FastF1 cache — no API calls — by
 stripping each race down to the part of a lap attributable to tyre age and pooling those deltas,
-which mean the same thing at Monaco and Monza. **80 of the 95 are used**; the rest are excluded,
+which mean the same thing at Monaco and Monza. **81 of the 95 are used**; the rest are excluded,
 and which and why is the subject of the next section.
 
 Pooling did not reveal a cliff, and why is the more useful result:
@@ -285,12 +285,12 @@ artifact; a straight line is the smallest claim that is not knowingly wrong.
 uv run pitwall degradation
 
   compound       linear       cliff  trusted  seen     @20     @40     @55
-  HAR          +0.0394   +0.00000       54    71  +0.79s  +1.57s  +2.16s
-  MED          +0.0455   +0.00000       29    59  +0.91s  +1.82s  +2.50s
-  SOF          +0.0646   +0.00000       24    38  +1.29s  +2.58s  +3.55s
+  HAR          +0.0378   +0.00000       54    71  +0.76s  +1.51s  +2.08s
+  MED          +0.0456   +0.00000       29    59  +0.91s  +1.82s  +2.51s
+  SOF          +0.0647   +0.00000       24    38  +1.29s  +2.59s  +3.56s
 
   circuit factor (shrunk toward 1.0):
-    Spa 2.02x   Sakhir 1.88x   Barcelona 1.38x   ...   Monza 0.78x   Montréal 0.69x
+    Spa 2.03x   Sakhir 1.90x   Barcelona 1.38x   ...   Monza 0.78x   Budapest 0.51x
 ```
 
 Circuits whose fitted scale comes out *negative* are rejected rather than shrunk — Melbourne's raw
@@ -546,15 +546,15 @@ other lap:
 
 ```
   baseline per-lap hazard by race phase:
-    lap1   0.2136
-    early  0.0195
-    mid    0.0214
-    late   0.0203
-    final  0.0137
+    lap1   0.2075
+    early  0.0204
+    mid    0.0207
+    late   0.0210
+    final  0.0140
 
   circuit factor (shrunk, prior weight 3):
-    Melbourne                 2.24x  (5 races)
-    Zandvoort                 1.28x  (4 races)
+    Melbourne                 2.23x  (5 races)
+    Zandvoort                 1.29x  (5 races)
     ...
     Yas Island                0.49x  (4 races)
 ```

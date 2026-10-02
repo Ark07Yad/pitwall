@@ -6,6 +6,7 @@ import pytest
 
 from pitwall.models.safety_car import (
     BUCKETS,
+    CIRCUIT_ALIASES,
     EventKind,
     HazardModel,
     bucket_for,
@@ -351,3 +352,34 @@ def test_every_known_rename_resolves(live_name: str, history_name: str):
     written from memory - a wrong entry maps one circuit's history onto another
     and nothing errors."""
     assert normalise_circuit(live_name) == normalise_circuit(history_name)
+
+
+def test_a_race_named_for_one_circuit_but_held_at_another_stays_separate():
+    """Round 16 of 2026 is the Bahrain Grand Prix, held at Kuala Lumpur. The
+    models hold Sakhir at the second-steepest degradation factor in the pool, so
+    a name that resolved there would hand a circuit nobody has raced the harshest
+    tyre physics available - confidently wrong, which is worse than blind.
+
+    The feed publishes `Circuit.ShortName: "Kuala Lumpur"` (checked against the
+    FP1 archive), and nothing may quietly alias it onto Bahrain's circuit. There
+    is also nothing legitimate to alias it to: Malaysia last raced in 2017,
+    outside the history window.
+    """
+    for name in ("Kuala Lumpur", "Sepang"):
+        assert normalise_circuit(name) == name
+
+    sakhir = {"Sakhir", "Bahrain", "Bahrain International Circuit"}
+    for name, target in CIRCUIT_ALIASES.items():
+        if target in sakhir:
+            assert name in sakhir, f"{name!r} must not resolve to Bahrain's circuit"
+
+
+def test_an_unraced_circuit_reports_itself_as_unfitted():
+    """So the engine says "I have no history here" rather than borrowing someone
+    else's. The ledger stamps it in `unfitted` and the report banners it."""
+    fit = fit_hazard([race(circuit="Monza", sc_starts=[10])])
+
+    assert not fit.known_circuit("Kuala Lumpur")
+    assert fit.hazard("Kuala Lumpur", 20, 56) == pytest.approx(
+        fit.baseline[bucket_for(20, 56)], rel=1e-9
+    )

@@ -1,42 +1,39 @@
 #!/usr/bin/env python3
-"""Estimate a circuit's degradation scale from a practice recording.
+"""Read a circuit's tyre picture off practice long runs, and say what it is worth.
 
-For a circuit that has never been raced there is no history to fit, and every
-per-circuit model falls back to the field average. Practice is the only source of
-laps on that surface before the race, and long runs in FP2 are how a real team
-builds its tyre picture at a new track.
+For a circuit with no racing history every per-circuit model falls back to the
+field average, and practice is the only source of laps on that surface before
+the race. Round 16 of 2026 is exactly that case: the Bahrain Grand Prix, held at
+Kuala Lumpur, a circuit with nothing in a 2022-2026 history.
 
-    python scripts/circuit_from_practice.py data/raw/2026-madrid-fp2.txt
+    python scripts/circuit_from_practice.py data/raw/2026-r16-fp2.txt
+    python scripts/circuit_from_practice.py data/raw/2026-r16-fp2.txt --calibrate
 
-**What this recovers, as tested - which is less than it first claimed.** Three of
-the four per-circuit models were never obtainable from practice: stops there are
-not racing stops, and a safety-car or attrition rate needs races rather than
-laps. The fourth, degradation, is the reason this script exists, and on the one
-real test it has had it produced nothing.
+**The first version of this script asked `fit_pace` and got nothing**, correctly:
+that fit reads the race-lap number as a proxy for fuel load, and practice resets
+fuel between runs, so a low-fuel qualifying simulation sitting between two long
+runs makes lap number meaningless. Against the 2026 Spanish GP it returned trends
+of +0.71 and +1.54 s/lap and refused both sessions.
 
-Madrid, 11 September 2026: FP1 and FP2 both refused. Race-lap trends of +0.71
-and +1.54 s/lap, residual spreads of 10.2 and 6.4 seconds, r-squared of 0.21 and
-0.37, and 146-174 laps excluded as implausible for a racing lap. The cause is the
-premise, not the data. The decomposition reads race lap as a proxy for fuel burn,
-and in practice fuel is reset between runs - a low-fuel qualifying simulation
-sits between two high-fuel long runs - so lap number carries no fuel information.
-The first version of this docstring said the number would "read low" and should be
-treated "as a lower bound". It had only ever been run against a race recording,
-where the premise holds.
+It now asks `fit_long_runs`, which fits what practice can support - long runs
+only, fuel subtracted at the published sensitivity rather than estimated, an
+intercept per run, no race-lap term. That returns a number at Kuala Lumpur where
+the old path returned nothing.
 
-**What would work instead, and is not built:** fuel-corrected long-run analysis,
-the way teams read practice. Keep only long runs, correct each lap by the physics
-fuel prior for laps into the stint, give every stint its own intercept, and fit
-the per-compound slope within stints. No race-lap term, because there is no race.
-
-**Nothing is written into `degradation.json`.** If a fit ever does come back
-usable it prints a factor and what it rests on; folding one practice session into
-a five-season pool is a judgement call for whoever reads it.
+**And `--calibrate` is why the number is still not written anywhere.** Run
+against four circuits whose factor *is* fitted from races, the practice estimate
+overstated them by between 1.6x and 12x, and the median of that ratio moves from
+4.6x to 8.0x depending on where the long-run cutoff is put. A conversion factor
+that moves with an arbitrary threshold on three or four points is not a
+conversion factor. What survives every variant is the *direction*: Kuala Lumpur
+reads 0.6-0.9x of the field average, so this is a mid-to-low degradation circuit
+and not a Sakhir. Carry that as an expectation, not as a number in the model.
 """
 
 from __future__ import annotations
 
 import argparse
+import statistics
 import sys
 from pathlib import Path
 
@@ -44,12 +41,22 @@ from pitwall.feed.replay import read_events
 from pitwall.laps import LapCollector, filter_laps
 from pitwall.models import (
     fit_degradation,
-    fit_pace,
+    fit_long_runs,
     load_degradation,
     load_history,
     neutralisation_index,
     normalise_circuit,
 )
+from pitwall.models.long_run import MIN_RUN_LAPS
+
+
+def fold(path: Path) -> tuple[str, str, list, object]:
+    collector = LapCollector()
+    for event in read_events(path):
+        collector.apply(event)
+    clean, report = filter_laps(collector.laps)
+    state = collector.state
+    return state.circuit or "?", state.session_name or "session", clean, report
 
 
 def main() -> int:
@@ -59,88 +66,123 @@ def main() -> int:
         "--degradation-history", type=Path, default=Path("data/history/degradation.json")
     )
     parser.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
+    parser.add_argument("--min-run-laps", type=int, default=MIN_RUN_LAPS)
+    parser.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="score this estimator against every other practice recording whose "
+        "circuit has a race-fitted factor, and report the ratio",
+    )
+    parser.add_argument(
+        "--practice-glob",
+        default="data/raw/*-fp[12].txt",
+        help="where --calibrate looks for other practice recordings",
+    )
     args = parser.parse_args()
 
     if not args.file.exists():
         print(f"no such recording: {args.file}", file=sys.stderr)
         return 1
-
-    prior = None
-    if args.degradation_history.exists():
-        prior = fit_degradation(
-            load_degradation(args.degradation_history),
-            history=neutralisation_index(load_history(args.history))
-            if args.history.exists()
-            else None,
-        )
-    if prior is None:
+    if not args.degradation_history.exists():
         print("no pooled prior to scale against; build it first", file=sys.stderr)
         return 1
 
-    collector = LapCollector()
-    for event in read_events(args.file):
-        collector.apply(event)
-    state = collector.state
-    circuit = state.circuit or "?"
+    prior = fit_degradation(
+        load_degradation(args.degradation_history),
+        history=neutralisation_index(load_history(args.history)) if args.history.exists() else None,
+    )
 
-    clean, report = filter_laps(collector.laps)
-    print(f"{state.session_name or 'session'} @ {circuit}")
+    circuit, session, clean, report = fold(args.file)
+    print(f"{session} @ {circuit}")
     print(report)
     if not clean:
         print("\nno clean laps survived the filter; nothing to fit", file=sys.stderr)
         return 1
 
-    # Fitted with no prior, deliberately. Blending toward the pooled shape here
-    # would make the answer partly the field average, and the field average is
-    # exactly what this is trying to replace.
-    pace = fit_pace(clean, prior=None, circuit=circuit)
-    if pace is None:
-        print("\nnot enough clean laps to fit a pace decomposition", file=sys.stderr)
+    fit = fit_long_runs(clean, min_run_laps=args.min_run_laps)
+    if fit is None:
+        print(
+            f"\nfewer than two runs of {args.min_run_laps}+ clean laps; nothing to fit.\n"
+            "A wet or red-flagged session is mostly three-lap runs, and a slope "
+            "through those is noise.",
+            file=sys.stderr,
+        )
         return 1
 
-    print(f"\n{pace}")
-    if not pace.usable:
-        print("\nthe fit is not usable; the reasons above are the answer, not a number.")
-        print("From practice this is the expected outcome: fuel is reset between runs, so")
-        print("race lap is not a fuel proxy and the decomposition has nothing to stand on.")
-        return 1
-
-    print(f"\n  implied {circuit} degradation against the pooled shape:\n")
-    print(f"  {'compound':<10}{'here':>12}{'pooled':>12}{'ratio':>9}{'laps':>7}")
-    ratios: list[tuple[float, int]] = []
-    for compound, rate in sorted(pace.degradation.items(), key=lambda kv: kv[0].short):
-        pooled = prior.linear.get(compound)
-        n = sum(1 for lap in clean if lap.compound is compound)
-        if not pooled:
-            print(f"  {compound.short:<10}{rate:>+11.4f}{'-':>12}{'-':>9}{n:>7}")
-            continue
-        ratio = rate / pooled
-        ratios.append((ratio, n))
-        print(f"  {compound.short:<10}{rate:>+11.4f}{pooled:>+12.4f}{ratio:>9.2f}{n:>7}")
-
-    if not ratios:
+    print(f"\n{fit}")
+    factor, ratios = fit.factor_against(prior)
+    if factor is None:
         print("\nno compound could be compared against the pooled shape")
         return 1
 
-    # Weighted by laps, because a compound seen on four laps should not carry the
-    # same vote as one seen on forty.
-    total = sum(n for _, n in ratios)
-    factor = sum(r * n for r, n in ratios) / total
-    # Through the alias table, not the raw feed name. The models are keyed on
-    # FastF1's `Location` and the feed sends `Circuit.ShortName`; querying with
-    # the wrong one returns the neutral default and reports a fitted circuit as
-    # unfitted. Nine of twenty-seven circuits disagree.
-    current = prior.circuit_factor.get(normalise_circuit(circuit))
+    print("\n  against the pooled shape:\n")
+    print(f"  {'compound':<10}{'here':>12}{'pooled':>12}{'ratio':>9}{'laps':>7}")
+    for compound, ratio, n in sorted(ratios, key=lambda r: r[0].short):
+        print(
+            f"  {compound.short:<10}{fit.degradation[compound]:>+11.4f}"
+            f"{prior.linear[compound]:>+12.4f}{ratio:>9.2f}{n:>7}"
+        )
 
+    key = normalise_circuit(circuit)
+    current = prior.circuit_factor.get(key)
     in_model = "unfitted, uses 1.00x" if current is None else f"{current:.2f}x"
-    if current is not None and normalise_circuit(circuit) != circuit:
-        in_model += f"  (as {normalise_circuit(circuit)})"
-    print(f"\n  lap-weighted factor: {factor:.2f}x   on {total} clean laps")
-    print(f"  currently in the model: {in_model}")
+    if current is not None and key != circuit:
+        in_model += f"  (as {key})"
+    print(f"\n  lap-weighted practice factor: {factor:.2f}x   on {fit.n_laps} laps")
+    print(f"  currently in the model:       {in_model}")
+
+    if not args.calibrate:
+        print(
+            "\n  A practice factor is not a race factor. Run --calibrate to see by how\n"
+            "  much this estimator overstates circuits whose factor is known."
+        )
+        return 0
+
+    print("\n  --- calibration against circuits with a race-fitted factor ---\n")
+    scored: list[tuple[str, float, float]] = []
+    for other in sorted(Path().glob(args.practice_glob)):
+        if other.resolve() == args.file.resolve():
+            continue
+        other_circuit, _, other_clean, _ = fold(other)
+        other_key = normalise_circuit(other_circuit)
+        race_factor = prior.circuit_factor.get(other_key)
+        if not race_factor:
+            continue
+        other_fit = fit_long_runs(other_clean, min_run_laps=args.min_run_laps)
+        if other_fit is None:
+            print(f"  {other_circuit:<20} no runs that long")
+            continue
+        other_factor, _ = other_fit.factor_against(prior)
+        if other_factor is None:
+            continue
+        scored.append((other_circuit, other_factor, race_factor))
+        flag = "" if other_fit.usable else "   (fit refused)"
+        print(
+            f"  {other_circuit:<20} practice {other_factor:>6.2f}x   race {race_factor:>5.2f}x"
+            f"   ratio {other_factor / race_factor:>6.2f}x{flag}"
+        )
+
+    if len(scored) < 2:
+        print("\n  too few calibration circuits to say anything")
+        return 0
+
+    found = [p / r for _, p, r in scored]
+    median = statistics.median(found)
     print(
-        "\n  Provisional, and not written to disk. Practice resets fuel between runs, so\n"
-        "  the race-lap term this fit leans on means little here; a usable result from\n"
-        "  practice is the exception, not the expected case."
+        f"\n  ratio: median {median:.2f}x, spread {min(found):.2f}-{max(found):.2f}"
+        f" ({max(found) / min(found):.1f}-fold across {len(found)} circuits)"
+    )
+    print(
+        f"  {circuit} at that median would be {factor / median:.2f}x,"
+        f" and across the spread {factor / max(found):.2f}-{factor / min(found):.2f}x"
+    )
+    print(
+        "\n  Read the spread, not the median. A conversion that varies several-fold\n"
+        "  across circuits - and whose median moves with the long-run cutoff - cannot\n"
+        "  set a factor. The direction is the usable part: whether this circuit reads\n"
+        "  above or below the others measured the same way.\n"
+        "\n  Nothing is written to degradation.json. Folding one Friday into a\n"
+        "  five-season pool is a judgement call for whoever reads this."
     )
     return 0
 

@@ -18,6 +18,7 @@ from pitwall.models.fuel import (
     DEFAULT_START_FUEL_KG,
     FuelModel,
 )
+from pitwall.models.long_run import LongRun, LongRunFit, fit_long_runs, long_runs
 from pitwall.models.pace import MAX_AGE_LAP_CORRELATION, PaceFit, fit_pace
 from pitwall.models.pit_loss import (
     DEFAULT_PIT_LOSS,
@@ -44,6 +45,8 @@ __all__ = [
     "EventKind",
     "FuelModel",
     "HazardModel",
+    "LongRun",
+    "LongRunFit",
     "PaceFit",
     "PitLossModel",
     "bucket_for",
@@ -51,10 +54,12 @@ __all__ = [
     "fit_attrition",
     "fit_degradation",
     "fit_hazard",
+    "fit_long_runs",
     "fit_pace",
     "fit_pit_loss",
     "load_degradation",
     "load_history",
+    "long_runs",
     "load_pit_loss",
     "model_fingerprint",
     "model_terms",

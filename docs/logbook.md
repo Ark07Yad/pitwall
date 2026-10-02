@@ -4,6 +4,99 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-10-02 — A race named for a circuit it is not held at, and a Friday that only gives a direction
+
+Round 16 is the **Bahrain Grand Prix, held at Kuala Lumpur** — official name
+*FORMULA 1 GULF AIR BAHRAIN GRAND PRIX IN MALAYSIA 2026*, country code BRN,
+circuit Sepang. Sunday, 08:00 Irish. Two days out, and the first job was not a
+model at all.
+
+**The trap.** Sakhir is in every model here, at a **1.90x degradation factor** —
+second-steepest of the twenty-one fitted circuits — and a 23.57 s pit loss. A
+circuit name resolving to Sakhir would hand a track nobody has raced since 2017
+the harshest tyre physics the pool contains. Being circuit-blind costs accuracy;
+this would have cost *correctness*, and it would have looked plausible on the
+dashboard the whole way.
+
+So it was checked rather than assumed, from the FP1 archive:
+
+```
+Meeting.Name       Bahrain Grand Prix
+Meeting.Location   Kuala Lumpur
+Circuit.ShortName  Kuala Lumpur      <- what the reducer reads
+Country.Code       BRN
+```
+
+The reducer records `circuit: 'Kuala Lumpur'`, which normalises to itself and
+matches nothing. Every model will report `fitted: false`, and **here `fitted:
+true` is the fault** — the inverse of the Baku check, where a false meant the
+name had failed to resolve. Two tests now hold that line: one asserting no alias
+may ever point at Bahrain's circuit, one asserting an unraced name falls back to
+the pooled baseline rather than borrowing a neighbour's.
+
+That is the whole of what had to be right before Sunday. The rest is what could
+be improved.
+
+**The practice estimator, built as specified and working.** `circuit_from_practice.py`
+has carried its own obituary since 11 September: `fit_pace` reads the race-lap
+number as a fuel proxy, practice resets fuel between runs, and the script
+returned trends of +0.71 and +1.54 s/lap at Madrid and refused both sessions.
+The docstring said what would work instead — long runs only, fuel corrected from
+the physics prior, an intercept per run, no race-lap term — and that is now
+`models/long_run.py`.
+
+It recovers a known slope from synthetic practice to within 0.005 s/lap,
+including on a scrubbed set, where fuel depends on laps into the run and
+degradation on tyre age and the two differ by a constant. And on the real
+session it returns a number where the old path returned nothing: **5.47x the
+pooled shape, across 248 clean laps in 28 long runs at Kuala Lumpur.**
+
+**Then the control, which took the number away.** Run against four circuits whose
+factor *is* fitted from races:
+
+| circuit | practice | race-fitted | ratio |
+|---|---|---|---|
+| Spa-Francorchamps | 3.31x | 2.03x | 1.63x |
+| Catalunya | 7.98x | 1.38x | 5.79x |
+| Monza | 5.19x | 0.78x | 6.66x |
+| Suzuka | 9.72x | 0.81x | 11.95x |
+
+A 7.3-fold spread. Demanding genuinely long runs tightens it to 1.8-fold — and
+does so by dropping Spa, the circuit that disagreed most, for not having two runs
+that long. The median conversion then moves from 4.6x to 8.0x depending on where
+the cutoff is put. Choosing the cutoff that flatters the control is not
+calibration, it is fitting the threshold to four points.
+
+So no factor goes into the model, and `--calibrate` now prints the spread beside
+the median so the next reader cannot take the median on its own. What survives
+every variant is the **direction**: converted at any of them, Kuala Lumpur lands
+at **0.6-0.9x** — mid-to-low degradation, measured the same way as the others.
+
+That direction is worth having precisely because it contradicts the name. "Bahrain
+Grand Prix" invites expecting a tyre-killer; Friday says this circuit is at or
+below the field average. The model stays at 1.00x, which sits inside that range
+anyway, so the honest default and the Friday estimate agree.
+
+**The window, written down before the race.** A second stop on a 26-lap-old hard
+needs 23 laps of remaining running to pay at the unfitted 22.45 s pit loss, so
+the last lap a stop can be recommended is about **lap 33 of 56** — wider than
+Baku's 26 of 51, the race being longer. The break-even arithmetic was checked
+against Baku's published numbers first and reproduces them exactly (hard 25 laps,
+medium 21), so the method is the runbook's and not a new one.
+
+**And the risk that is new this week.** Since 30 September the fit refuses while
+tyre age and race lap are more than 0.85 correlated. At Baku that did not clear
+until lap 41 — past its lap-26 break-even — so under today's code the engine
+would have had nothing to say inside the window at all. A hot abrasive circuit
+over 56 laps should stagger its stops earlier than Baku's one-stopper did, but
+that is an expectation. `model.age_lap_corr` is on the dashboard for exactly this:
+if it is still above 0.85 at lap 33, the race had no decision window, and it gets
+written up that way rather than as unexplained silence.
+
+Dry run passed under bash 3.2 for Sunday's 07:45 arm.
+
+---
+
 ## 2026-09-30 — One column pretending to be two, and a guard that could never fire
 
 Four days ago the Baku recording showed the engine silent for laps 18–30 under

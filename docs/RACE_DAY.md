@@ -1,8 +1,116 @@
 # Race day
 
-> **Next up: Azerbaijan GP, Baku — Saturday 26 September, 12:00 Irish.** A Saturday race at noon,
-> not the Sunday afternoon every earlier race used, so it is armed on Friday night. See "Baku" below.
-> The Monza sections further down are kept as the worked example; their numbers are Monza's.
+> **Next up: Bahrain GP *in Malaysia*, Kuala Lumpur — Sunday 4 October, 08:00 Irish.** An
+> 08:00 start, so it is armed on Saturday night. See "Kuala Lumpur" below, and read the name
+> warning first: the models know Sakhir and this race is not at Sakhir. The Baku and Monza
+> sections below are kept as worked examples; their numbers are theirs.
+
+## Kuala Lumpur
+
+**Race: Sunday 4 October, 08:00 Irish** (15:00 local, GMT+8). Practice was Friday 2 October at
+05:30 and 09:00 Irish, FP3 and qualifying Saturday 3 at 05:30 and 09:00 — all before the race and
+none of them needed live: the archive has every session afterwards.
+
+### Read this before arming: the models know Sakhir, and this is not Sakhir
+
+The event is the **Bahrain Grand Prix**, country code **BRN**, official name *FORMULA 1 GULF AIR
+BAHRAIN GRAND PRIX IN MALAYSIA 2026* — and it is run at **Kuala Lumpur**. Sakhir is in every
+model, with a **1.90x degradation factor** (second-steepest of the pool) and a 23.57 s pit loss. If
+the circuit name resolved to Sakhir, the engine would apply the harshest tyre physics it knows to a
+circuit it has never seen and be confidently wrong, which is worse than being blind.
+
+It does not. Checked against the FP1 archive rather than assumed, the feed publishes:
+
+```
+Meeting.Name       Bahrain Grand Prix
+Meeting.Location   Kuala Lumpur
+Circuit.ShortName  Kuala Lumpur      <- what the reducer reads
+Country.Code       BRN
+```
+
+and the reducer records `circuit: 'Kuala Lumpur'`, which normalises to itself and matches no
+history. **So every model is expected to report `fitted: false` here, and `fitted: true` would be
+the fault** — the exact inverse of the Baku check below. Do not add an alias for this circuit.
+There is nothing to alias it to: Malaysia last held a race in 2017, outside the 2022-2026 window.
+
+### What good looks like
+
+| field | expected |
+|---|---|
+| `circuit` | `Kuala Lumpur` — **not** `Sakhir`, `Bahrain` or `Sepang` |
+| `total_laps` | **56** (historic Sepang distance; the feed confirms it on the day) |
+| `model.pit_loss` | `{"seconds": 22.17, "expected": 22.45, "fitted": false, "races": 0}` |
+| `model.prior` | `{"factor": 1.0, "fitted": false, "races": 0, "pooled_races": 81}` |
+| ledger rows | `unfitted` naming all four models |
+
+### What to expect from the models
+
+Everything here is the field average, because nothing else exists:
+
+| | Kuala Lumpur (56 laps) | Baku, for contrast (51) |
+|---|---|---|
+| P(safety car) | **51%**, expected 0.69 | 45%, 0.58 |
+| P(any neutralisation) | **72%**, expected 1.25 | 73%, 1.25 |
+| lap-1 hazard (any) | **20.8%** | 22.5% |
+| expected retirements | **2.07 of 22** | 2.10 of 22 |
+| pit loss (median / expected) | **22.17 s / 22.45 s** (unfitted) | 21.73 s / 22.02 s (89 stops) |
+| degradation factor | **1.00x** (unfitted) | 0.92x (3 races) |
+
+### The window, and the risk worth writing down beforehand
+
+A second stop on a 26-lap-old hard needs **23 laps** of remaining running to pay for itself, and on
+a 26-lap-old medium **19**. So the last lap the engine can recommend another stop is about **lap 33
+of 56** on hards, lap 37 on mediums — a wider window than Baku's lap 26 of 51, because the race is
+longer.
+
+**The risk is the other half of the window.** Since 30 September the pace fit refuses while tyre age
+and race lap are more than 0.85 correlated, which is the case until the field's stints stagger. At
+Baku that did not clear until **lap 41** — past the lap-26 break-even — so the engine would have had
+nothing to say inside the window at all. Kuala Lumpur is hot and abrasive and a two-stop race should
+stagger the field earlier than Baku's one-stopper did, but that is an expectation, not a measurement.
+
+**Watch `model.age_lap_corr` on the dashboard.** It falls as the stops spread; the fit speaks below
+0.85. If it is still above 0.85 at lap 33, the race had no decision window and should be written up
+that way — not as the model being quiet for no reason.
+
+### What Friday said, and why it is not in the model
+
+`scripts/circuit_from_practice.py` now reads practice long runs properly (fuel removed at the
+physics prior, an intercept per run, no race-lap term) and it does return a number here where the
+old path returned nothing: **5.47x the pooled shape across 248 clean laps in 28 long runs.**
+
+That number is not usable as a factor, and `--calibrate` is why. Against four circuits whose factor
+*is* fitted from races, the same estimator overstated them by between 1.6x and 12x, and the median
+of that ratio moves from 4.6x to 8.0x depending on where the long-run cutoff is set. Converted at
+any of those, Kuala Lumpur lands at **0.6-0.9x**.
+
+So the one thing Friday supports is a direction, and it is the opposite of what the event name
+suggests: measured the same way as the others, this circuit reads **mid-to-low degradation, not a
+Sakhir**. The model stays at 1.00x. If the race's own fit comes out materially above 1.0x, that is
+worth a logbook entry.
+
+### Saturday night, in this order
+
+```bash
+./scripts/race_day.sh --dry-run "2026-10-04 07:45" 2026-r16-race "2026 Bahrain GP in Malaysia" "" 210
+```
+
+It must end with `dry run OK - the launch line ran under bash 3.2…`. Anything else, and do not arm.
+Then arm it — it waits on its own until 07:45 and records until 11:15:
+
+```bash
+nohup ./scripts/race_day.sh "2026-10-04 07:45" 2026-r16-race "2026 Bahrain GP in Malaysia" "" 210 &
+```
+
+Then confirm it rather than assuming: `ps -o pid,ppid -p <pid>` shows a parent of `1`,
+`pmset -g assertions` shows `caffeinate` holding `PreventSystemSleep`, and
+`data/raw/2026-r16-race-engine.log` shows the target line. Lid open, plugged in. Locking the screen
+is fine; closing the lid, sleeping or logging out is not.
+
+**An 08:00 race on a machine on Irish time** means the arm happens the night before and the engine
+starts while nobody is awake. That is the Madrid and Baku procedure exactly, and the launcher now
+relaunches an engine that dies early (30 s backoff, up to 10 times) rather than ending the
+afternoon.
 
 ## Baku
 

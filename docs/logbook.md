@@ -4,6 +4,157 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-10-04 — A race recorded whole, and an engine that said nothing
+
+The Bahrain Grand Prix in Malaysia. The capture is complete, the name trap held,
+and the live ledger for this race does not exist: the engine ran for the whole
+afternoon and committed no call.
+
+**The day.** Armed at 07:47 for an 08:00 start, after a dry run. `circuit: 'Kuala
+Lumpur'`, 56 laps, every model `fitted: false` — Sakhir's 1.90x never came near
+it. Then rain: `DELAYED START` at 07:42, a formation lap behind the safety car
+at 08:40, `STARTING PROCEDURE SUSPENDED` at 08:45.
+
+**The rearm, and what it saved.** The launcher's deadline is fixed when it
+starts — 07:47 plus 210 minutes, 11:17. At 09:12, with the session still
+inactive, the old launcher was stopped, confirmed gone, and a new one started on
+the same recording and ledger for 300 minutes. Thirty seconds of an idle session
+were lost to it. The race started at 09:33, ninety-three minutes late, and the
+chequered flag fell at **11:20** — three minutes after the original arm would
+have stopped recording. The runbook now has the procedure; until today it had
+no answer to a delayed start.
+
+**The capture.** 10.7 MB, 59,652 events, 17 topics. `LapCount` 1–55 with none
+missing (one lap cut after the aborted start), `SessionStatus` through
+`Finalised`, no feed gap over thirty seconds once the race was running, no
+engine relaunch.
+
+**And nothing in the ledger.** The fit could be attempted on 48 laps and was
+refused on all of them:
+
+- **38** by guards that have been there all season — a driver pace spread of 10
+  to 61 seconds, intermediate "degradation" of +4.58 s/lap.
+- **10**, laps 24–33, *only* by the seconds-per-kg guard added on 30 September.
+  The old code would have committed live calls there on a race-lap trend of
+  −0.62 to −1.28 s/lap: a drying track read as fuel burn at twelve to
+  twenty-five times the real figure.
+
+So the guard written four days earlier cost no legitimate call and kept ten
+laps of illegitimate ones out of a committed record. That is its first live
+race, and the first time a guard here has demonstrably protected the ledger
+rather than the dashboard.
+
+**But the silence was not all correct.** Most of the field ran laps 1–8 on
+intermediates; under the lap-9 safety car everyone went to slicks; race control
+declared normal grip on lap 15. Eight wet laps, twenty seconds slower, bent the
+single race-lap trend so far that it was still −0.24 s/lap at the flag. Forty
+dry laps followed and the engine sat through them reporting symptoms — a
+spread, a trend — of a cause it never named. The pooled degradation history has
+thrown out wet races since 28 August for exactly this reason. The live fit was
+never given the same treatment.
+
+**The fix is in the clean-lap filter**, which already decides which laps are
+comparable and says why it dropped the rest. A wet phase is a different race: a
+lap on intermediate or wet tyres is dropped, and so is a slick lap run before
+the track dried. The second is the one that matters — the seven cars that
+gambled on slicks set clean laps by every individual test, on a surface that no
+longer existed by lap 15. The boundary is read off the tyres rather than the
+rain sensor, at more than one car in ten, so a lone gambler does not move it.
+
+**Getting the margin wrong first, again.** My first diagnostic refitted on
+slick laps "from lap 16" and "from lap 20" and got a trend of 0.016–0.027 s/kg,
+usable from lap 31. Those cutoffs were chosen after watching the race. The rule
+as first built — dry from the lap after the last wet one — gave **0.060–0.116
+s/kg** on the same race, usable from lap 33: the laps between 9 and 15 were on
+slicks and still damp, and my hand-picked number had quietly excluded them.
+Same mistake as the 0.75 threshold on 30 September, same correction: measure
+it. Judged by how far the trend moves between the first usable lap and the
+last, since a contaminated trend relaxes as dry laps dilute it and a sound one
+sits still:
+
+| margin | Kuala Lumpur 26 | Spa 25 | Zandvoort 23 | Montreal 26 |
+|---|---|---|---|---|
+| 0 laps | 0.053 | 0.022 | 0.043 | 0.074 |
+| 2 | 0.053 | 0.009 | 0.053 | 0.076 |
+| 4 | 0.026 | 0.006 | 0.033 | 0.047 |
+| 6 | 0.002 | 0.006 | 0.033 | 0.027 |
+| 8 | 0.023 | 0.005 | 0.033 | 0.039 |
+
+Every race is better at four to eight laps than at none. Six is the middle of
+that range, not an optimum — the Kuala Lumpur minimum is suspiciously sharp for
+four races — and it has one anchor that is not mine: race control's `NORMAL
+GRIP CONDITIONS` came on lap 15, six laps after the field left intermediates.
+That message is the better instrument where it exists, and reading it is the
+next step.
+
+**Against eleven recordings**, filter off then on, usable laps:
+
+| race | off | on | |
+|---|---|---|---|
+| Kuala Lumpur 2026 | 0 | 25 | stable from lap 31, 0.025–0.033 s/kg |
+| Zandvoort 2023 | 23 | 20 | +7 in the dry middle, −10 during the rain |
+| Montreal 2026 | 51 | 48 | the damp opening laps go |
+| Spa 2025 | 18 | 7 | see below |
+| Melbourne 2025 | 10 | 0 | all ten were fitted during rain |
+| Silverstone 2025 | 4 | 0 | all four on intermediates |
+| Singapore 2022 | 1 | 1 | |
+| Montreal 2024 | 0 | 0 | |
+| Baku, Hungary, Monza 2026 | 10, 52, 22 | 10, 52, 22 | dry: nothing moves |
+
+**The total goes down, 107 to 101**, and that is the honest summary: this does
+not buy more laps, it buys the right ones. Twenty-four of the forty-one laps
+lost were fits made on wet-weather tyres the model has no rates for, from which
+the engine would have recommended a slick.
+
+**Spa is the real cost, and it is the Baku problem again.** After its wet start
+the whole field took mediums together and nobody had stopped again, so each
+car's tyre age is its lap number less a constant — an exact combination of the
+race-lap column and the driver intercepts. The matrix is rank deficient until
+second stops begin at lap 37. With wet laps left in, the fit was "identified"
+only by comparing wet stints against dry ones, and its trend slid from −0.17 to
+−0.09 as it relaxed. That is the unseparated first stint from 26 September
+arriving by a different road, and the second race to argue for fixing the fuel
+term to the physics prior. Kuala Lumpur itself is a third: on slicks from lap 9,
+not stable until 31, for the same reason.
+
+**It also explains a number from Tuesday.** The "impossible" −0.63 s/lap at
+Montreal, laps 8–11, which the seconds-per-kg guard was written around: six of
+twenty-one cars started that race on wet tyres. It was a drying track. The guard
+caught the symptom; this is the cause.
+
+**One limit, not fixed.** The feed's tyre data lags. When rain came back at
+Zandvoort on lap 59 the regime did not turn until 62, and for those laps the
+engine would have spoken from a dry fit. `Rainfall` would be faster and is
+worse at knowing when it stopped mattering; using both is possible and not done.
+
+**The backtest, and what it is.** `predictions/2026-bahrain-gp-in-malaysia-backtest.jsonl`
+holds 154 calls at laps 31–54, scored in `reports/2026-kuala-lumpur.md`: Brier
+top-3 skill +11.0%, points +18.0%, mean position error 1.76 against the
+baseline's 1.57. Stop calls thin as the break-even predicts — six of 22 at lap
+31, one by lap 48, against a last call of lap 32. In the 80–100% band it said
+94.6% and 71.4% happened, on 21 rows: overconfident, in a race where a VSC and a
+safety car at laps 43–51 reshuffled the order and every hazard was the field
+average.
+
+Read all of it as weaker than any backtest before it. The rows are stamped
+`b31d123`, a commit made after the flag: not only did the recording already
+contain the result, the model that made the calls was written by someone who
+had seen it. It shows the filter produces a working engine on this race. It is
+not a score.
+
+**Two things written down beforehand, checked.** The break-even: lap 33 of 56
+became lap 32 of 55, and the fit would have stood up at 31 — one lap inside it
+for a hard, five for a medium. Friday's practice direction, that this circuit
+degrades at 0.6–0.9x the field average: **not borne out.** The race's own
+unblended dry-phase fit has hards at +0.137 s/lap and mediums at +0.092, 3.6x
+and 2.0x the pooled rates, and softs at −0.139 — negative, because seventeen
+cars took them under the lap-45 safety car and ran them only in the final sprint
+on a rubbered track. One confounded race settles nothing either way, but what
+it does say points up, not down. The practice estimator's direction was the one
+thing I said survived its control, and it did not survive the race.
+
+---
+
 ## 2026-10-02 — A race named for a circuit it is not held at, and a Friday that only gives a direction
 
 Round 16 is the **Bahrain Grand Prix, held at Kuala Lumpur** — official name

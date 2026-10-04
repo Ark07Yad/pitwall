@@ -1,9 +1,14 @@
 # Race day
 
-> **Next up: Bahrain GP *in Malaysia*, Kuala Lumpur — Sunday 4 October, 08:00 Irish.** An
-> 08:00 start, so it is armed on Saturday night. See "Kuala Lumpur" below, and read the name
-> warning first: the models know Sakhir and this race is not at Sakhir. The Baku and Monza
-> sections below are kept as worked examples; their numbers are theirs.
+> **Next up: Singapore GP, Marina Bay — Sunday 11 October, 13:00 Irish.** A sprint weekend
+> (sprint Saturday 10:00, qualifying 14:00). **Not yet prepared** — this file has no Marina Bay
+> section, and the numbers below are Kuala Lumpur's, Baku's and Monza's. Marina Bay does have
+> history in every model (the feed's `Singapore` is aliased to it), so unlike Kuala Lumpur
+> `fitted: false` there would be a fault.
+>
+> **If the start is delayed, rearm.** The launcher's deadline is fixed when it starts. On 4 October
+> the race began 93 minutes late and finished three minutes after the original arm would have
+> stopped recording. See "When the start slips" below.
 
 ## Kuala Lumpur
 
@@ -33,7 +38,38 @@ history. **So every model is expected to report `fitted: false` here, and `fitte
 the fault** — the exact inverse of the Baku check below. Do not add an alias for this circuit.
 There is nothing to alias it to: Malaysia last held a race in 2017, outside the 2022-2026 window.
 
-### What good looks like
+### What happened
+
+**Recorded whole, and the engine committed nothing.** Rain delayed the start by 93 minutes; the
+race ran 09:33 to 11:20 Irish over 55 laps, one cut after an aborted start. The capture is 10.7 MB
+with laps 1–55 present, no feed gap during the race and no engine relaunch. The name trap held:
+`Kuala Lumpur` throughout.
+
+Most of the field ran laps 1–8 on intermediates and those laps bent the race-lap trend for the
+whole afternoon, so the fit was refused on every lap it could be attempted. That is fixed in
+`laps/clean.py` — a wet phase is now treated as a different race and only the dry one is fitted —
+and under it this race is usable from lap 31. The logbook entry for 4 October has the detail, and
+`predictions/2026-bahrain-gp-in-malaysia-backtest.jsonl` is the post-hoc ledger. There is no live
+one.
+
+### When the start slips
+
+The launcher's deadline is `start + MINUTES`, fixed at launch. A delayed start eats the end of the
+race. On the day:
+
+```bash
+kill -TERM <launcher pid>          # the trap stops the engine and caffeinate with it
+./scripts/race_day.sh --dry-run "<now>" 2026-r16-race "2026 Bahrain GP in Malaysia" "" 300
+nohup ./scripts/race_day.sh "<now>" 2026-r16-race "2026 Bahrain GP in Malaysia" "" 300 &
+```
+
+Same basename and same session name, so the recording appends and the ledger carries on. Stop the
+old one **first** and confirm it is gone before starting the new one — never two connections. Do
+it while the session is still inactive: the reconnect then costs nothing, and mid-race it costs
+laps. Race control's messages are in the recording (`DELAYED START`, `RACE WILL START AT`), so the
+new start time can be read rather than guessed.
+
+### What good looked like
 
 | field | expected |
 |---|---|
@@ -348,6 +384,17 @@ Three of those refusal lines name a cause worth knowing on the day:
   not after about lap 30.
 - **"effects are not separately identified"** — rank deficiency, normally a compound only one or two
   cars have run. Also clears itself.
+- **"the track is wet — N of M cars ran lap L on intermediate or wet tyres"** — the model has no
+  rates for those tyres and says nothing while they are on. Not a fault.
+- **"the track is still drying"** / **"the track dried on lap N and only K clean laps have been run
+  since"** — after a wet phase only the dry laps are fitted, starting six laps after the field leaves
+  wet tyres. The model tag on the dashboard shows `dry from lap N` once it is speaking again. Expect
+  a long wait: at Kuala Lumpur the field was on slicks from lap 9 and the fit was not stable until
+  lap 31, because everyone had taken the same tyre at the same moment.
+
+**The tyre data lags the rain.** The wet phase is read off what the field is running, and the feed
+is a lap or two behind on that. If rain arrives mid-race, treat the first couple of calls after it
+as coming from a dry fit.
 
 **The simulation count moving around.** It adapts to hold a p99 ≤ 2 s budget, starting at 600 and
 ramping toward 1500 when there is headroom. Falling is the controller working, not a fault. Only

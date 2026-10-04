@@ -200,6 +200,19 @@ Rejections are reported as counted *reasons* rather than a boolean, because the 
 shows the filter is behaving — on the 2026 Hungarian GP the 22 first-lap exclusions match the grid
 exactly, and the in/out-lap counts match the 47 recorded pit stops.
 
+**A wet phase is treated as a different race.** Every reason above judges a lap on its own; this
+one judges it against the track. Laps on intermediate or wet tyres are dropped — the model has no
+rates for them — and so are slick laps run before the track dried, starting six laps after the
+field leaves wet tyres. The boundary is read off what the field is running rather than the rain
+sensor: a lap is wet when more than one car in ten ran it on wet-weather tyres.
+
+It exists because of the 2026 Bahrain GP in Malaysia, which was recorded whole and produced no
+call at all. Eight laps on intermediates at the start bent the single race-lap trend for the whole
+afternoon — −4.3 s/lap at lap 7, still −0.24 at the flag — and the fit was refused on every lap it
+could be attempted. Fitted on the dry phase alone it is usable from lap 31, at 0.025–0.033 s/kg.
+Across eleven recordings the usable count goes *down* slightly, 107 to 101: the change removes
+fits made in the rain (24 of the 41 laps lost) and adds the dry ones that were being thrown away.
+
 ### Pit calls
 
 `pitwall strategy` replays a recording to any lap and asks what the engine would have said there.

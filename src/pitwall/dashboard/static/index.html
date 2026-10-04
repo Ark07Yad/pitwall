@@ -380,7 +380,8 @@ function renderRisk(r) {
 function renderModel(m) {
   if (!m) { $("model").innerHTML = `<div class="empty">not identified yet — no call will be offered</div>`;
             $("model-tag").textContent = ""; return; }
-  $("model-tag").textContent = `${m.clean_laps} clean laps · ${m.stints} car-stints`;
+  $("model-tag").textContent = `${m.clean_laps} clean laps · ${m.stints} car-stints` +
+    (m.dry_from ? ` · dry from lap ${m.dry_from}` : "");
   const deg = Object.entries(m.degradation).map(([c, v]) =>
     `<div class="kv"><span><span class="tyre ${c}">${c[0]}</span> degradation</span>
      <b>${v > 0 ? "+" : ""}${v.toFixed(3)} s/lap</b></div>`).join("");

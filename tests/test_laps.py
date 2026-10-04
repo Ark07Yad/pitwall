@@ -14,6 +14,7 @@ from pitwall.laps import (
     filter_laps,
     parse_interval,
     session_best,
+    track_regime,
 )
 from pitwall.state.models import Compound, TrackStatus
 
@@ -167,6 +168,150 @@ def test_a_lap_can_have_several_reasons():
 
 def test_classification_survives_missing_best():
     assert classify(make_lap(), best=None) == frozenset()
+
+
+# -- a wet phase is a different race -----------------------------------
+
+
+def field(lap: int, *, wet: int, dry: int, slick: Compound = Compound.MEDIUM) -> list[LapRecord]:
+    """One race lap for a whole field: `wet` cars on intermediates, `dry` on slicks."""
+    cars = [
+        make_lap(driver=str(i), lap=lap, compound=Compound.INTERMEDIATE, lap_time=105.0)
+        for i in range(wet)
+    ]
+    cars += [
+        make_lap(driver=str(100 + i), lap=lap, compound=slick, lap_time=86.0) for i in range(dry)
+    ]
+    return cars
+
+
+def test_a_dry_race_has_no_regime_and_loses_nothing():
+    """The common case, and the one that must not move: no wet tyre anywhere, so
+    the filter keeps exactly what it kept before it knew about the weather."""
+    laps = [lap for n in range(2, 12) for lap in field(n, wet=0, dry=20)]
+    regime = track_regime(laps)
+
+    assert not regime.was_wet
+    assert regime.dry_from == 1
+    with_regime, _ = filter_laps(laps)
+    without, _ = filter_laps(laps, CleanLapConfig(separate_wet_phase=False))
+    assert with_regime == without
+
+
+def test_the_dry_phase_begins_after_the_last_wet_lap():
+    """The 2026 Bahrain GP in Malaysia: most of the field on intermediates for
+    laps 1-8, everyone on slicks from lap 10."""
+    laps = [lap for n in range(2, 9) for lap in field(n, wet=15, dry=7)]
+    laps += [lap for n in range(9, 20) for lap in field(n, wet=0, dry=22)]
+    regime = track_regime(laps)
+
+    assert regime.wet_laps == tuple(range(2, 9))
+    assert regime.slicks_from == 9
+    # Six laps on, not the lap the last car pitted: the surface goes on drying
+    # under slicks. Race control declared normal grip on lap 15 that afternoon.
+    assert regime.dry_from == 15
+    assert not regime.currently_wet
+
+
+def test_wet_tyre_laps_are_dropped_and_say_why():
+    lap = make_lap(compound=Compound.INTERMEDIATE)
+    regime = track_regime([lap])
+
+    assert RejectReason.WET_TYRE in classify(lap, best=85.0, regime=regime)
+
+
+def test_a_slick_lap_on_a_wet_track_is_dropped_too():
+    """The seven cars that gambled on slicks while fifteen ran intermediates set
+    clean laps by every individual test - on a track twenty seconds slower than
+    the one the race finished on. Leaving them in is what bent the trend."""
+    laps = [lap for n in range(2, 9) for lap in field(n, wet=15, dry=7)]
+    laps += [lap for n in range(9, 20) for lap in field(n, wet=0, dry=22)]
+    clean, report = filter_laps(laps)
+
+    assert min(lap.lap for lap in clean) == 15
+    # The seven gamblers' wet-phase laps, and the whole field's six drying laps.
+    assert report.reasons[RejectReason.BEFORE_DRY] == 7 * 7 + 6 * 22
+    assert report.reasons[RejectReason.WET_TYRE] == 7 * 15
+    assert "dried on lap 15" in str(report)
+
+
+def test_one_gambler_on_intermediates_does_not_move_the_boundary():
+    """One car of twenty-two is under the one-in-ten line. Its own laps are
+    dropped - the model has no rate for the tyre - but the track is dry and the
+    other twenty-one cars' laps stay."""
+    laps = [lap for n in range(2, 12) for lap in field(n, wet=1, dry=21)]
+    regime = track_regime(laps)
+    clean, report = filter_laps(laps)
+
+    assert not regime.was_wet
+    assert len(clean) == 10 * 21
+    assert report.reasons[RejectReason.WET_TYRE] == 10
+    assert RejectReason.BEFORE_DRY not in report.reasons
+
+
+def test_three_cars_on_intermediates_do():
+    laps = [lap for n in range(2, 6) for lap in field(n, wet=3, dry=19)]
+
+    assert track_regime(laps).wet_laps == (2, 3, 4, 5)
+
+
+def test_rain_returning_makes_the_earlier_dry_laps_another_race():
+    """The 2023 Dutch GP: wet, dry for forty-eight laps, wet again to the flag.
+    Once it rains the dry laps before it describe a track that no longer exists,
+    so nothing is left to fit and the report says the track is wet."""
+    laps = [lap for n in range(2, 8) for lap in field(n, wet=15, dry=5)]
+    laps += [lap for n in range(8, 30) for lap in field(n, wet=0, dry=20)]
+    laps += [lap for n in range(30, 34) for lap in field(n, wet=18, dry=0)]
+    clean, report = filter_laps(laps)
+
+    assert clean == []
+    assert report.regime.currently_wet
+    assert "the track is wet - 18 of 18 cars ran lap 33" in report.regime.describe()
+
+
+def test_between_the_showers_the_dry_phase_is_usable():
+    """The same race at lap 25: the first shower is over, the second has not
+    come, and the dry laps in between are the race as it currently is."""
+    laps = [lap for n in range(2, 8) for lap in field(n, wet=15, dry=5)]
+    laps += [lap for n in range(8, 26) for lap in field(n, wet=0, dry=20)]
+    clean, report = filter_laps(laps)
+
+    assert {lap.lap for lap in clean} == set(range(14, 26))
+    assert not report.regime.currently_wet
+
+
+def test_a_track_that_has_just_lost_its_wet_tyres_is_still_drying():
+    """The lap after the last car pits for slicks is not a dry lap. Nothing is
+    kept yet, and the report says the track is drying rather than that it is
+    waiting for data."""
+    laps = [lap for n in range(2, 9) for lap in field(n, wet=15, dry=7)]
+    laps += [lap for n in range(9, 12) for lap in field(n, wet=0, dry=22)]
+    clean, report = filter_laps(laps)
+
+    assert clean == []
+    assert report.regime.still_drying
+    assert not report.regime.currently_wet
+    assert "still drying" in report.regime.describe()
+    assert "came off wet tyres on lap 9" in report.regime.describe()
+
+
+def test_the_drying_margin_is_a_setting_not_a_constant():
+    laps = [lap for n in range(2, 9) for lap in field(n, wet=15, dry=7)]
+    laps += [lap for n in range(9, 20) for lap in field(n, wet=0, dry=22)]
+    clean, report = filter_laps(laps, CleanLapConfig(drying_laps=0))
+
+    assert report.regime.dry_from == 9
+    assert min(lap.lap for lap in clean) == 9
+
+
+def test_the_old_behaviour_is_still_reachable():
+    """Off, every lap is judged on its own - which is what makes the A/B against
+    past wet races possible."""
+    laps = [lap for n in range(2, 9) for lap in field(n, wet=15, dry=7)]
+    clean, report = filter_laps(laps, CleanLapConfig(separate_wet_phase=False))
+
+    assert len(clean) == len(laps)
+    assert not report.regime.was_wet
 
 
 # -- session best and reporting ----------------------------------------

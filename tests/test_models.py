@@ -4,6 +4,7 @@ import random
 
 import pytest
 
+from pitwall.laps import CleanLapConfig, filter_laps
 from pitwall.laps.records import LapRecord
 from pitwall.models import DEFAULT_START_FUEL_KG, FuelModel, fit_pace
 from pitwall.models.pace import MAX_AGE_LAP_CORRELATION, MIN_LAPS
@@ -870,3 +871,86 @@ def test_an_unknown_race_distance_still_catches_the_gross_case():
 
     assert fit.burn_per_lap_kg == 0.0
     assert any("s/kg of fuel" in r for r in fit.unusable_reasons)
+
+
+# -- a race that starts wet ---------------------------------------------
+
+
+def _wet_start_race(*, n_drivers: int = 12, total: int = 45, seed: int = 5) -> list[LapRecord]:
+    """Eight wet laps, then a dry race built from a known model.
+
+    The dry phase carries a -0.05 s/lap trend and +0.06 s/lap of tyre wear, with
+    stops staggered so the two are separable. The wet phase is twenty seconds
+    slower and drying by a second and a half a lap, on intermediates for most of
+    the field and slicks for three gamblers - the shape of the 2026 Bahrain GP
+    in Malaysia.
+    """
+    rng = random.Random(seed)
+    laps: list[LapRecord] = []
+    for d in range(n_drivers):
+        base = 90.0 + d * 0.15
+        gambler = d >= n_drivers - 3
+        stop = 18 + d
+        for lap in range(2, total + 1):
+            if lap <= 8:
+                # The gamblers are on the same slick the field moves to once
+                # it dries, so their wet laps and everyone's dry laps share a
+                # compound - which is how the damage reaches the dry phase.
+                compound = Compound.MEDIUM if gambler else Compound.INTERMEDIATE
+                stint, age = 0, lap
+                time = base + 20.0 - 1.5 * (lap - 2)
+            else:
+                second = lap > stop
+                stint = 2 if second else 1
+                compound = Compound.HARD if second else Compound.MEDIUM
+                age = lap - stop if second else lap - 8
+                time = base - 0.05 * lap + 0.06 * age
+            laps.append(
+                LapRecord(
+                    driver=str(d),
+                    tla=f"D{d:02d}",
+                    team="T",
+                    lap=lap,
+                    lap_time=time + rng.gauss(0.0, 0.15),
+                    compound=compound,
+                    tyre_age=age,
+                    stint=stint,
+                    position=d + 1,
+                    interval=5.0,
+                    gap_to_leader="+5.0",
+                    track_statuses=GREEN,
+                    entered_pit=False,
+                    exited_pit=False,
+                    retired=False,
+                )
+            )
+    return laps
+
+
+def test_a_wet_start_poisons_the_fit_for_the_whole_race():
+    """What happened on 4 October 2026. With every lap judged on its own, eight
+    wet laps are in the fit and it is refused to the flag - here, at lap 45,
+    with thirty-seven dry laps behind it.
+
+    Which guard fires is not the point and is not asserted: at Kuala Lumpur it
+    was the trend and the pace spread, here it is whichever term the drying
+    lands in. Every one of them is a symptom of laps that should not be there."""
+    clean, _ = filter_laps(_wet_start_race(), CleanLapConfig(separate_wet_phase=False))
+    fit = fit_pace(clean, total_laps=56)
+
+    assert any(lap.compound is Compound.INTERMEDIATE for lap in clean)
+    assert not fit.usable
+
+
+def test_fitting_the_dry_phase_alone_recovers_the_race():
+    """The same laps with the wet phase treated as a different race. The fit
+    comes back usable and returns the trend and wear it was built from."""
+    clean, report = filter_laps(_wet_start_race())
+    fit = fit_pace(clean, total_laps=56)
+
+    assert report.regime.wet_laps == tuple(range(2, 9))
+    assert min(lap.lap for lap in clean) >= report.regime.dry_from
+    assert fit.usable, fit.unusable_reasons
+    assert fit.race_lap_coef == pytest.approx(-0.05, abs=0.02)
+    assert fit.degradation[Compound.MEDIUM] == pytest.approx(0.06, abs=0.02)
+    assert Compound.INTERMEDIATE not in fit.degradation

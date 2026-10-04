@@ -25,7 +25,7 @@ from typing import Any
 
 from pitwall.feed.base import RaceFeed
 from pitwall.feed.signalr import SignalRFeed
-from pitwall.laps import LapCollector, filter_laps
+from pitwall.laps import LapCollector, TrackRegime, filter_laps
 from pitwall.latency import LatencyLog, LatencySample
 from pitwall.ledger import Forecast, ForecastLog, PredictionLog, prediction_from
 from pitwall.models import (
@@ -188,6 +188,7 @@ class Engine:
         self._grid: dict[str, int] = {}
         self._pace: PaceFit | None = None
         self._clean_laps = 0
+        self._regime = TrackRegime()
 
     @property
     def state(self) -> RaceState:
@@ -325,6 +326,23 @@ class Engine:
         # the model being too expensive, not by the controller being slow.
         self.sims_floor_hit = self.sims_floor_hit or (target == MIN_SIMS and took > budget)
 
+    def _waiting_reason(self, clean: int) -> str:
+        """Why there is no fit yet, in terms of what the track is doing.
+
+        "Not enough clean laps" is true in a wet race and says nothing. The
+        engine sat through the whole of the 2026 Bahrain GP in Malaysia reporting
+        symptoms - a pace spread, a trend - of a cause it never named.
+        """
+        regime = self._regime
+        if regime.currently_wet or regime.still_drying:
+            return regime.describe()
+        if regime.was_wet:
+            return (
+                f"the track dried on lap {regime.dry_from} and only {clean} clean laps "
+                "have been run since - not enough to fit a pace model yet"
+            )
+        return "not enough clean laps to fit a pace model yet"
+
     def _pick_driver(self, entries: list) -> Any:
         wanted = self.requested_driver
         if wanted:
@@ -335,8 +353,9 @@ class Engine:
 
     def _compute(self, lap: int) -> Advice | None:
         state = self.state
-        clean, _ = filter_laps(self.collector.laps)
+        clean, report = filter_laps(self.collector.laps)
         self._clean_laps = len(clean)
+        self._regime = report.regime
         pace: PaceFit | None = fit_pace(
             clean,
             prior=self.degradation,
@@ -355,7 +374,7 @@ class Engine:
                 expected_position=0.0,
                 margin=0.0,
                 computed_at=time.time(),
-                refused="not enough clean laps to fit a pace model yet",
+                refused=self._waiting_reason(len(clean)),
             )
         if not pace.usable:
             # Early in a race the design is not identified. Publishing a
@@ -657,6 +676,10 @@ class Engine:
             # How much of the trend is separable from tyre wear at all. Near one
             # the field is still on one stint and the two are one effect, which
             # is why the engine goes quiet through the opening third of a race.
+            # Set when the race had a wet phase: the fit rests only on laps from
+            # here on, and the screen should say so rather than imply the whole
+            # race is behind the numbers.
+            "dry_from": self._regime.dry_from if self._regime.was_wet else None,
             "age_lap_corr": round(pace.age_lap_correlation, 3),
             # The verdict travels with the number so the screen does not have to
             # keep its own copy of the threshold.

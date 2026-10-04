@@ -306,11 +306,13 @@ def _strategy(args: argparse.Namespace) -> int:
         return 1
 
     state = collector.state
-    clean, _ = filter_laps(collector.laps)
+    clean, filtered = filter_laps(collector.laps)
     prior = _load_degradation(args.degradation_history, args.history)
     pace = fit_pace(clean, prior=prior, circuit=state.circuit, total_laps=state.total_laps)
     if pace is None:
         print("not enough clean laps to fit a pace model", file=sys.stderr)
+        if filtered.regime.was_wet:
+            print(f"  {filtered.regime.describe()}", file=sys.stderr)
         return 1
     if not pace.usable:
         print(f"the pace fit at lap {args.lap} is not usable:", file=sys.stderr)
@@ -452,10 +454,16 @@ def _backtest(args: argparse.Namespace) -> int:
             print(f"lap {lap}: recording never got there, skipping", file=sys.stderr)
             continue
 
-        clean, _ = filter_laps(collector.laps)
+        clean, filtered = filter_laps(collector.laps)
         pace = fit_pace(clean, prior=prior, circuit=state.circuit, total_laps=state.total_laps)
         if pace is None:
-            print(f"lap {lap}: too few clean laps to fit yet, skipping", file=sys.stderr)
+            # In a wet race "too few clean laps" is true and explains nothing.
+            why = filtered.regime.describe() if filtered.regime.was_wet else ""
+            print(
+                f"lap {lap}: too few clean laps to fit yet, skipping"
+                + (f" ({why})" if why else ""),
+                file=sys.stderr,
+            )
             continue
         if not pace.usable:
             # Better no prediction than a confident one drawn from a degenerate

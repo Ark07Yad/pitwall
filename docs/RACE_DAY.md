@@ -1,14 +1,96 @@
 # Race day
 
-> **Next up: Singapore GP, Marina Bay — Sunday 11 October, 13:00 Irish.** A sprint weekend
-> (sprint Saturday 10:00, qualifying 14:00). **Not yet prepared** — this file has no Marina Bay
-> section, and the numbers below are Kuala Lumpur's, Baku's and Monza's. Marina Bay does have
-> history in every model (the feed's `Singapore` is aliased to it), so unlike Kuala Lumpur
-> `fitted: false` there would be a fault.
+> **Next up: Singapore GP, Marina Bay — Sunday 11 October, 13:00 Irish.** A sprint weekend. See
+> "Marina Bay" below. The Kuala Lumpur, Baku and Monza sections are kept as worked examples; their
+> numbers are theirs.
 >
 > **If the start is delayed, rearm.** The launcher's deadline is fixed when it starts. On 4 October
 > the race began 93 minutes late and finished three minutes after the original arm would have
-> stopped recording. See "When the start slips" below.
+> stopped recording. See "When the start slips" under Kuala Lumpur.
+
+## Marina Bay
+
+**Race: Sunday 11 October, 13:00 Irish** (20:00 local). A sprint weekend: practice Friday 9 at
+09:30, sprint qualifying Friday 13:30, **sprint Saturday 10:00**, qualifying Saturday 14:00. None
+is needed live — the archive has every session afterwards.
+
+### What good looks like
+
+Every model has history here, so this is the Baku check and the opposite of Kuala Lumpur:
+**`fitted: false` would be a fault.** The feed sends `Singapore`, which resolves to `Marina Bay`.
+
+| field | expected |
+|---|---|
+| `circuit` | `Singapore` |
+| `total_laps` | **62** |
+| `model.pit_loss` | `{"seconds": 24.2, "expected": 24.49, "fitted": true, "races": 2}` |
+| `model.prior` | `{"factor": 0.82, "fitted": true, "races": 3, "pooled_races": 81}` |
+| ledger rows | `unfitted: ""` |
+
+### What to expect from the models
+
+| | Marina Bay (62 laps) |
+|---|---|
+| P(safety car) | **54%**, expected 0.76 |
+| P(any neutralisation) | **79%**, expected 1.53 |
+| lap-1 hazard (any) | **23.3%**, against 2.3% for any other lap |
+| expected retirements | **2.58 of 22** — attrition factor 1.17x |
+| pit loss (median / expected) | **24.20 s / 24.49 s**, on only 2 races |
+| degradation factor | **0.82x** (3 races) |
+
+Pit loss here is among the highest measured and degradation among the lowest, which is the Monza
+shape: both push toward one stop, and toward a window that closes early.
+
+### The window, and when the engine will actually speak
+
+A second stop on a 26-lap-old hard needs **31 laps** of remaining running to pay, and on a
+26-lap-old medium **26** — so the last lap another stop can be recommended is about **lap 31 of
+62** on hards, lap 36 on mediums.
+
+Measured on the last four races here, rebuilt from the archive (`scripts/window_sweep.py`):
+
+| year | conditions | pace fit stable from | laps of window left (hard) |
+|---|---|---|---|
+| 2022 | wet to lap 35 | never, inside laps 8–45 | none |
+| 2023 | dry | **lap 42** | none — the fit stood up eleven laps after the window shut |
+| 2024 | dry | lap 25 (first usable 14) | about six |
+| 2025 | dry | lap 26 (first usable 11) | about five |
+
+**So expect silence until about lap 25, and a window of five or six laps if the race is a
+2024 or a 2025.** If it is a 2023 — the field running one long stint — there will be no window at
+all, and it should be written up that way.
+
+**That silence is now a measured choice.** On 5 October the obvious fix was built and tested:
+hold the race-lap trend with a prior so a field on one stint can be fitted. With it these fits
+stand up at lap 19, 10 and 11 instead of 42, 25 and 26. It was not switched on, because the calls
+it unlocks are bad: across eight races, a decisive "stop within three laps" was followed by the
+team stopping **44%** of the time on laps the engine already speaks on, and **10%** on the laps
+the prior would open. `window_sweep.py --hold-trend` shows the earlier laps; do not read them as
+laps a call could be trusted on.
+
+**Rain is a real possibility** — the 2022 race here started wet and never gave a usable fit. If
+it does, the wet-phase filter added on 4 October applies: no call while the field is on wet tyres,
+and none until six laps after it leaves them. Watch for `dry from lap N` in the model tag.
+
+### Sunday, in this order
+
+```bash
+./scripts/race_day.sh --dry-run "2026-10-11 12:45" 2026-singapore-race "2026 Singapore GP" "" 210
+```
+
+It must end with `dry run OK - the launch line ran under bash 3.2…`. Anything else, and do not arm.
+Then arm it — it waits until 12:45 and records until 16:15:
+
+```bash
+nohup ./scripts/race_day.sh "2026-10-11 12:45" 2026-singapore-race "2026 Singapore GP" "" 210 &
+```
+
+Confirm rather than assume: `ps -o pid,ppid -p <pid>` shows a parent of `1`,
+`pmset -g assertions` shows `caffeinate` holding `PreventSystemSleep`, and
+`data/raw/2026-singapore-race-engine.log` shows the target line. Lid open, plugged in.
+
+A 13:00 start can be armed that morning. Singapore runs close to the two-hour limit and is the
+circuit most likely to be neutralised, so 210 minutes is deliberate; if the start slips, rearm.
 
 ## Kuala Lumpur
 

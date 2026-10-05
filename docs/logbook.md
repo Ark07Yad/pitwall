@@ -4,6 +4,133 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-10-05 — The fix that worked as a fit and failed as a call
+
+Three races in a row have lost their decision window to the same thing. For a
+car that has not stopped, tyre age *is* the race lap, so the pace fit cannot tell
+fuel burn from tyre wear until the stints stagger: Baku silent to lap 41, Spa
+2025 to 37, Kuala Lumpur to 31. I have called the fix "obvious" in this file
+twice. Today it was built, and it is not going into the engine.
+
+**The fix.** Hold the race-lap trend with a prior, and take tyre wear as what is
+left over. It goes in as one pseudo-observation on the race-lap column rather
+than as a switch, so where a race can measure its trend hundreds of laps outvote
+it, and where age and lap are one column it decides. The prior itself is
+measured: across the 13 recordings whose end-of-race fit identifies the trend, it
+sits at a median of **0.040 s/kg, sd 0.013** — the top of the published
+0.030–0.040 fuel band, which is what fuel plus a little track evolution should
+look like.
+
+**As a fit, it does what it was built to.**
+
+- Synthetic one-stint field, rank deficient without it: wear recovered at +0.058
+  against a truth of +0.060.
+- A prior wrong by 0.02 s/lap leaves the wear wrong by exactly 0.02. That is the
+  limit of the method and there is a test that says so.
+- Laps that contradict it still win: fed a −0.6 s/lap race it fits −0.58 and is
+  refused. The prior decides where the data are silent, not where they disagree.
+- Where a race measures its own trend, the prior supplies a median 7% of it.
+- Against each race's own end-of-race degradation, the held fit is closer than
+  the pooled prior alone on 72% of 276 laps — 61% in laps 6–12, 86% by 31–45.
+
+First usable lap moves from 41 to 10 at Baku, 31 to 15 at Monza, 42 to 11 at
+Singapore 2023. On coverage alone this is the biggest improvement the engine has
+had.
+
+**Then the test that is not about the fit.** Eight races, backtested only on
+laps that speak *because* the trend is held — 855 calls — against "the order
+holds":
+
+| calls made at | rows | top-3 skill | points skill | position error, model / baseline |
+|---|---|---|---|---|
+| first quarter | 193 | **−60.5%** | −3.9% | 4.51 / 3.01 |
+| second quarter | 514 | −9.1% | +14.7% | 3.27 / 2.51 |
+| after half distance | 148 | +34.6% | +9.0% | 2.71 / 2.35 |
+
+**And the control, which is what makes that a finding.** Six races where the
+free fit was already usable early, run both ways on identical laps:
+
+| calls made at | fit | top-3 skill | points skill | position error |
+|---|---|---|---|---|
+| first 30% | free / held | +15.7% / +17.8% | +1.2% / +6.2% | 3.47 / 3.38 |
+| 30–50% | free / held | +12.0% / +11.9% | +28.7% / +29.7% | 2.90 / 2.86 |
+| after half | free / held | +12.8% / +13.5% | +14.8% / +14.6% | 1.86 / 1.87 |
+
+Same call in 588 of 696 rows. So the prior does no harm to a fit that was
+already sound — and an early call is *not* bad merely for being early: with a
+measurable trend, the first 30% scores +16%. What is bad is a call made while the
+field is on one stint.
+
+**A measure of the call itself.** The ledger grades a forecast of finishing
+position, which is what a recording can settle and not what the engine is for.
+`scripts/stop_calls.py` asks the nearest thing that can be asked of a call: when
+the engine said "stop within three laps", did the team? My first version scored
+the *named* stop lap against the real one and found the engine ten laps early —
+which was the metric, not the engine. It can only name a stop ten laps ahead and
+decides again every lap, so "lap +10" at lap 10 means "not yet". Scoring the
+imminent call only, and only where the engine marked it decisive:
+
+| | decisive "stop soon" calls | team then did |
+|---|---|---|
+| laps the engine already speaks on | 63 | **28 — 44%** |
+| the same laps, trend held | 53 | 21 — 40% |
+| laps that speak only if the trend is held | 69 | **7 — 10%** |
+
+That is the number that decided it. A team's stop is not ground truth and 44% is
+not a score — but the two rows are measured the same way, and one is four times
+the other.
+
+**Why, from one race.** At Baku through laps 10–25, with the trend held at the
+prior, the race's own degradation comes out *negative*: mediums −0.042 to −0.014
+s/lap, softs −0.073 to −0.024. Lap times were falling faster than the prior's
+trend, because a street circuit rubbers in fastest at the start and the prior is
+centred on what the trend is by the end. The fit then blends that toward the
+pooled rate — twenty medium laps against a prior worth two hundred — and uses
+about +0.03. So the call rests on the pooled prior, not on anything this race
+measured, and it shows: at lap 10, one call of 22 was decisive and the median
+margin was 0.02 places. Twenty-two cars were told to stop in a race that ran its
+first stint to lap 39.
+
+The fuel term was never the whole problem. The model has one straight line for a
+trend that is not straight early on, and too few laps per car to know anyone's
+pace.
+
+**So the refusal stays, and it has a number now.** "Refusing is the feature" has
+been in the runbook since August as a principle. It is now a measurement: on the
+laps the engine refuses, its decisive stop calls would have been followed 10% of
+the time, against 44% where it speaks. The mechanism is kept behind
+`--hold-trend` on `backtest`, `strategy` and `window_sweep.py`, with its tests,
+and the `TrendPrior` docstring leads with the fact that the live engine does not
+use it and why. `reports/trend-prior.json` holds the tables.
+
+**Singapore, with the engine as it will run.** The last lap a second stop can be
+recommended on hards is about 31 of 62.
+
+| year | fit stable from | with the trend held |
+|---|---|---|
+| 2022 | never — wet to lap 35 | never |
+| 2023 | lap 42 | lap 19 |
+| 2024 | lap 25 | lap 10 |
+| 2025 | lap 26 | lap 11 |
+
+Expect silence to about lap 25 and a window of five or six laps; in a 2023, none.
+The right-hand column is how much earlier a fit could stand up. It is not when a
+call could be trusted, and the runbook says so beside it.
+
+**What this cost and what it bought.** A day, and no new laps for Sunday. Against
+that: the first decision-level measure this project has had; a control showing
+the engine's early calls are sound when its trend is measurable; a named cause —
+early track evolution — for why the first stint resists fitting; and one fewer
+thing I will describe as obvious. Spa 2025 is also now known to be a data
+problem rather than a modelling one: its archive reports medium tyre ages of 1–8
+across laps 19–30, where they should be 7–18.
+
+One caveat on the scorer. Run on the two live ledgers it finds a single imminent
+stop call in 64 rows, because the live engine advises only the leader. The track
+record cannot be scored this way until it advises more than one car.
+
+---
+
 ## 2026-10-04 — A race recorded whole, and an engine that said nothing
 
 The Bahrain Grand Prix in Malaysia. The capture is complete, the name trap held,

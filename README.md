@@ -366,6 +366,36 @@ single-race degradation confounding documented in [the logbook](docs/logbook.md)
 compounds were used in separate phases of the race, so their degradation rates are not separately
 identified. More races break that; one cannot.
 
+### When it says nothing, and the number behind that
+
+For roughly the first third of a race the engine offers no call. A car that has not stopped has a
+tyre age equal to its race lap, so fuel burn and tyre wear are one column of the design matrix and
+no estimator separates them; the fit is refused until the field's stints stagger. That cost three
+races their decision window — Baku silent to lap 41, Kuala Lumpur to 31.
+
+The fix is to hold the race-lap trend with a prior and take tyre wear as what is left. It was
+built, measured from 13 races (0.040 s/kg, sd 0.013), and works as a fit: first usable lap moves
+from 41 to 10 at Baku, and the degradation it leaves is closer to the race's own end-of-race value
+than the pooled prior on 72% of laps.
+
+**It is not switched on**, because of what the calls did. `scripts/stop_calls.py` scores the one
+thing about a call a recording can check — when the engine said "stop within three laps", did the
+team? — counting only calls it marked decisive:
+
+| | decisive "stop soon" calls | team then did |
+|---|---|---|
+| laps the engine already speaks on | 63 | **44%** |
+| laps that speak only if the trend is held | 69 | **10%** |
+
+A control on identical laps, where the trend was measurable either way, shows the prior itself is
+harmless (same call in 84% of rows) and that an early call is not bad merely for being early. What
+fails is a call made on a one-stint field: early track evolution is steeper than any end-of-race
+trend, so the wear left over comes out negative, the fit falls back on the pooled rate, and the
+call rests on nothing the race measured.
+
+So the silence is a measured choice rather than a missing feature, and `--hold-trend` reproduces
+the comparison. `reports/trend-prior.json` has the tables.
+
 ### The track record
 
 Every call is written to an append-only log and **committed before the lap it refers to**. The

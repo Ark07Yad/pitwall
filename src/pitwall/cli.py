@@ -29,6 +29,7 @@ from pitwall.ledger import (
     score_predictions,
 )
 from pitwall.models import (
+    RACE_TREND_PRIOR,
     DegradationPrior,
     EventKind,
     FuelModel,
@@ -308,7 +309,13 @@ def _strategy(args: argparse.Namespace) -> int:
     state = collector.state
     clean, filtered = filter_laps(collector.laps)
     prior = _load_degradation(args.degradation_history, args.history)
-    pace = fit_pace(clean, prior=prior, circuit=state.circuit, total_laps=state.total_laps)
+    pace = fit_pace(
+        clean,
+        prior=prior,
+        circuit=state.circuit,
+        total_laps=state.total_laps,
+        trend_prior=RACE_TREND_PRIOR if args.hold_trend else None,
+    )
     if pace is None:
         print("not enough clean laps to fit a pace model", file=sys.stderr)
         if filtered.regime.was_wet:
@@ -455,7 +462,13 @@ def _backtest(args: argparse.Namespace) -> int:
             continue
 
         clean, filtered = filter_laps(collector.laps)
-        pace = fit_pace(clean, prior=prior, circuit=state.circuit, total_laps=state.total_laps)
+        pace = fit_pace(
+            clean,
+            prior=prior,
+            circuit=state.circuit,
+            total_laps=state.total_laps,
+            trend_prior=RACE_TREND_PRIOR if args.hold_trend else None,
+        )
         if pace is None:
             # In a wet race "too few clean laps" is true and explains nothing.
             why = filtered.regime.describe() if filtered.regime.was_wet else ""
@@ -525,6 +538,7 @@ def _backtest(args: argparse.Namespace) -> int:
                         degradation=prior,
                         code=code,
                     ),
+                    note=pace.trend_note,
                 )
             )
             total += 1
@@ -818,6 +832,13 @@ def main(argv: list[str] | None = None) -> int:
     strategy.add_argument("--lap", type=int, required=True)
     strategy.add_argument("--driver", required=True, help="TLA or car number")
     strategy.add_argument("--sims", type=int, default=3000)
+    strategy.add_argument(
+        "--hold-trend",
+        action="store_true",
+        help="hold the race-lap trend with a prior so a field still on one stint can be "
+        "fitted. Analysis only: calls made this way were right one time in ten in "
+        "backtests, which is why the live engine does not do it",
+    )
     strategy.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
     strategy.add_argument(
         "--degradation-history",
@@ -852,6 +873,13 @@ def main(argv: list[str] | None = None) -> int:
     backtest.add_argument("--session", default="", help="label for the log file")
     backtest.add_argument("--out", type=Path, default=Path("predictions"))
     backtest.add_argument("--no-commit", action="store_true")
+    backtest.add_argument(
+        "--hold-trend",
+        action="store_true",
+        help="hold the race-lap trend with a prior so a field still on one stint can be "
+        "fitted. Analysis only: calls made this way were right one time in ten in "
+        "backtests, which is why the live engine does not do it",
+    )
     backtest.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
     backtest.add_argument(
         "--degradation-history",

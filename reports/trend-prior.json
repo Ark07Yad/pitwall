@@ -1,0 +1,411 @@
+{
+  "question": "Can the engine speak while a field is still on its first stint, by holding the race-lap trend with a prior?",
+  "answer": "The fit can. The calls cannot be trusted. Not switched on in the live engine.",
+  "measured": "2026-10-05",
+  "prior": {
+    "seconds_per_kg": 0.04,
+    "spread": 0.013,
+    "residual_s": 0.67,
+    "from": "end-of-race fits with age/lap correlation under 0.6",
+    "races": [
+      {
+        "recording": "2026-r3-archive.txt",
+        "circuit": "Suzuka",
+        "trend_s_per_lap": -0.0797,
+        "s_per_kg": 0.0603,
+        "age_lap_corr": 0.8,
+        "used": false
+      },
+      {
+        "recording": "2026-r5-archive.txt",
+        "circuit": "Montreal",
+        "trend_s_per_lap": -0.0244,
+        "s_per_kg": 0.0237,
+        "age_lap_corr": 0.41,
+        "used": true
+      },
+      {
+        "recording": "2026-r6-archive.txt",
+        "circuit": "Monte Carlo",
+        "trend_s_per_lap": -0.007,
+        "s_per_kg": 0.0078,
+        "age_lap_corr": 0.27,
+        "used": true
+      },
+      {
+        "recording": "2026-r7-archive.txt",
+        "circuit": "Catalunya",
+        "trend_s_per_lap": -0.0573,
+        "s_per_kg": 0.054,
+        "age_lap_corr": 0.51,
+        "used": true
+      },
+      {
+        "recording": "2026-r9-archive.txt",
+        "circuit": "Silverstone",
+        "trend_s_per_lap": -0.0632,
+        "s_per_kg": 0.047,
+        "age_lap_corr": 0.27,
+        "used": true
+      },
+      {
+        "recording": "2026-r10-archive.txt",
+        "circuit": "Spa-Francorchamps",
+        "trend_s_per_lap": -0.0466,
+        "s_per_kg": 0.0293,
+        "age_lap_corr": 0.5,
+        "used": true
+      },
+      {
+        "recording": "2026-hungary-race.txt",
+        "circuit": "Hungaroring",
+        "trend_s_per_lap": -0.0503,
+        "s_per_kg": 0.0503,
+        "age_lap_corr": 0.39,
+        "used": true
+      },
+      {
+        "recording": "2026-netherlands-race.txt",
+        "circuit": "Zandvoort",
+        "trend_s_per_lap": -0.0371,
+        "s_per_kg": 0.0382,
+        "age_lap_corr": 0.29,
+        "used": true
+      },
+      {
+        "recording": "2026-italy-race.txt",
+        "circuit": "Monza",
+        "trend_s_per_lap": -0.0245,
+        "s_per_kg": 0.0186,
+        "age_lap_corr": 0.62,
+        "used": false
+      },
+      {
+        "recording": "2026-r14-archive.txt",
+        "circuit": "Madring",
+        "trend_s_per_lap": -0.0585,
+        "s_per_kg": 0.0476,
+        "age_lap_corr": 0.46,
+        "used": true
+      },
+      {
+        "recording": "2026-baku-race.txt",
+        "circuit": "Baku",
+        "trend_s_per_lap": -0.0526,
+        "s_per_kg": 0.0383,
+        "age_lap_corr": 0.33,
+        "used": true
+      },
+      {
+        "recording": "2026-r16-race.txt",
+        "circuit": "Kuala Lumpur",
+        "trend_s_per_lap": -0.0511,
+        "s_per_kg": 0.0402,
+        "age_lap_corr": 0.05,
+        "used": true
+      },
+      {
+        "recording": "2022-baku-archive.txt",
+        "circuit": "Baku",
+        "trend_s_per_lap": -0.0664,
+        "s_per_kg": 0.0484,
+        "age_lap_corr": 0.49,
+        "used": true
+      },
+      {
+        "recording": "2023-baku-archive.txt",
+        "circuit": "Baku",
+        "trend_s_per_lap": -0.0759,
+        "s_per_kg": 0.0553,
+        "age_lap_corr": 0.82,
+        "used": false
+      },
+      {
+        "recording": "2024-baku-archive.txt",
+        "circuit": "Baku",
+        "trend_s_per_lap": -0.0744,
+        "s_per_kg": 0.0542,
+        "age_lap_corr": 0.74,
+        "used": false
+      },
+      {
+        "recording": "2025-baku-archive.txt",
+        "circuit": "Baku",
+        "trend_s_per_lap": -0.0596,
+        "s_per_kg": 0.0434,
+        "age_lap_corr": 0.2,
+        "used": true
+      },
+      {
+        "recording": "2025-r13-archive.txt",
+        "circuit": "Spa-Francorchamps",
+        "trend_s_per_lap": -0.0392,
+        "s_per_kg": 0.0246,
+        "age_lap_corr": 0.28,
+        "used": true
+      }
+    ]
+  },
+  "fit_accuracy": {
+    "what": "error in degradation rate (s/lap) against each race's own end-of-race fit, on laps usable only with the trend held; baseline is the pooled prior alone",
+    "by_lap": {
+      "6-12": {
+        "n": 51,
+        "held": 0.0193,
+        "pooled": 0.0219,
+        "held_closer": 0.61
+      },
+      "13-20": {
+        "n": 113,
+        "held": 0.0221,
+        "pooled": 0.0246,
+        "held_closer": 0.65
+      },
+      "21-30": {
+        "n": 76,
+        "held": 0.0216,
+        "pooled": 0.0278,
+        "held_closer": 0.82
+      },
+      "31-45": {
+        "n": 36,
+        "held": 0.0261,
+        "pooled": 0.0381,
+        "held_closer": 0.86
+      }
+    },
+    "all": {
+      "n": 276,
+      "held": 0.022,
+      "pooled": 0.0267,
+      "held_closer": 0.72
+    },
+    "prior_share_where_the_race_measures_its_trend": {
+      "median": 0.07,
+      "p25": 0.03,
+      "p75": 0.13
+    }
+  },
+  "forecast_skill_vs_hold_position": {
+    "new_laps_trend_held_8_races": {
+      "first_quarter": {
+        "rows": 193,
+        "top3": -0.605,
+        "points": -0.039,
+        "pos_err": 4.51,
+        "baseline_pos_err": 3.01
+      },
+      "second_quarter": {
+        "rows": 514,
+        "top3": -0.091,
+        "points": 0.147,
+        "pos_err": 3.27,
+        "baseline_pos_err": 2.51
+      },
+      "after_half": {
+        "rows": 148,
+        "top3": 0.346,
+        "points": 0.09,
+        "pos_err": 2.71,
+        "baseline_pos_err": 2.35
+      }
+    },
+    "control_same_laps_6_races": {
+      "first_30pct": {
+        "rows": 192,
+        "free": {
+          "top3": 0.157,
+          "points": 0.012,
+          "pos_err": 3.47
+        },
+        "held": {
+          "top3": 0.178,
+          "points": 0.062,
+          "pos_err": 3.38
+        },
+        "baseline_pos_err": 2.64
+      },
+      "30_to_50pct": {
+        "rows": 252,
+        "free": {
+          "top3": 0.12,
+          "points": 0.287,
+          "pos_err": 2.9
+        },
+        "held": {
+          "top3": 0.119,
+          "points": 0.297,
+          "pos_err": 2.86
+        },
+        "baseline_pos_err": 2.61
+      },
+      "after_half": {
+        "rows": 252,
+        "free": {
+          "top3": 0.128,
+          "points": 0.148,
+          "pos_err": 1.86
+        },
+        "held": {
+          "top3": 0.135,
+          "points": 0.146,
+          "pos_err": 1.87
+        },
+        "baseline_pos_err": 1.67
+      },
+      "identical_call": {
+        "same": 588,
+        "of": 696
+      }
+    }
+  },
+  "decisive_stop_within_3_laps_then_team_did": {
+    "laps_the_engine_already_speaks_on": {
+      "right": 28,
+      "of": 63
+    },
+    "same_laps_trend_held": {
+      "right": 21,
+      "of": 53
+    },
+    "laps_that_speak_only_if_trend_is_held": {
+      "right": 7,
+      "of": 69
+    }
+  },
+  "why": [
+    "Early track evolution is steeper than the end-of-race trend the prior is centred on, so the wear left over is negative: Baku 2026 laps 10-25, MED -0.042 to -0.014 s/lap, SOF -0.073 to -0.024.",
+    "The fit blends that toward the pooled rate, so the degradation used rests on no measurement from the race (lap 10: 20 medium laps against a prior worth 200).",
+    "Few of those calls are decisive: Baku lap 10, 1 of 22, median margin 0.02 places."
+  ],
+  "singapore_window_stable_from_lap": {
+    "last_stop_call_hard": 31,
+    "2022": {
+      "trend_free": null,
+      "trend_held": null,
+      "note": "wet to lap 35"
+    },
+    "2023": {
+      "trend_free": 42,
+      "trend_held": 19
+    },
+    "2024": {
+      "trend_free": 25,
+      "trend_held": 10
+    },
+    "2025": {
+      "trend_free": 26,
+      "trend_held": 11
+    }
+  },
+  "reproduce": [
+    "pitwall backtest <recording> --laps <laps> --hold-trend --no-commit --out <dir>",
+    "python scripts/stop_calls.py <ledger>:<recording> ...",
+    "python scripts/window_sweep.py data/raw/202*-singapore-archive.txt --first 8 --last 45 [--hold-trend]"
+  ],
+  "new_laps_backtested": {
+    "2026-baku-race.txt": [
+      10,
+      17,
+      25,
+      32,
+      40
+    ],
+    "2026-italy-race.txt": [
+      15,
+      18,
+      22,
+      26,
+      30
+    ],
+    "2026-r3-archive.txt": [
+      10,
+      14,
+      19,
+      23,
+      28
+    ],
+    "2023-singapore-archive.txt": [
+      11,
+      20,
+      27,
+      34,
+      41
+    ],
+    "2026-r9-archive.txt": [
+      10,
+      13,
+      16,
+      19,
+      22
+    ],
+    "2026-r14-archive.txt": [
+      10,
+      12,
+      15,
+      17,
+      20
+    ],
+    "2026-r6-archive.txt": [
+      10,
+      19,
+      28,
+      37,
+      47
+    ],
+    "2023-baku-archive.txt": [
+      10,
+      13,
+      18,
+      21,
+      25
+    ]
+  },
+  "control_laps_backtested": {
+    "hungary": [
+      15,
+      16,
+      21,
+      28,
+      35,
+      52
+    ],
+    "catalunya": [
+      15,
+      17,
+      20,
+      26,
+      33,
+      49
+    ],
+    "singapore24": [
+      14,
+      15,
+      19,
+      26,
+      31,
+      46
+    ],
+    "singapore25": [
+      11,
+      26,
+      28,
+      31,
+      46
+    ],
+    "baku22": [
+      17,
+      21,
+      26,
+      38
+    ],
+    "zandvoort": [
+      20,
+      21,
+      22,
+      29,
+      36,
+      54
+    ]
+  }
+}

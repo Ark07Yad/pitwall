@@ -19,7 +19,13 @@ from pitwall.models.fuel import (
     FuelModel,
 )
 from pitwall.models.long_run import LongRun, LongRunFit, fit_long_runs, long_runs
-from pitwall.models.pace import MAX_AGE_LAP_CORRELATION, PaceFit, fit_pace
+from pitwall.models.pace import (
+    MAX_AGE_LAP_CORRELATION,
+    RACE_TREND_PRIOR,
+    PaceFit,
+    TrendPrior,
+    fit_pace,
+)
 from pitwall.models.pit_loss import (
     DEFAULT_PIT_LOSS,
     PitLossModel,
@@ -49,6 +55,8 @@ __all__ = [
     "LongRunFit",
     "PaceFit",
     "PitLossModel",
+    "RACE_TREND_PRIOR",
+    "TrendPrior",
     "bucket_for",
     "code_version",
     "fit_attrition",

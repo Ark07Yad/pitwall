@@ -34,6 +34,7 @@ from pathlib import Path
 from pitwall.feed.replay import read_events
 from pitwall.laps import LapCollector, filter_laps
 from pitwall.models import (
+    RACE_TREND_PRIOR,
     fit_degradation,
     fit_pace,
     load_degradation,
@@ -42,7 +43,9 @@ from pitwall.models import (
 )
 
 
-def sweep(path: Path, prior: object, first: int, last: int) -> dict[str, object]:
+def sweep(
+    path: Path, prior: object, first: int, last: int, hold_trend: bool = False
+) -> dict[str, object]:
     collector = LapCollector()
     seen: set[int] = set()
     usable: list[int] = []
@@ -62,6 +65,7 @@ def sweep(path: Path, prior: object, first: int, last: int) -> dict[str, object]
             prior=prior,
             circuit=collector.state.circuit,
             total_laps=collector.state.total_laps,
+            trend_prior=RACE_TREND_PRIOR if hold_trend else None,
         )
         if pace is not None and pace.usable:
             usable.append(lap)
@@ -88,6 +92,12 @@ def main() -> int:
     parser.add_argument("recordings", type=Path, nargs="+")
     parser.add_argument("--first", type=int, default=8, help="first lap to check")
     parser.add_argument("--last", type=int, default=40, help="last lap to check")
+    parser.add_argument(
+        "--hold-trend",
+        action="store_true",
+        help="hold the race-lap trend with a prior, which the live engine does not do - "
+        "shows how much earlier a fit *could* stand up, not when a call can be trusted",
+    )
     parser.add_argument("--history", type=Path, default=Path("data/history/safety_car.json"))
     parser.add_argument(
         "--degradation-history", type=Path, default=Path("data/history/degradation.json")
@@ -105,7 +115,7 @@ def main() -> int:
     )
 
     for path in args.recordings:
-        result = sweep(path, prior, args.first, args.last)
+        result = sweep(path, prior, args.first, args.last, args.hold_trend)
         refused = result["refused"]
         print(f"\n{path.name}: {result['circuit']}, {result['total_laps']} laps")
         print(

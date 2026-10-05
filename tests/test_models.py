@@ -6,7 +6,7 @@ import pytest
 
 from pitwall.laps import CleanLapConfig, filter_laps
 from pitwall.laps.records import LapRecord
-from pitwall.models import DEFAULT_START_FUEL_KG, FuelModel, fit_pace
+from pitwall.models import DEFAULT_START_FUEL_KG, FuelModel, TrendPrior, fit_pace
 from pitwall.models.pace import MAX_AGE_LAP_CORRELATION, MIN_LAPS
 from pitwall.state.models import Compound, TrackStatus
 
@@ -954,3 +954,91 @@ def test_fitting_the_dry_phase_alone_recovers_the_race():
     assert fit.race_lap_coef == pytest.approx(-0.05, abs=0.02)
     assert fit.degradation[Compound.MEDIUM] == pytest.approx(0.06, abs=0.02)
     assert Compound.INTERMEDIATE not in fit.degradation
+
+
+# -- holding the trend where a race cannot measure it -------------------
+
+_BURN = 70.0 / 54
+# A prior centred on the -0.11 s/lap the one-stint fixture is built from.
+_ON_TRUTH = TrendPrior(seconds_per_kg=0.11 / _BURN)
+
+
+def test_a_field_on_one_stint_can_be_fitted_once_the_trend_is_held():
+    """Every race's first stint, and after a wet start the whole field at once.
+    With no prior the matrix is rank deficient and the fit is refused; with one,
+    tyre wear is what is left once the fuel effect is taken out."""
+    laps = _field_mostly_on_one_stint(through=30, pitters=0)
+    refused = fit_pace(laps, total_laps=54)
+    held = fit_pace(laps, total_laps=54, trend_prior=_ON_TRUTH)
+
+    assert not refused.usable
+    assert held.usable, held.unusable_reasons
+    assert not any("rank deficient" in w for w in held.warnings)
+    assert held.degradation[Compound.MEDIUM] == pytest.approx(0.06, abs=0.01)
+
+
+def test_it_says_the_trend_came_from_the_prior():
+    """A degradation rate that is a measurement and one that is a subtraction
+    are different claims, and the fit has to be able to tell them apart."""
+    held = fit_pace(
+        _field_mostly_on_one_stint(through=30, pitters=0), total_laps=54, trend_prior=_ON_TRUTH
+    )
+
+    assert held.trend_prior_share == pytest.approx(1.0, abs=0.01)
+    assert any("taken from the prior" in w for w in held.warnings)
+    assert "trend from prior" in str(held)
+
+
+def test_an_error_in_the_prior_passes_straight_into_the_wear():
+    """The limit of this, stated as a test. Inside one stint the two effects are
+    one column, so a prior 0.02 s/lap too shallow leaves the tyre looking 0.02
+    s/lap kinder than it is. Nothing in the race can correct it until the stints
+    stagger - which is why the share is reported."""
+    laps = _field_mostly_on_one_stint(through=30, pitters=0)
+    right = fit_pace(laps, total_laps=54, trend_prior=_ON_TRUTH)
+    shallow = fit_pace(
+        laps, total_laps=54, trend_prior=TrendPrior(seconds_per_kg=(0.11 - 0.02) / _BURN)
+    )
+
+    gap = right.degradation[Compound.MEDIUM] - shallow.degradation[Compound.MEDIUM]
+    assert gap == pytest.approx(0.02, abs=0.002)
+
+
+def test_a_race_that_can_measure_its_trend_is_left_alone():
+    """Three staggered stints a car. The prior is one pseudo-observation against
+    four hundred and fifty laps and moves nothing that matters."""
+    laps = synthetic_race(beta=-0.05, noise=0.2)
+    free = fit_pace(laps, total_laps=54)
+    held = fit_pace(laps, total_laps=54, trend_prior=TrendPrior())
+
+    assert held.trend_prior_share < 0.05
+    assert held.race_lap_coef == pytest.approx(free.race_lap_coef, abs=0.001)
+    for compound, rate in free.degradation.items():
+        assert held.degradation[compound] == pytest.approx(rate, abs=0.001)
+
+
+def test_the_prior_does_not_overrule_laps_that_contradict_it():
+    """It decides where the data are silent, not where they disagree. A race
+    whose laps say the trend is -0.6 s/lap still fits -0.6 and is still refused;
+    otherwise a drying track could hide behind it."""
+    held = fit_pace(synthetic_race(beta=-0.6, noise=0.2), total_laps=70, trend_prior=TrendPrior())
+
+    assert held.race_lap_coef < -0.5
+    assert not held.usable
+    assert any("s/kg of fuel" in r for r in held.unusable_reasons)
+
+
+def test_the_pseudo_observation_is_not_counted_as_a_lap():
+    laps = _field_mostly_on_one_stint(through=30, pitters=2)
+    free = fit_pace(laps, total_laps=54)
+    held = fit_pace(laps, total_laps=54, trend_prior=_ON_TRUTH)
+
+    assert held.n_laps == free.n_laps == len(laps)
+
+
+def test_without_a_prior_nothing_has_changed():
+    fit = fit_pace(_field_mostly_on_one_stint(through=30, pitters=2), total_laps=54)
+
+    assert fit.trend_prior_share == 0.0
+    assert not fit.usable
+    assert any("tyre age and race lap" in r for r in fit.unusable_reasons)

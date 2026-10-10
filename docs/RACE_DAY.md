@@ -11,8 +11,30 @@
 ## Marina Bay
 
 **Race: Sunday 11 October, 13:00 Irish** (20:00 local). A sprint weekend: practice Friday 9 at
-09:30, sprint qualifying Friday 13:30, **sprint Saturday 10:00**, qualifying Saturday 14:00. None
+09:30, sprint qualifying Friday 13:30, **sprint Saturday 10:00**, qualifying Saturday 14:30. None
 is needed live — the archive has every session afterwards.
+
+### Checked on Saturday night, against this weekend's own feed
+
+- **The name resolves.** The sprint's feed sends `Circuit.ShortName: Singapore`, the reducer records
+  it, and it normalises to `Marina Bay`. All four models report fitted; the `unfitted` stamp is
+  blank.
+- **The sprint was wet.** An 80% rain risk, `DELAYED START`, formation laps behind the safety car,
+  and a start 36 minutes late. All 290 laps were on intermediates. Run over it, Sunday's code
+  refuses every lap with the reason — *"the track is wet - 15 of 15 cars ran lap 6 on intermediate
+  or wet tyres, which the model has no rates for"* — and logs nothing, which is right.
+- **Qualifying, four and a half hours later, was dry.** Softs throughout, no rain flag. Saturday's
+  rain was a late-afternoon shower; the race starts at 20:00 local, between the two.
+
+So a delayed start is a live possibility — it has now happened in two race-format sessions
+running, 93 minutes at Kuala Lumpur and 36 here — and the arm below is for **300 minutes** rather
+than 210 so that one does not need anybody at the keyboard.
+
+**If it is wet, expect an empty ledger, and read it as the engine working.** No call while the
+field is on wet tyres, none for six laps after it leaves them, and then the whole field is on one
+stint taken at the same moment. At Kuala Lumpur that meant slicks from lap 9 and a stable fit at
+lap 31. Here the last lap a stop can be recommended is also 31, so a wet start very probably means
+no window at all — which is what the 2022 race here gave.
 
 ### What good looks like
 
@@ -75,22 +97,25 @@ and none until six laps after it leaves them. Watch for `dry from lap N` in the 
 ### Sunday, in this order
 
 ```bash
-./scripts/race_day.sh --dry-run "2026-10-11 12:45" 2026-singapore-race "2026 Singapore GP" "" 210
+./scripts/race_day.sh --dry-run "2026-10-11 12:45" 2026-singapore-race "2026 Singapore GP" "" 300
 ```
 
 It must end with `dry run OK - the launch line ran under bash 3.2…`. Anything else, and do not arm.
-Then arm it — it waits until 12:45 and records until 16:15:
+Then arm it — it waits until 12:45 and records until 17:45:
 
 ```bash
-nohup ./scripts/race_day.sh "2026-10-11 12:45" 2026-singapore-race "2026 Singapore GP" "" 210 &
+nohup ./scripts/race_day.sh "2026-10-11 12:45" 2026-singapore-race "2026 Singapore GP" "" 300 &
 ```
 
 Confirm rather than assume: `ps -o pid,ppid -p <pid>` shows a parent of `1`,
 `pmset -g assertions` shows `caffeinate` holding `PreventSystemSleep`, and
 `data/raw/2026-singapore-race-engine.log` shows the target line. Lid open, plugged in.
 
-A 13:00 start can be armed that morning. Singapore runs close to the two-hour limit and is the
-circuit most likely to be neutralised, so 210 minutes is deliberate; if the start slips, rearm.
+A 13:00 start can be armed that morning. Three hundred minutes covers a start as late as 14:30
+and a race to the two-hour limit with an hour to spare; the cost is an idle, backed-off connection
+after the flag, and it can be stopped by hand once `SessionStatus` reads `Finalised`. If the start
+slips further than that, rearm. Check the start time itself on Sunday morning — qualifying moved
+from 14:00 to 14:30 during the week.
 
 ## Kuala Lumpur
 

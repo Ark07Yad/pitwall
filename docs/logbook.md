@@ -4,6 +4,52 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-10-10 — The night before Singapore: a wet sprint, and what to expect written down first
+
+Saturday, 21:17. Every session before the race has run, so tomorrow's assumptions
+can be checked against this weekend's feed instead of last year's.
+
+**The name resolves, on this year's feed.** The sprint sends `Circuit.ShortName:
+Singapore`; the reducer records it and it normalises to `Marina Bay`. All four
+models are fitted and the `unfitted` stamp is blank. This is the Kuala Lumpur
+check with the opposite expected answer, and it is cheap enough that it should be
+run every race weekend rather than only when a name looks odd.
+
+**Today's sprint was wet from start to flag.** Race control posted an 80% rain
+risk, then `DELAYED START`, then formation laps behind the safety car; the sprint
+began 36 minutes late and all 290 laps were on intermediates. Qualifying four and
+a half hours later was dry on softs. So this was a late-afternoon shower, and the
+race starts at 20:00 local, between the two sessions.
+
+**Sunday's code was run over it as a rehearsal.** It refuses every lap and says
+why — *"the track is wet - 15 of 15 cars ran lap 6 on intermediate or wet tyres,
+which the model has no rates for"* — and logs nothing. Six days ago the same
+situation produced a pace spread and a trend and no named cause.
+
+**Two delayed starts in two race-format sessions** — 93 minutes at Kuala Lumpur,
+36 here — so the arm is for 300 minutes rather than 210. The launcher's deadline
+is fixed when it starts, and the cost of a longer one is an idle connection after
+the flag; the cost of a shorter one was nearly the last three minutes of a race.
+
+**What to expect, before it happens.**
+
+- *Dry:* silence to about lap 25, then five or six laps in which a stop can still
+  be recommended, the break-even being lap 31 of 62. If the field runs one long
+  stint, as in 2023, no window.
+- *Wet start:* very probably an empty ledger. No call on wet tyres, none for six
+  laps after, and then a field on one stint taken together — which took until lap
+  31 to separate at Kuala Lumpur, and lap 31 is where the window shuts here.
+
+Either way the engine advises the leader only, so the committed rows will be few.
+An empty ledger tomorrow would be the second in a row, and after Monday's
+measurement it would not be a fault: on the laps the engine declines, its
+decisive stop calls were followed 10% of the time.
+
+Dry run for the 12:45 arm passes under bash 3.2. 464 tests pass. Nothing is
+recorded yet under tomorrow's name.
+
+---
+
 ## 2026-10-05 — The fix that worked as a fit and failed as a call
 
 Three races in a row have lost their decision window to the same thing. For a

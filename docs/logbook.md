@@ -4,6 +4,140 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-10-13 (later) — The guard reads the right thing, and the recorder arms itself
+
+Two things came out of the Singapore write-up above: a guard that a tyre
+allocation walked past, and a race lost because a person had to remember. Both
+are changed tonight.
+
+### The guard
+
+**What it was reading.** A correlation of tyre age and race lap pooled across
+every car, refused above 0.85. At Singapore three cars started on used tyres,
+the offset between cars diluted it to 0.847, and a field with nobody on a second
+stint was accepted. The fit has an intercept per driver and never sees a constant
+offset between cars. The guard was measuring something the fit does not.
+
+**Three candidates for what it should read**, measured on every lap of twenty
+recordings that passes all the other guards:
+
+- the same correlation taken within each driver;
+- how much of the race-lap column the rest of the design explains — the multiple
+  correlation, which is the quantity identifiability actually turns on;
+- the standard error of the trend itself.
+
+The original calibration asked how often the trend came out physically
+impossible. That test no longer discriminates: the seconds-per-kilogram guard
+added on 30 September refuses impossible trends before this one is reached. So
+the question became how far each lap's trend sits from the one the same race
+measures by the flag.
+
+**The second candidate looked right and was not.** Banded by multiple R the calls
+fall off a cliff above 0.95 — +28% to +49% top-3 skill below it, −13% above — and
+I was about to set the line there. Then I ran the existing synthetic fields
+through it. One of them has all twelve cars stopped a lap apart: 99% of its
+race-lap column is explained by the rest of the design, the limit would refuse
+it, and it recovers its known trend to 0.002 s/lap. Collinearity is only one of
+three things that decide whether a trend is known. The other two are how many
+laps there are and how noisy they are, and five hundred quiet laps do not care
+that they are nearly collinear.
+
+All three together are the standard error of the trend, which is also in the
+units of the thing being guarded. On the same fixtures it reads 0.079 s/lap where
+the fit misses truth by 0.06, and 0.004 where it misses by 0.002.
+
+**Calibrated twice, and the two disagree about where.** Against each race's own
+end-of-race trend, 537 laps:
+
+| trend se, s/kg | laps | more than 0.02 s/kg out |
+|---|---|---|
+| under 0.005 | 186 | 1% |
+| 0.005–0.010 | 189 | 18% |
+| 0.010–0.015 | 55 | 64% |
+| over 0.015 | 107 | 59% |
+
+And on the calls — 92 laps backtested for this in twelve races, plus the
+Singapore and Kuala Lumpur ledgers, 2,336 rows:
+
+| trend se, s/kg | cells | top-3 skill | position error over baseline | decisive |
+|---|---|---|---|---|
+| under 0.005 | 38 | +32% | +0.13 | 72% |
+| 0.005–0.010 | 33 | +45% | +0.13 | 66% |
+| 0.010–0.015 | 11 | +39% | +0.24 | 63% |
+| 0.015–0.020 | 5 | −1% | +0.29 | 48% |
+| 0.020–0.030 | 10 | −14% | +0.65 | 48% |
+| over 0.030 | 12 | +17% | +0.90 | 43% |
+
+The trend starts drifting at 0.010; the calls hold to 0.015. Calls are what is
+published, so the line is **0.015 s/kg**: 82 cells kept at +40%, 27 refused at
++4% with five times the position error. It is close to the 0.013 by which the
+trend differs between races, which gives it a reading — past it, a race knows
+its own trend no better than assuming an average race would.
+
+The top band is not clean, and I am not going to pretend it is: twelve cells
+above 0.030 score +17% on top-3. Their position error is the worst in the table
+and fewer than half their calls are decisive, and a top-three forecast on a
+dozen cells is mostly the leaders staying where they are. But it is a positive
+number in a band I am refusing, on a small sample.
+
+**What it does.** Across the twenty recordings 581 laps are accepted where the
+pooled limit accepted 667 — 13% fewer, nearly all of them the first laps after a
+field starts to stop. One lap is newly accepted. Singapore is refused through lap
+24 and accepted from 25, where the calls turn good and where Saturday's
+prediction put it. The refusal now counts down as the race learns its trend:
+"known only to within 0.034 s/kg" at lap 17, 0.022 at 20, 0.016 at 24, against
+the 0.015 it needs.
+
+The pooled figure is still computed and shown. It decides nothing.
+
+**This is the third guard to stand here.** A count of stints that could not
+fire; a pooled correlation that could be diluted; now the error bar on the
+quantity itself. Each of the first two was a proxy for the third, and each was
+found out by a race rather than by a test. There is a test now with the
+Singapore shape — every car on its first stint, a few on used tyres, the pooled
+figure under the old line — and one for the opposite case.
+
+**And a lesson about evidence I should not have needed twice.** The ledgers
+behind the 5 October trend-prior result were in a scratch directory; a week
+later they were gone and only the summary survived. Tonight's are in
+`reports/collinearity/` with the scripts that read them.
+
+### The recorder
+
+`scripts/auto_arm.py --install` schedules a launchd agent for every remaining
+race. A firing does what the runbook tells a person to do, in the runbook's
+order: find the race, say so, hold the Mac awake, wait until thirty minutes
+before the start, run the launcher's dry run, and start the launcher only if that
+says OK. It stays with the launcher rather than leaving it behind, so stopping
+the job stops the recorder through its own trap and the feed connection is
+closed. It refuses to start anything while a recorder is already running.
+
+Three decisions worth recording:
+
+- **Two firings a race, three hours and thirty minutes before.** launchd will
+  not start a job that is already running, so the second only acts if the first
+  never did. launchd also runs a missed firing on wake, and a firing up to 150
+  minutes after the start still arms: half a race is worth having.
+- **Las Vegas is 04:00 Irish.** Three hours before that is 01:00, when nobody is
+  awake to be told to leave the lid open. Races before 09:00 also fire at 21:00
+  the evening before.
+- **The start is asked for, not assumed.** Qualifying moved half an hour last
+  week. Each firing asks FastF1 and follows the answer.
+
+Verified past the point where the last attempt at this failed. On 5 September
+launchctl accepted a hand-written plist with a raw ampersand in it that would
+never have fired. This one is built with `plistlib`, passes `plutil -lint`, and
+— the check that was missing then — has actually been run by launchd:
+`kickstart` gave `runs = 1, last exit code = 0` and a log line reading "no race
+near; nothing to do". The firing logic was also run under a bare environment for
+half an hour before Austin, three hours before, and a year after.
+
+What it cannot do is open a closed lid, and it does not prepare a race: no
+runbook section, no check of the circuit name. A recording nobody prepared for
+is still better than the one that was not made.
+
+---
+
 ## 2026-10-13 — Singapore, unrecorded, and the guard it would have embarrassed
 
 The Singapore Grand Prix was not recorded. Nothing failed: the launcher was

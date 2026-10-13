@@ -165,6 +165,22 @@ Arguments are start time (local), output file, and minutes to record. Progress g
 **Leave the machine plugged in, on wi-fi, and with the lid open.** macOS sleeps on lid close
 regardless of `caffeinate`, and a sleeping Mac records nothing.
 
+### Without anybody remembering
+
+Two of the first five races this was meant to record were lost the same way: the launcher was
+tested, the dry run had passed the night before, and nobody ran it on Sunday. The step that failed
+was a person remembering, so it is no longer a person's:
+
+```bash
+.venv/bin/python scripts/auto_arm.py --install
+```
+
+That schedules a launchd agent for every remaining race. Three hours before each one it posts a
+notification, holds the Mac awake, waits, runs the launcher's `--dry-run`, and starts the launcher
+only if that says OK — the runbook's own order. It refuses to start anything while another recorder
+is running, passes a stop signal on to the launcher so the feed connection is always closed, and
+exits quietly when it fires on the same date next year. It cannot open a closed lid.
+
 ### Replay one
 
 ```bash
@@ -395,6 +411,22 @@ call rests on nothing the race measured.
 
 So the silence is a measured choice rather than a missing feature, and `--hold-trend` reproduces
 the comparison. `reports/trend-prior.json` has the tables.
+
+**What decides when the silence ends** is the standard error of the race-lap trend, in seconds per
+kilogram of fuel: the fit is refused while it exceeds 0.015. It is the third thing to stand guard
+there. A count of stints was dead code; a 0.85 limit on the correlation of tyre age and race lap,
+pooled across cars, was walked past at the 2026 Singapore GP when three cars started on used tyres
+and diluted it to 0.847 with nobody on a second stint. The fit has an intercept per driver and does
+not see an offset between cars, so the guard was measuring something the fit does not. The limit
+was then set on the calls themselves — 2,336 of them across fourteen races:
+
+| trend known to (s/kg) | top-3 skill | position error over baseline |
+|---|---|---|
+| under 0.010 | +32% to +45% | +0.13 |
+| 0.010–0.015 | +39% | +0.24 |
+| 0.015–0.030 | −1% to −14% | +0.29 to +0.65 |
+
+`reports/collinearity/` holds the fits and ledgers behind it.
 
 ### The track record
 

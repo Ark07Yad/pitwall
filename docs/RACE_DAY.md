@@ -4,11 +4,60 @@
 > this file has no Austin section, and the numbers below are Marina Bay's, Kuala Lumpur's, Baku's
 > and Monza's. Mexico City follows on 1 November at 20:00 and São Paulo on 8 November at 17:00.
 >
-> **Two of the last five races were lost because nobody armed the recorder** — Monza and Singapore.
-> The launcher is tested and the dry run passes; the step that fails is remembering to run it.
+> **The recorder now arms itself.** See "The recorder arms itself" directly below. Arming by hand
+> still works and takes precedence.
 >
 > **If the start is delayed, rearm.** The launcher's deadline is fixed when it starts. See "When the
-> start slips" under Kuala Lumpur.
+> start slips" under Kuala Lumpur. The self-armed recording runs 330 minutes, which covers a start
+> ninety minutes late on its own.
+
+## The recorder arms itself
+
+Two of the first five races were lost because nobody ran the launcher — Monza and Singapore. Since
+13 October a launchd agent, `com.pitwall.autoarm`, does it:
+
+```bash
+.venv/bin/python scripts/auto_arm.py --status      # what is scheduled, and whether it is loaded
+.venv/bin/python scripts/auto_arm.py --install     # reschedule every remaining race
+.venv/bin/python scripts/auto_arm.py --uninstall
+```
+
+**It fires three hours before each race and again thirty minutes before.** The first posts a
+notification, holds the Mac awake, waits until thirty minutes before the start, runs the
+launcher's `--dry-run`, and only if that says OK starts the launcher and stays with it. The second
+is a fallback for when the first never ran. A race in the small hours — Las Vegas is 04:00 Irish —
+also fires at 21:00 the evening before.
+
+| race | starts (Irish) | fires |
+|---|---|---|
+| United States, Austin | Sun 25 Oct 20:00 | 17:00, 19:30 |
+| Mexico City | Sun 1 Nov 20:00 | 17:00, 19:30 |
+| São Paulo | Sun 8 Nov 17:00 | 14:00, 16:30 |
+| Las Vegas | Sun 22 Nov 04:00 | Sat 21:00, 01:00, 03:30 |
+| Qatar, Lusail | Sun 29 Nov 16:00 | 13:00, 15:30 |
+| Abu Dhabi, Yas Marina | Sun 6 Dec 13:00 | 10:00, 12:30 |
+
+**What it needs from you is the one thing it cannot do: an awake Mac.** Plugged in, lid open. A
+closed lid is a sleeping machine and a sleeping machine runs nothing; launchd will run the missed
+firing when it wakes, and a late one still arms a race already under way, but by then laps are
+gone. For Las Vegas that means leaving it open on Saturday night — the 21:00 notification says so.
+
+**Three notifications tell you what happened:** "race today" at the first firing, "recording" once
+the launcher is up, and "finished" with the size of the recording. **"NOT RECORDING"** means the dry
+run failed or the launcher exited at once, and nothing was started. `data/raw/auto-arm.log` has the
+detail.
+
+**One connection, always.** If a launcher, a dashboard or `record.py` is already running it does
+nothing. So arming by hand beforehand is safe, and so is a rehearsal — but a rehearsal left
+running will stop it arming the race.
+
+**To stop a recording it started:** `launchctl kill TERM gui/$(id -u)/com.pitwall.autoarm`. The
+signal is passed on to the launcher, whose trap shuts the engine down.
+
+It reads the start time from FastF1 at each firing and follows it if it has moved; the firing
+times themselves are fixed when installed, so after a schedule change of more than an hour or two,
+run `--install` again. It does not write the runbook section or check the circuit name — the
+preparation in this file is still a person's job.
 
 ## Marina Bay
 
@@ -27,8 +76,9 @@ It was dry, on time, and ran 62 laps. The fit was accepted from **lap 17, eight 
 should have been**: the collinearity guard reads the age/lap correlation pooled across cars, and
 three cars starting on used tyres pulled it to 0.847 while it was 0.95 within each driver and
 nobody had stopped twice. The rows from laps 17–23 score −129% on top-3; from lap 26 on, +72%.
-See the logbook for 13 October. Until that guard is moved to the within-driver figure, **treat any
-call made before a quarter of the field has stopped as not offered**, whatever the dashboard says.
+See the logbook for 13 October. **Fixed the same night:** the guard now reads the standard error of
+the trend itself, which a tyre allocation cannot dilute, and on this recording refuses through lap
+24 and accepts from 25.
 
 ### Checked on Saturday night, against this weekend's own feed
 
@@ -498,9 +548,13 @@ identified. It says so in the refusal line. On the Hungary recording the first u
 
 Three of those refusal lines name a cause worth knowing on the day:
 
-- **"tyre age and race lap are 0.9x correlated"** — the field is still on its first set, so fuel
-  burn and tyre wear are the same column and cannot be separated. It clears itself as the stops
-  stagger; watch `age/lap corr` on the model panel fall below 0.85. At Baku 2026 it did not clear
+- **"tyre age and race lap cannot be told apart yet — the race-lap trend is known only to within
+  0.0xx s/kg, against the 0.015 it needs"** — the field is still on its first set, so fuel burn
+  and tyre wear are the same column and cannot be separated. It clears itself as the stops stagger,
+  and the number in the message counts down as it does: at Singapore it read 0.034 on lap 17, 0.022
+  on lap 20, 0.016 on lap 24, and the fit spoke on lap 25. (Before 13 October this guard read a
+  correlation and said "0.9x correlated"; the Kuala Lumpur and Baku sections still describe it that
+  way, as they were written.) At Baku 2026 it did not clear
   until lap 41, and the engine was right to say nothing until then.
 - **"s/kg of fuel, far outside the 0.030–0.040 s/kg cars actually gain"** — the trend has picked up
   something other than fuel, usually because it is being fitted on eight laps. Expect it early and

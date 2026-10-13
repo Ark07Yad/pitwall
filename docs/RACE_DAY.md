@@ -1,18 +1,34 @@
 # Race day
 
-> **Next up: Singapore GP, Marina Bay — Sunday 11 October, 13:00 Irish.** A sprint weekend. See
-> "Marina Bay" below. The Kuala Lumpur, Baku and Monza sections are kept as worked examples; their
-> numbers are theirs.
+> **Next up: United States GP, Austin — Sunday 25 October, 20:00 Irish.** **Not yet prepared** —
+> this file has no Austin section, and the numbers below are Marina Bay's, Kuala Lumpur's, Baku's
+> and Monza's. Mexico City follows on 1 November at 20:00 and São Paulo on 8 November at 17:00.
 >
-> **If the start is delayed, rearm.** The launcher's deadline is fixed when it starts. On 4 October
-> the race began 93 minutes late and finished three minutes after the original arm would have
-> stopped recording. See "When the start slips" under Kuala Lumpur.
+> **Two of the last five races were lost because nobody armed the recorder** — Monza and Singapore.
+> The launcher is tested and the dry run passes; the step that fails is remembering to run it.
+>
+> **If the start is delayed, rearm.** The launcher's deadline is fixed when it starts. See "When the
+> start slips" under Kuala Lumpur.
 
 ## Marina Bay
 
 **Race: Sunday 11 October, 13:00 Irish** (20:00 local). A sprint weekend: practice Friday 9 at
 09:30, sprint qualifying Friday 13:30, **sprint Saturday 10:00**, qualifying Saturday 14:30. None
 is needed live — the archive has every session afterwards.
+
+### What happened
+
+**Not recorded.** The command below was never run. The race is rebuilt from the archive as
+`data/raw/2026-singapore-archive.txt`, backtested in
+`predictions/2026-singapore-gp-backtest.jsonl` and scored in `reports/2026-singapore.md`: top-3
+skill +49.4%, points +31.1%, on a model fixed before the race. There is no live ledger.
+
+It was dry, on time, and ran 62 laps. The fit was accepted from **lap 17, eight laps before it
+should have been**: the collinearity guard reads the age/lap correlation pooled across cars, and
+three cars starting on used tyres pulled it to 0.847 while it was 0.95 within each driver and
+nobody had stopped twice. The rows from laps 17–23 score −129% on top-3; from lap 26 on, +72%.
+See the logbook for 13 October. Until that guard is moved to the within-driver figure, **treat any
+call made before a quarter of the field has stopped as not offered**, whatever the dashboard says.
 
 ### Checked on Saturday night, against this weekend's own feed
 

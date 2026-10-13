@@ -4,6 +4,97 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-10-13 — Singapore, unrecorded, and the guard it would have embarrassed
+
+The Singapore Grand Prix was not recorded. Nothing failed: the launcher was
+dry-run on Saturday night, the runbook had the command, and nobody ran it on
+Sunday. This is the second race lost that way — Monza was the first — and the
+third with no live ledger in five.
+
+**What is gone and what is not.** The live ledger is gone: a commit timestamp
+proving a call preceded its outcome cannot be made afterwards. The race itself is
+not. `fetch_recording.py` rebuilt it from F1's archive — 69,603 events, 9.2 MB,
+`LapCount` 0–62 with none missing, `SessionStatus` through `Finalised`.
+
+**The race.** Dry throughout: a 5% rain risk, no rain flag in 160 weather
+samples, softs and mediums only. Started on time at 13:03 Irish, one VSC on
+laps 8–9 and one late, all 62 laps run. Verstappen from Leclerc and Antonelli.
+Saturday's wet sprint did not repeat.
+
+**This backtest is the strongest the project has, and still not a live one.**
+The rows are stamped `a3f6038`, the commit pushed on Saturday night. Unlike
+Kuala Lumpur's, the model that made these calls was fixed before the race, and
+the expectations were written down first. It lacks only the timestamps.
+
+220 calls at ten laps, scored in `reports/2026-singapore.md`: Brier top-3 skill
+**+49.4%**, points **+31.1%**, mean position error 1.70 against the baseline's
+1.20. Calibration is the best yet in the bands that matter — said 70.4%, 70.6%
+happened; said 95.3%, 81.8% happened.
+
+**What I predicted, and what happened.** On Saturday: silence to about lap 25,
+then five or six laps of window before the break-even at lap 31. The fit was
+usable from **lap 17**. Eight laps early is not the model doing better than
+expected. It is a guard measuring the wrong thing.
+
+**The guard.** `MAX_AGE_LAP_CORRELATION` refuses a fit while tyre age and race
+lap are more than 0.85 correlated — the field on one stint. It computes that
+correlation pooled across every car. At lap 17 it read **0.847**, and the fit
+was accepted with *no driver on a second stint*:
+
+| lap | pooled r | within-driver r | drivers on a second stint | trend, s/kg |
+|---|---|---|---|---|
+| 12 | 0.897 | 0.981 | 0 of 12 | refused |
+| 17 | 0.847 | **0.952** | 0 of 17 | 0.108 |
+| 20 | 0.822 | 0.946 | 0 of 19 | 0.078 |
+| 23 | 0.746 | 0.881 | 1 of 20 | 0.068 |
+| 26 | 0.639 | 0.756 | 4 of 21 | 0.056 |
+| 31 | 0.477 | 0.550 | 7 of 21 | 0.039 |
+| 36 | 0.156 | 0.170 | 15 of 21 | 0.029 |
+
+Three cars started on tyres already three laps old — a sprint weekend leaves
+used sets — and that offset *between* cars is what pulled the pooled figure
+under the line. But the fit has an intercept per driver, which absorbs any
+constant offset; what decides whether fuel and wear separate is the correlation
+*within* each driver, and that was 0.95. The trend shows the same thing the
+drying margin was calibrated on: 0.108 s/kg at lap 17, relaxing lap by lap to
+0.029 once the stints had actually staggered.
+
+Within-driver, the fit clears 0.85 between laps 23 and 26 — where the
+prediction put it, and where 2024 and 2025 did.
+
+**And the rows it let through are the bad ones.**
+
+| laps | top-3 skill | position error, model / baseline | decisive |
+|---|---|---|---|
+| 17, 20, 23 | **−129%** | 2.48 / 1.48 | 5 of 66 |
+| 26, 29, 31 | +72% | 2.10 / 1.67 | 24 of 66 |
+| 36 onwards | +64% | 0.80 / 0.64 | 57 of 88 |
+
+At lap 17 the engine told 22 of 22 cars to stop and meant it for one. That is
+the signature measured on 5 October — Baku, lap 10, trend held by a prior, 22 of
+22, one decisive — arriving here with no prior at all. Last week's finding was
+that calls on a one-stint field are right one time in ten. This race shows the
+guard built to refuse them can be talked past by a tyre allocation.
+
+So had it been recorded, the live ledger would have opened with eight laps the
+engine should not have spoken on. The threshold itself is not in question; what
+it is applied to is. It was calibrated on the pooled figure, so moving it to the
+within-driver one means measuring the knee again rather than reusing 0.85. Not
+changed here.
+
+**The call.** For the leader the engine said "pit now", without conviction, at
+every sampled lap from 17 to 31 — margins of 0.00 to 0.10 places — and "stay
+out", decisively, from 36. Verstappen stopped on lap 31. Across all cars the
+decisive "stop within three laps" calls numbered five, three followed by the
+team; too few to read.
+
+**The actual failure is that a person has to remember.** A reminder was set after
+Monza and expired with it. Five races in, the recorder has been armed by hand
+three times and forgotten twice. The launcher is tested; the step before it is
+not a step a machine takes.
+
+---
+
 ## 2026-10-10 — The night before Singapore: a wet sprint, and what to expect written down first
 
 Saturday, 21:17. Every session before the race has run, so tomorrow's assumptions

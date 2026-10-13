@@ -1,0 +1,50 @@
+[
+  {
+    "round": 18,
+    "name": "United States Grand Prix",
+    "location": "Austin",
+    "slug": "2026-austin-race",
+    "session": "2026 United States GP",
+    "start_utc": "2026-10-25T20:00:00Z"
+  },
+  {
+    "round": 19,
+    "name": "Mexico City Grand Prix",
+    "location": "Mexico City",
+    "slug": "2026-mexico-city-race",
+    "session": "2026 Mexico City GP",
+    "start_utc": "2026-11-01T20:00:00Z"
+  },
+  {
+    "round": 20,
+    "name": "São Paulo Grand Prix",
+    "location": "São Paulo",
+    "slug": "2026-sao-paulo-race",
+    "session": "2026 Sao Paulo GP",
+    "start_utc": "2026-11-08T17:00:00Z"
+  },
+  {
+    "round": 21,
+    "name": "Las Vegas Grand Prix",
+    "location": "Las Vegas",
+    "slug": "2026-las-vegas-race",
+    "session": "2026 Las Vegas GP",
+    "start_utc": "2026-11-22T04:00:00Z"
+  },
+  {
+    "round": 22,
+    "name": "Qatar Grand Prix",
+    "location": "Lusail",
+    "slug": "2026-lusail-race",
+    "session": "2026 Qatar GP",
+    "start_utc": "2026-11-29T16:00:00Z"
+  },
+  {
+    "round": 23,
+    "name": "Abu Dhabi Grand Prix",
+    "location": "Yas Marina",
+    "slug": "2026-yas-marina-race",
+    "session": "2026 Abu Dhabi GP",
+    "start_utc": "2026-12-06T13:00:00Z"
+  }
+]

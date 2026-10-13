@@ -1,0 +1,154 @@
+{
+ "hungary": {
+  "recording": "2026-hungary-race.txt",
+  "laps": [
+   15,
+   21,
+   25,
+   33,
+   42,
+   45,
+   48,
+   59
+  ]
+ },
+ "catalunya": {
+  "recording": "2026-r7-archive.txt",
+  "laps": [
+   15,
+   18,
+   21,
+   29,
+   33,
+   35,
+   37,
+   39,
+   41,
+   53
+  ]
+ },
+ "zandvoort": {
+  "recording": "2026-netherlands-race.txt",
+  "laps": [
+   20,
+   22,
+   25,
+   28,
+   30,
+   32,
+   34,
+   41,
+   48,
+   60
+  ]
+ },
+ "madring": {
+  "recording": "2026-r14-archive.txt",
+  "laps": [
+   21,
+   24,
+   25,
+   28,
+   33,
+   40,
+   48,
+   52
+  ]
+ },
+ "montreal": {
+  "recording": "2026-r5-archive.txt",
+  "laps": [
+   20,
+   22,
+   24,
+   27,
+   30,
+   33,
+   34,
+   51
+  ]
+ },
+ "silverstone": {
+  "recording": "2026-r9-archive.txt",
+  "laps": [
+   23,
+   25,
+   32,
+   41,
+   42,
+   47
+  ]
+ },
+ "suzuka": {
+  "recording": "2026-r3-archive.txt",
+  "laps": [
+   29,
+   31,
+   35,
+   40,
+   42,
+   48
+  ]
+ },
+ "monza": {
+  "recording": "2026-italy-race.txt",
+  "laps": [
+   31,
+   32,
+   34,
+   37,
+   46
+  ]
+ },
+ "baku22": {
+  "recording": "2022-baku-archive.txt",
+  "laps": [
+   17,
+   18,
+   21,
+   30,
+   36,
+   37,
+   38,
+   44
+  ]
+ },
+ "baku25": {
+  "recording": "2025-baku-archive.txt",
+  "laps": [
+   20,
+   27,
+   30,
+   33,
+   38,
+   39,
+   41,
+   46
+  ]
+ },
+ "singapore24": {
+  "recording": "2024-singapore-archive.txt",
+  "laps": [
+   14,
+   21,
+   30,
+   31,
+   33,
+   36,
+   38,
+   40,
+   51
+  ]
+ },
+ "singapore25": {
+  "recording": "2025-singapore-archive.txt",
+  "laps": [
+   11,
+   29,
+   31,
+   42,
+   50,
+   56
+  ]
+ }
+}

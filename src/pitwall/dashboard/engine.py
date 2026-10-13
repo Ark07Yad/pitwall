@@ -29,7 +29,7 @@ from pitwall.laps import LapCollector, TrackRegime, filter_laps
 from pitwall.latency import LatencyLog, LatencySample
 from pitwall.ledger import Forecast, ForecastLog, PredictionLog, prediction_from
 from pitwall.models import (
-    MAX_AGE_LAP_CORRELATION,
+    MAX_TREND_ERROR,
     AttritionModel,
     DegradationPrior,
     HazardModel,
@@ -683,7 +683,12 @@ class Engine:
             "age_lap_corr": round(pace.age_lap_correlation, 3),
             # The verdict travels with the number so the screen does not have to
             # keep its own copy of the threshold.
-            "separable": pace.age_lap_correlation <= MAX_AGE_LAP_CORRELATION,
+            "separable": pace.trend_error_per_kg <= MAX_TREND_ERROR,
+            # What the verdict is read from: how well this race knows its own
+            # trend, in s/kg. `age_lap_corr` is kept for the eye and decides
+            # nothing since 14 October 2026.
+            "trend_error": round(min(pace.trend_error_per_kg, 9.999), 4),
+            "trend_error_limit": MAX_TREND_ERROR,
             "residual": round(pace.residual_std, 3),
             "r2": round(pace.r_squared, 3),
             "degradation": {

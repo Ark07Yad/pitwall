@@ -20,7 +20,7 @@ from pitwall.models.fuel import (
 )
 from pitwall.models.long_run import LongRun, LongRunFit, fit_long_runs, long_runs
 from pitwall.models.pace import (
-    MAX_AGE_LAP_CORRELATION,
+    MAX_TREND_ERROR,
     RACE_TREND_PRIOR,
     PaceFit,
     TrendPrior,
@@ -43,7 +43,7 @@ from pitwall.models.safety_car import (
 
 __all__ = [
     "AttritionModel",
-    "MAX_AGE_LAP_CORRELATION",
+    "MAX_TREND_ERROR",
     "DegradationPrior",
     "DEFAULT_PIT_LOSS",
     "DEFAULT_SECONDS_PER_KG",

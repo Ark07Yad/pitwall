@@ -7,7 +7,7 @@ import pytest
 from pitwall.laps import CleanLapConfig, filter_laps
 from pitwall.laps.records import LapRecord
 from pitwall.models import DEFAULT_START_FUEL_KG, FuelModel, TrendPrior, fit_pace
-from pitwall.models.pace import MAX_AGE_LAP_CORRELATION, MIN_LAPS
+from pitwall.models.pace import MAX_TREND_ERROR, MIN_LAPS
 from pitwall.state.models import Compound, TrackStatus
 
 GREEN = frozenset({TrackStatus.ALL_CLEAR})
@@ -760,7 +760,7 @@ def test_a_field_still_on_one_stint_is_refused_for_the_right_reason():
     which is the same condition a lap either side of the measured knee."""
     fit = fit_pace(_field_mostly_on_one_stint(through=30, pitters=2))
 
-    assert fit.age_lap_correlation > MAX_AGE_LAP_CORRELATION
+    assert fit.trend_error_per_kg > MAX_TREND_ERROR
     assert not fit.usable
     assert any("tyre age and race lap" in r for r in fit.unusable_reasons)
 
@@ -797,7 +797,7 @@ def test_a_split_field_is_not_refused_and_recovers_the_trend():
     fit returns the trend it was built from."""
     fit = fit_pace(_field_mostly_on_one_stint(through=45, pitters=12))
 
-    assert fit.age_lap_correlation < MAX_AGE_LAP_CORRELATION
+    assert fit.trend_error_per_kg < MAX_TREND_ERROR
     assert fit.usable, fit.unusable_reasons
     assert fit.race_lap_coef == pytest.approx(-0.11, abs=0.02)
     assert fit.degradation[Compound.MEDIUM] == pytest.approx(0.06, abs=0.02)
@@ -808,7 +808,7 @@ def test_the_trend_converges_on_truth_as_the_field_splits():
     putting it where it is: the further the stints stagger, the less correlated
     the columns and the closer the trend gets to the -0.11 it was built from."""
     measured = [
-        (fit.age_lap_correlation, abs(fit.race_lap_coef - (-0.11)))
+        (fit.trend_error_per_kg, abs(fit.race_lap_coef - (-0.11)))
         for fit in (
             fit_pace(_field_mostly_on_one_stint(through=30, pitters=2)),
             fit_pace(_field_mostly_on_one_stint(through=36, pitters=6)),
@@ -828,7 +828,7 @@ def test_a_sound_fit_is_not_penalised_by_the_check():
     ones observed sound sat at r = 0.38-0.56."""
     fit = fit_pace(synthetic_race(noise=0.05))
 
-    assert fit.age_lap_correlation < MAX_AGE_LAP_CORRELATION
+    assert fit.trend_error_per_kg < MAX_TREND_ERROR
     assert not any("tyre age and race lap" in r for r in fit.unusable_reasons)
 
 
@@ -1042,3 +1042,90 @@ def test_without_a_prior_nothing_has_changed():
     assert fit.trend_prior_share == 0.0
     assert not fit.usable
     assert any("tyre age and race lap" in r for r in fit.unusable_reasons)
+
+
+# -- the guard reads what the fit sees, not what the eye does -------------
+
+
+def _one_stint_with_used_tyres(*, n_drivers: int = 17, through: int = 17, seed: int = 9):
+    """Nobody has stopped, and a few cars started on tyres already three laps old.
+
+    The 2026 Singapore GP at lap 17. A sprint weekend leaves used sets, so the
+    grid does not start at one tyre age - and that offset between cars is enough
+    to pull a correlation pooled across them under any line drawn on it.
+    """
+    rng = random.Random(seed)
+    laps: list[LapRecord] = []
+    for d in range(n_drivers):
+        base = 96.0 + d * 0.15
+        used = 12 if d % 3 == 0 else 0
+        for lap in range(2, through + 1):
+            laps.append(
+                LapRecord(
+                    driver=str(d),
+                    tla=f"D{d:02d}",
+                    team="T",
+                    lap=lap,
+                    lap_time=base - 0.05 * lap + 0.06 * (lap + used) + rng.gauss(0.0, 0.3),
+                    compound=Compound.MEDIUM,
+                    tyre_age=lap + used,
+                    stint=0,
+                    position=d + 1,
+                    interval=5.0,
+                    gap_to_leader="+5.0",
+                    track_statuses=GREEN,
+                    entered_pit=False,
+                    exited_pit=False,
+                    retired=False,
+                )
+            )
+    return laps
+
+
+def test_used_tyres_at_the_start_cannot_talk_the_guard_round():
+    """What let the 2026 Singapore GP through eight laps early. Every car is on
+    its first stint, so within each one tyre age is the race lap plus a constant
+    and nothing separates fuel from wear. But the constants differ between cars,
+    and the pooled correlation - which is what the guard used to read - falls to
+    a figure that looks like a field that has stopped."""
+    fit = fit_pace(_one_stint_with_used_tyres(), total_laps=62)
+
+    assert fit.age_lap_correlation < 0.85  # under the old line: it would have passed
+    assert fit.trend_error_per_kg > MAX_TREND_ERROR
+    assert not fit.usable
+    assert any("tyre age and race lap" in r for r in fit.unusable_reasons)
+
+
+def test_a_nearly_collinear_field_with_enough_quiet_laps_is_fine():
+    """The other direction, and why the limit is on the trend's standard error
+    rather than on collinearity. With all twelve cars stopped a lap apart the
+    race-lap column is 99% explained by the rest of the design - and five
+    hundred low-noise laps pin the trend down anyway, to within 0.01 of truth.
+    A limit on collinearity alone refuses this fit."""
+    fit = fit_pace(_field_mostly_on_one_stint(through=45, pitters=12), total_laps=54)
+
+    assert fit.lap_determination > 0.95
+    assert fit.trend_error_per_kg < MAX_TREND_ERROR
+    assert fit.usable, fit.unusable_reasons
+    assert fit.race_lap_coef == pytest.approx(-0.11, abs=0.01)
+
+
+def test_a_rank_deficient_fit_has_no_trend_at_all():
+    fit = fit_pace(_field_mostly_on_one_stint(through=30, pitters=0), total_laps=54)
+
+    assert fit.trend_error_per_kg == float("inf")
+    assert any("known not at all" in r for r in fit.unusable_reasons)
+
+
+def test_the_standard_error_follows_how_wrong_the_trend_is():
+    """It is only worth guarding on if it tracks the thing it is guarding. As
+    the field splits, the error bar and the actual miss fall together."""
+    fits = [
+        fit_pace(_field_mostly_on_one_stint(through=through, pitters=pitters), total_laps=54)
+        for through, pitters in ((30, 2), (30, 3), (36, 6), (45, 12))
+    ]
+    bars = [fit.trend_error_per_kg for fit in fits]
+    misses = [abs(fit.race_lap_coef - (-0.11)) for fit in fits]
+
+    assert bars == sorted(bars, reverse=True)
+    assert misses == sorted(misses, reverse=True)

@@ -393,8 +393,8 @@ function renderModel(m) {
     /* Why the engine is quiet, when it is quiet early in a race: until the
        stints stagger, tyre age and race lap are the same column and fuel burn
        cannot be told from tyre wear. */
-    `<div class="kv${m.separable ? "" : " bad"}"><span>age/lap corr</span>
-      <b>${m.age_lap_corr.toFixed(2)}${m.separable ? "" : " — not separable"}</b></div>` +
+    `<div class="kv${m.separable ? "" : " bad"}"><span>trend known to</span>
+      <b>±${m.trend_error.toFixed(3)} s/kg${m.separable ? "" : ` — needs ${m.trend_error_limit.toFixed(3)}`}</b></div>` +
     (m.warnings?.length ? `<div class="warn">${m.warnings[0]}</div>` : "");
 }
 

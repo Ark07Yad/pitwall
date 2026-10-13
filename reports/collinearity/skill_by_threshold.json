@@ -1,0 +1,92 @@
+{
+ "0.01": {
+  "keep": {
+   "cells": 71,
+   "rows": 1522,
+   "top3": 40.6,
+   "points": 23.5,
+   "gap": 0.13,
+   "decisive": 69
+  },
+  "refuse": {
+   "cells": 38,
+   "rows": 814,
+   "top3": 14.4,
+   "points": 18.0,
+   "gap": 0.56,
+   "decisive": 50
+  }
+ },
+ "0.015": {
+  "keep": {
+   "cells": 82,
+   "rows": 1760,
+   "top3": 40.4,
+   "points": 25.5,
+   "gap": 0.14,
+   "decisive": 68
+  },
+  "refuse": {
+   "cells": 27,
+   "rows": 576,
+   "top3": 3.7,
+   "points": 12.3,
+   "gap": 0.69,
+   "decisive": 45
+  }
+ },
+ "0.02": {
+  "keep": {
+   "cells": 87,
+   "rows": 1868,
+   "top3": 38.4,
+   "points": 26.0,
+   "gap": 0.15,
+   "decisive": 67
+  },
+  "refuse": {
+   "cells": 22,
+   "rows": 468,
+   "top3": 4.4,
+   "points": 7.2,
+   "gap": 0.78,
+   "decisive": 45
+  }
+ },
+ "0.025": {
+  "keep": {
+   "cells": 93,
+   "rows": 1996,
+   "top3": 34.6,
+   "points": 22.9,
+   "gap": 0.2,
+   "decisive": 65
+  },
+  "refuse": {
+   "cells": 16,
+   "rows": 340,
+   "top3": 13.2,
+   "points": 13.3,
+   "gap": 0.74,
+   "decisive": 46
+  }
+ },
+ "0.03": {
+  "keep": {
+   "cells": 97,
+   "rows": 2082,
+   "top3": 33.2,
+   "points": 23.2,
+   "gap": 0.2,
+   "decisive": 65
+  },
+  "refuse": {
+   "cells": 12,
+   "rows": 254,
+   "top3": 16.3,
+   "points": 9.0,
+   "gap": 0.89,
+   "decisive": 43
+  }
+ }
+}

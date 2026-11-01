@@ -46,6 +46,9 @@ filterwarnings = ["ignore::DeprecationWarning"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Records of a measurement, kept exactly as they were run. Reformatting one would
+# make it something other than what produced the numbers beside it.
+extend-exclude = ["reports"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

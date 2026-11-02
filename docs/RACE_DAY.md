@@ -1,11 +1,11 @@
 # Race day
 
-> **Next up: United States GP, Austin — Sunday 25 October, 20:00 Irish.** **Not yet prepared** —
-> this file has no Austin section, and the numbers below are Marina Bay's, Kuala Lumpur's, Baku's
-> and Monza's. Mexico City follows on 1 November at 20:00 and São Paulo on 8 November at 17:00.
+> **Next up: São Paulo GP, Interlagos — Sunday 8 November, 17:00 Irish.** See "Interlagos" below.
+> The Marina Bay, Kuala Lumpur, Baku and Monza sections are kept as worked examples; their numbers
+> are theirs. Las Vegas follows on 22 November at 04:00 Irish, so its lid stays open on Saturday.
 >
-> **The recorder now arms itself.** See "The recorder arms itself" directly below. Arming by hand
-> still works and takes precedence.
+> **The recorder arms itself, and the lid is the one thing it cannot do.** Austin was armed on time
+> and slept through. See "The recorder arms itself" directly below.
 >
 > **If the start is delayed, rearm.** The launcher's deadline is fixed when it starts. See "When the
 > start slips" under Kuala Lumpur. The self-armed recording runs 330 minutes, which covers a start
@@ -42,10 +42,11 @@ closed lid is a sleeping machine and a sleeping machine runs nothing; launchd wi
 firing when it wakes, and a late one still arms a race already under way, but by then laps are
 gone. For Las Vegas that means leaving it open on Saturday night — the 21:00 notification says so.
 
-**Three notifications tell you what happened:** "race today" at the first firing, "recording" once
-the launcher is up, and "finished" with the size of the recording. **"NOT RECORDING"** means the dry
-run failed or the launcher exited at once, and nothing was started. `data/raw/auto-arm.log` has the
-detail.
+**Notifications tell you what happened:** "race today" at the first firing, "recording" once the
+launcher is up, and "finished" with the size of the recording. **"NOT RECORDING"** means the dry run
+failed or the launcher exited at once, and nothing was started. **"lid closed"**, **"Mac slept"** and
+a last notification of **"recording has gaps"** mean laps are being or were lost; rebuild from the
+archive. `data/raw/auto-arm.log` has the detail.
 
 **One connection, always.** If a launcher, a dashboard or `record.py` is already running it does
 nothing. So arming by hand beforehand is safe, and so is a rehearsal — but a rehearsal left
@@ -58,6 +59,58 @@ It reads the start time from FastF1 at each firing and follows it if it has move
 times themselves are fixed when installed, so after a schedule change of more than an hour or two,
 run `--install` again. It does not write the runbook section or check the circuit name — the
 preparation in this file is still a person's job.
+
+## Interlagos
+
+**Race: Sunday 8 November, 17:00 Irish.** A conventional weekend: practice Friday 6 at 15:30 and
+19:00, FP3 Saturday 7 at 14:30, qualifying Saturday at 18:00. The recorder arms itself: the job
+fires at 14:00 and 16:30, and the recording runs from 16:30 for 330 minutes.
+
+**The one thing it needs is the lid open from before 14:00.** At Austin the lid was shut, the
+recorder started on time, and it saw 11 of 56 lap counts. Since 2 November a closed lid and a nap
+during the recording are both reported, and the last notification reads "recording has gaps"
+rather than "finished" — but that only tells you afterwards.
+
+### What good looks like
+
+Every model has history here, so `fitted: false` would be a fault. The feed sends `Interlagos`
+(checked on last year's race; this weekend's sessions are not in the archive until later), which
+resolves to `São Paulo`.
+
+| field | expected |
+|---|---|
+| `circuit` | `Interlagos` |
+| `total_laps` | **71** |
+| `model.pit_loss` | `{"seconds": 21.91, "expected": 22.2, "fitted": true}` |
+| `model.prior` | `{"factor": 1.08, "fitted": true}` |
+| ledger rows | `unfitted: ""` |
+
+### What to expect from the models
+
+| | Interlagos (71 laps) |
+|---|---|
+| P(safety car) | **72%**, expected 1.23 |
+| P(any neutralisation) | **81%**, expected 1.61 |
+| lap-1 hazard (any) | **21.8%**, against 2.2% for a mid-race lap |
+| expected retirements | **3.27 of 22** |
+| pit loss (median / expected) | **21.91 s / 22.20 s** |
+| degradation factor | **1.08x** |
+
+### The window
+
+A second stop on a 26-lap-old hard needs **21 laps** of remaining running to pay and on a medium
+**18**, so the last lap one can be recommended is about **lap 50 of 71** on hards, 53 on mediums.
+Measured with the guard as it now stands, on the last four races here (`scripts/window_sweep.py`):
+
+| year | conditions | pace fit stable from | laps of window (hard) |
+|---|---|---|---|
+| 2022 | dry; two safety cars, a VSC | lap 26 | about 24 |
+| 2023 | dry; a red flag, a safety car | lap 28 | about 22 |
+| 2024 | **wet to the flag** | never | none |
+| 2025 | dry; a safety car, a VSC | lap 36 | about 14 |
+
+**So in the dry, expect silence to about lap 26–36 and a real window after it.** In the wet, expect
+an empty ledger: 2024 ran on intermediates throughout, and the model has no rates for them.
 
 ## Marina Bay
 

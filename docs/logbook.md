@@ -4,6 +4,54 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-11-02 — Austin slept, Mexico City did not, and the job nearly stood itself down
+
+**Austin was armed on time and recorded almost nothing.** The job fired at 17:06, waited, passed its
+dry run and started the launcher, all exactly as designed. The Mac was asleep for the race: it woke
+for a few seconds about every fifteen minutes, so the dry run took eighteen minutes and "armed"
+forty-one. The recorder saw 11 of 56 lap counts, 2.0 MB, two live calls. The job then reported
+"recording" and "finished". A closed lid is the likely cause and not a proven one, since the log no
+longer reaches back to when that sleep began; on 31 October the same log does say `Clamshell Sleep`,
+and today's notification woke the Mac fully where Austin's did not.
+
+**Mexico City is the first race the job has run start to finish.** Lid open: armed at 19:30, 12.9 MB,
+laps 1–71, no gap once running, no feed drop, no relaunch, no sleep. Forty live calls and forty field
+forecasts, each in its own commit, the last at 22:22:37, before the flag at 22:23. It was also the
+first live race under the standard-error guard: refused through lap 30, accepted at 31 as the trend
+tightened from 0.045 to 0.009 s/kg, with the hard-tyre break-even at lap 47. A real window.
+
+Whole-field forecast against "the order holds": win +51.2%, top three +41.2%, points +33.7%, position
+error 1.69 against 1.50. Two reasons to read that with care. It is one race, with a VSC, a red flag
+and two safety cars. And the calls after the red flag came from a fit that takes no notice of one,
+where the pooled history excludes such races; that is the wet-phase problem in another form, and it
+is open.
+
+**The report's headline verdict on this race is wrong.** It says the model lost to the baseline, because
+the leader-only ledger gave a perfect baseline: both leaders finished in the top three. Also open.
+
+**CI went red on the push, and it was mine.** CI lints the whole repository and I had only ever
+linted `src`, `tests` and `scripts`, so the two evidence scripts in `reports/collinearity/` were never
+seen. Lint runs first, so the 13 October guard and auto-arm tests had still not run on CI. Excluded
+from lint, not reformatted, because they are a record of what produced the numbers.
+
+**A rehearsal of the São Paulo firing found the worst bug yet.** "A recorder is already running -
+leaving it alone", with nothing running. `recorder_running` was `pgrep -f` on the text, so it matched
+the shell running the rehearsal, whose command mentioned those words. Any terminal, editor or `grep`
+on race day would have stood the job down, with a notification that sounded responsible. It had only
+ever fired correctly because nothing happened to mention the launcher at the moment it looked. It now
+compares the program and the script, and was checked against the real process table both ways: this
+shell ignored, a live launcher seen.
+
+**Sleep is now reported.** The job watches the clock while recording: a jump means the Mac slept. The
+lid is reported at each firing, each nap as it is noticed, and the last notification reads "recording
+has gaps" rather than "finished". It still cannot prevent any of it.
+
+One of mine, for the record: the `caffeinate -t 21240` started by hand on 1 November was still holding
+the Mac and its display awake twenty-one hours later, sixteen hours past its timer. I do not know why,
+and have stopped it. The job's own hold is tied to its process and cannot do that.
+
+---
+
 ## 2026-10-13 (later) — The guard reads the right thing, and the recorder arms itself
 
 Two things came out of the Singapore write-up above: a guard that a tyre

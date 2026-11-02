@@ -70,6 +70,8 @@ REPO = Path(__file__).resolve().parents[1]
 # a stub. Nothing but the tests sets these; a real firing gets the real files.
 CALENDAR = Path(os.environ.get("AUTO_ARM_CALENDAR") or REPO / "scripts" / "race_calendar.json")
 LAUNCHER = Path(os.environ.get("AUTO_ARM_LAUNCHER") or REPO / "scripts" / "race_day.sh")
+# Where macOS keeps the lid state. A module constant so a test can take it away.
+IOREG = "/usr/sbin/ioreg"
 # Seconds to give the launcher before calling it armed.
 SETTLE_SECONDS = float(os.environ.get("AUTO_ARM_SETTLE") or 25)
 LABEL = "com.pitwall.autoarm"
@@ -355,20 +357,39 @@ def is_recorder(command: str) -> bool:
 
 def recorder_running() -> str:
     """The command line of anything already holding, or about to hold, the feed."""
-    listing = subprocess.run(
-        ["/bin/ps", "-axo", "command="], check=False, capture_output=True, text=True
-    ).stdout
+    try:
+        listing = subprocess.run(
+            ["/bin/ps", "-axo", "command="],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as error:
+        # Carry on: the launcher refuses a taken port before it connects, and a
+        # second recorder holds that port. Stopping here would lose the race.
+        say(f"could not list processes: {error}")
+        return ""
     return next((line.strip() for line in listing.splitlines() if is_recorder(line.strip())), "")
 
 
 def lid_closed() -> bool:
-    """Whether the lid is shut, which no assertion from this process can overrule."""
-    listing = subprocess.run(
-        ["/usr/sbin/ioreg", "-r", "-k", "AppleClamshellState", "-d", "4"],
-        check=False,
-        capture_output=True,
-        text=True,
-    ).stdout
+    """Whether the lid is shut, which no assertion from this process can overrule.
+
+    A warning, so it may never cost what it warns about: if this cannot find out,
+    the answer is "not as far as we know" and the race is still armed.
+    """
+    try:
+        listing = subprocess.run(
+            [IOREG, "-r", "-k", "AppleClamshellState", "-d", "4"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout
+    except (OSError, subprocess.SubprocessError) as error:
+        say(f"could not read the lid state: {error}")
+        return False
     return any(
         '"AppleClamshellState"' in line and line.rstrip().endswith("Yes")
         for line in listing.splitlines()

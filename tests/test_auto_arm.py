@@ -377,3 +377,24 @@ def test_a_recording_with_naps_does_not_say_finished():
     assert title == "Pitwall - recording has gaps"
     assert "30 min" in body
     assert "archive" in body
+
+
+# -- a warning must never cost what it warns about --------------------------
+
+
+def test_an_unreadable_lid_does_not_stop_the_job(monkeypatch):
+    """The lid check is a courtesy. When it first went in, a missing `ioreg` raised
+    and took the whole firing down with it - found on CI, where Linux has none, and
+    every bit as fatal on a race day if the call had failed for any other reason."""
+    monkeypatch.setattr(auto_arm, "IOREG", "/nonexistent/ioreg")
+
+    assert auto_arm.lid_closed() is False
+
+
+def test_an_unreadable_process_list_does_not_stop_the_job(monkeypatch):
+    def broken(*_args, **_kwargs):
+        raise OSError("no ps here")
+
+    monkeypatch.setattr(auto_arm.subprocess, "run", broken)
+
+    assert auto_arm.recorder_running() == ""

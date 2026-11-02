@@ -34,6 +34,10 @@ running it does nothing at all. Arming by hand is still allowed and wins.
 **What it cannot do is open a closed lid.** A sleeping Mac runs nothing, and
 waking one on a schedule needs `pmset`, which needs root and is not something
 this script will touch. Plugged in, lid open. The evening notification says so.
+What it does instead is say so when it matters: a closed lid is reported at each
+firing, a nap during the recording as it is noticed, and the last notification
+reads "recording has gaps" rather than "finished". The 2026 United States GP slept
+through almost all of it, and that was only found by reading a file size.
 
 **The start time is checked, not trusted.** Qualifying at the 2026 Singapore GP
 moved by half an hour during the week. Each firing asks FastF1 for the current
@@ -84,6 +88,10 @@ RECORD_AFTER_START = 300
 WAIT_UP_TO = 12 * 60
 # A firing this long after the start still arms - half a race beats none.
 ARM_UNTIL_AFTER = 150
+# How often the job looks at the clock while recording, and the jump in seconds
+# that means the Mac was asleep rather than busy.
+WATCH_SECONDS = 10.0
+SLEEP_GAP = 60.0
 # Local hour before which a race counts as overnight and gets an evening firing.
 OVERNIGHT_BEFORE_HOUR = 9
 EVENING_HOUR = 21
@@ -244,6 +252,42 @@ def recording_minutes(race: Race, now: datetime) -> int:
     return max(30, int((end - begins).total_seconds() // 60))
 
 
+@dataclass
+class SleepWatch:
+    """Notices the clock jumping, which is how a process sees the Mac sleep.
+
+    The 2026 United States GP was armed on time and then slept through: the Mac
+    woke for a few seconds every quarter of an hour, the recorder saw 11 of 56
+    lap counts, and the job reported "recording" and "finished" as if nothing had
+    happened. A process cannot stop a closed lid, but it can tell afterwards.
+    """
+
+    last: float
+    asleep: float = 0.0
+    naps: int = 0
+
+    def tick(self, now: float) -> float:
+        """Seconds lost since the last tick, or zero if it was on time."""
+        gap, self.last = now - self.last, now
+        if gap <= SLEEP_GAP:
+            return 0.0
+        self.asleep += gap
+        self.naps += 1
+        return gap
+
+
+def finish_message(race: Race, size_mb: float, code: int, watch: SleepWatch) -> tuple[str, str]:
+    """The last notification. Says plainly when the recording cannot be whole."""
+    if watch.naps:
+        minutes = watch.asleep / 60
+        return (
+            "Pitwall - recording has gaps",
+            f"{race.name}: the Mac slept for {minutes:.0f} min across {watch.naps} naps, so laps "
+            f"are missing. {size_mb:.1f} MB recorded. It can be rebuilt from the archive.",
+        )
+    return "Pitwall - finished", f"{race.name}: {size_mb:.1f} MB recorded. Exit code {code}."
+
+
 def launcher_args(race: Race, now: datetime) -> list[str]:
     start_at = (race.start - timedelta(minutes=ARM_LEAD)).astimezone().strftime("%Y-%m-%d %H:%M")
     return [start_at, race.slug, race.session, "", str(recording_minutes(race, now))]
@@ -282,15 +326,63 @@ def notify(title: str, message: str) -> None:
         say(f"could not post a notification: {error}")
 
 
+def is_recorder(command: str) -> bool:
+    """Whether a process's command line *is* a recorder, not merely mentions one.
+
+    This used to be `pgrep -f` on the text, which matches anything with those words
+    anywhere in its arguments: an editor open on the launcher, a `grep` for it, a
+    shell running either. On 2 November a rehearsal of the São Paulo firing refused
+    to arm because of the shell that was running the rehearsal. On race day that is
+    a lost race with a reasonable-sounding notification. So the program and the
+    script it was given are compared, and nothing else is read.
+    """
+    parts = command.split()
+    if len(parts) < 2:
+        return False
+    program = Path(parts[0]).name.lower()
+    arguments = parts[1:]
+    if program.startswith("python"):
+        if arguments[0] == "-m":
+            return arguments[1:3] == ["pitwall", "dashboard"]
+        script = Path(arguments[0]).name
+        if script == "record.py":
+            return True
+        return script == "pitwall" and arguments[1:2] == ["dashboard"]
+    if program in ("bash", "sh"):
+        return Path(arguments[0]).name == "race_day.sh"
+    return program == "pitwall" and arguments[0] == "dashboard"
+
+
 def recorder_running() -> str:
     """The command line of anything already holding, or about to hold, the feed."""
-    for pattern in ("scripts/race_day.sh", "pitwall dashboard", "scripts/record.py"):
-        found = subprocess.run(
-            ["/usr/bin/pgrep", "-fl", pattern], check=False, capture_output=True, text=True
-        ).stdout.strip()
-        if found:
-            return found.splitlines()[0]
-    return ""
+    listing = subprocess.run(
+        ["/bin/ps", "-axo", "command="], check=False, capture_output=True, text=True
+    ).stdout
+    return next((line.strip() for line in listing.splitlines() if is_recorder(line.strip())), "")
+
+
+def lid_closed() -> bool:
+    """Whether the lid is shut, which no assertion from this process can overrule."""
+    listing = subprocess.run(
+        ["/usr/sbin/ioreg", "-r", "-k", "AppleClamshellState", "-d", "4"],
+        check=False,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return any(
+        '"AppleClamshellState"' in line and line.rstrip().endswith("Yes")
+        for line in listing.splitlines()
+    )
+
+
+def warn_if_lid_closed(race: Race) -> None:
+    if lid_closed():
+        say("THE LID IS CLOSED - the Mac will sleep through this race")
+        notify(
+            "Pitwall - lid closed",
+            f"{race.name}: the lid is closed, so the Mac will sleep and laps will be lost. "
+            "Open it.",
+        )
 
 
 def current_start(race: Race) -> Race:
@@ -386,11 +478,24 @@ def arm(race: Race, *, dry_run_only: bool = False) -> int:
     )
     say(f"armed, pid {launcher.pid}; recording until {ends:%H:%M}")
 
-    code = launcher.wait()
+    watch = SleepWatch(last=time.time())
+    while launcher.poll() is None:
+        time.sleep(WATCH_SECONDS)
+        lost = watch.tick(time.time())
+        if lost:
+            say(f"THE MAC SLEPT for {lost / 60:.1f} min - the recording has a gap")
+            notify(
+                "Pitwall - Mac slept",
+                f"{race.name}: {lost / 60:.0f} min lost. Keep the lid open, or laps will go on "
+                "being missed.",
+            )
+    code = launcher.returncode
     recording = REPO / "data" / "raw" / f"{race.slug}.txt"
     size = recording.stat().st_size / 1e6 if recording.exists() else 0.0
     say(f"the launcher finished with code {code}; {recording.name} is {size:.1f} MB")
-    notify("Pitwall - finished", f"{race.name}: {size:.1f} MB recorded. Exit code {code}.")
+    if watch.naps:
+        say(f"asleep for {watch.asleep / 60:.0f} min across {watch.naps} naps while recording")
+    notify(*finish_message(race, size, code, watch))
     return code
 
 
@@ -401,6 +506,8 @@ def fire(now: datetime | None = None, *, dry_run_only: bool = False) -> int:
         say("no race near; nothing to do")
         return 0
     say(f"{action}: {race.name}, {race.location}, starts {race.local:%a %d %b %H:%M}")
+    if action != "missed":
+        warn_if_lid_closed(race)
 
     if action == "missed":
         notify(
@@ -429,6 +536,7 @@ def fire(now: datetime | None = None, *, dry_run_only: bool = False) -> int:
         say(f"holding the Mac awake; waiting until {arm_at.astimezone():%H:%M}")
         wait_until(arm_at)
         race = current_start(race)
+        warn_if_lid_closed(race)
 
     return arm(race, dry_run_only=dry_run_only)
 

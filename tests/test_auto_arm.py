@@ -294,3 +294,86 @@ def test_the_real_calendar_is_well_formed():
     for item in json.loads(path.read_text()):
         assert item["slug"].isascii() and item["session"].isascii()
         assert item["slug"].endswith("-race")
+
+
+# -- telling a recorder from something that mentions one ------------------
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "/bin/bash /Users/x/pitwall/scripts/race_day.sh 2026-11-01 19:30 slug 2026 GP  329",
+        "bash ./scripts/race_day.sh 2026-10-04 09:12 slug 2026 GP  300",
+        "/Users/x/.venv/bin/python3 /Users/x/.venv/bin/pitwall dashboard --record f",
+        "/Users/x/.venv/bin/pitwall dashboard --record f",
+        ".venv/bin/python -m pitwall dashboard --record f",
+        "/usr/bin/python3 scripts/record.py data/raw/x.txt",
+    ],
+)
+def test_what_is_a_recorder(command):
+    assert auto_arm.is_recorder(command)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        # The one that happened: a shell whose text contains the words.
+        "/bin/zsh -c ps -axo pid,command | grep -E 'race_day\\.sh|pitwall dashboard'",
+        "/bin/zsh -c ./scripts/race_day.sh --dry-run tonight",
+        "vim scripts/race_day.sh",
+        "less docs/RACE_DAY.md scripts/race_day.sh",
+        "grep -rn pitwall dashboard src",
+        "tail -f data/raw/2026-austin-race-engine.log",
+        "/Users/x/.venv/bin/python scripts/auto_arm.py --fire",
+        ".venv/bin/python -m pitwall report data/raw/x.txt",
+        ".venv/bin/python -m pytest tests/test_race_day.py",
+        "/Users/x/.venv/bin/pitwall strategy data/raw/x.txt",
+        "Python",
+        "",
+    ],
+)
+def test_what_only_mentions_one(command):
+    """A false yes here stands the job down on race day, with a notification that
+    sounds reasonable. It is the worse of the two ways to be wrong."""
+    assert not auto_arm.is_recorder(command)
+
+
+# -- noticing the Mac slept -------------------------------------------------
+
+
+def test_a_clock_on_time_is_not_a_nap():
+    watch = auto_arm.SleepWatch(last=1000.0)
+
+    assert [watch.tick(t) for t in (1010.0, 1020.0, 1075.0)] == [0.0, 0.0, 0.0]
+    assert watch.naps == 0
+
+
+def test_a_jump_in_the_clock_is_a_nap():
+    """The shape of the United States GP: a few seconds awake, then fifteen minutes
+    gone, over and over."""
+    watch = auto_arm.SleepWatch(last=0.0)
+    lost = [watch.tick(t) for t in (900.0, 905.0, 1805.0)]
+
+    assert lost == [900.0, 0.0, 900.0]
+    assert watch.naps == 2
+    assert watch.asleep == 1800.0
+
+
+def test_a_clean_recording_says_finished():
+    title, body = auto_arm.finish_message(AUSTIN, 12.9, 0, auto_arm.SleepWatch(last=0.0))
+
+    assert title == "Pitwall - finished"
+    assert "12.9 MB" in body
+
+
+def test_a_recording_with_naps_does_not_say_finished():
+    """What was missing at the United States GP: 2.0 MB against the usual 10, and a
+    notification that read as a success."""
+    watch = auto_arm.SleepWatch(last=0.0)
+    watch.tick(900.0)
+    watch.tick(1800.0)
+    title, body = auto_arm.finish_message(AUSTIN, 2.0, 0, watch)
+
+    assert title == "Pitwall - recording has gaps"
+    assert "30 min" in body
+    assert "archive" in body

@@ -16,6 +16,7 @@ from pitwall.ledger.score import (
     finishing_positions,
     score_forecasts,
     score_predictions,
+    stop_agreement,
 )
 
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     "race_report",
     "score_forecasts",
     "score_predictions",
+    "stop_agreement",
 ]

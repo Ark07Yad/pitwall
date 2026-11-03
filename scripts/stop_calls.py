@@ -30,6 +30,12 @@ field is still on its first stint by holding the race-lap trend with a prior.
 On laps it already spoke on, a decisive "stop within three laps" was followed by
 the team doing so 44% of the time. On the laps the prior would have opened, 10%.
 It was not switched on.
+
+**Both figures are high.** Stops were read from the pit flag then, which is set
+on the in-lap and the out-lap alike, so each stop counted twice. They are now
+read from the stint changing (`pitwall.laps.stop_laps`). On the twelve
+collinearity ledgers in `reports/collinearity/` that moves "followed" from 36%
+to 28% and the base rate from 8.9% to 6.4%.
 """
 
 from __future__ import annotations
@@ -41,7 +47,8 @@ from collections import defaultdict
 from pathlib import Path
 
 from pitwall.feed.replay import read_events
-from pitwall.laps import LapCollector
+from pitwall.laps import LapCollector, stop_laps
+from pitwall.ledger import stop_agreement
 
 BANDS = ("first quarter", "second quarter", "after half")
 
@@ -54,15 +61,11 @@ def band_for(lap: int, total: int) -> str:
 
 
 def pit_laps(recording: Path) -> dict[str, list[int]]:
-    """Race laps on which each driver entered the pits."""
+    """The in-lap of each driver's every stop."""
     collector = LapCollector()
     for event in read_events(recording):
         collector.apply(event)
-    stops: dict[str, list[int]] = defaultdict(list)
-    for lap in collector.laps:
-        if lap.entered_pit:
-            stops[lap.driver].append(lap.lap)
-    return stops
+    return defaultdict(list, stop_laps(collector.laps))
 
 
 def tally(pairs: list[tuple[Path, Path]], window: int, decisive_only: bool) -> dict[str, list[int]]:
@@ -76,11 +79,9 @@ def tally(pairs: list[tuple[Path, Path]], window: int, decisive_only: bool) -> d
             row = json.loads(line)
             if decisive_only and not row.get("decisive"):
                 continue
-            lap = int(row["lap"])
-            said = bool(row.get("stop")) and int(row.get("pit_lap") or 0) - lap <= window
-            did = any(lap <= stop <= lap + window for stop in stops[str(row["driver"])])
+            said, did = stop_agreement(row, stops[str(row["driver"])], window)
             cell = 0 if said and did else 1 if said else 2 if did else 3
-            counts[band_for(lap, int(row.get("total_laps") or 0))][cell] += 1
+            counts[band_for(int(row["lap"]), int(row.get("total_laps") or 0))][cell] += 1
     return counts
 
 

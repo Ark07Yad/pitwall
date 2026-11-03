@@ -204,3 +204,24 @@ def fold_to_lap(path: Path | str, lap: int) -> LapCollector:
         if collector.state.lap > lap:
             break
     return collector
+
+
+def stop_laps(laps: list[LapRecord]) -> dict[str, list[int]]:
+    """The in-lap of every tyre change, per driver.
+
+    `entered_pit` cannot be counted for this: the flag is read at the line, so
+    it is set on the in-lap *and* the out-lap and every stop appears twice. A
+    stop is where the stint changes, and its lap is the last one on the old set.
+    That also keeps a stop and a red-flag tyre change a lap or two later apart,
+    where merging runs of the flag would make them one.
+    """
+    by_driver: dict[str, list[LapRecord]] = {}
+    for lap in laps:
+        by_driver.setdefault(lap.driver, []).append(lap)
+    stops: dict[str, list[int]] = {}
+    for driver, own in by_driver.items():
+        own.sort(key=lambda lap: lap.lap)
+        changes = [a.lap for a, b in zip(own, own[1:], strict=False) if b.stint > a.stint]
+        if changes:
+            stops[driver] = changes
+    return stops

@@ -16,6 +16,7 @@ from pitwall.laps.records import (
     fold_to_lap,
     parse_interval,
     parse_laps_down,
+    stop_laps,
 )
 
 __all__ = [
@@ -31,5 +32,6 @@ __all__ = [
     "parse_interval",
     "parse_laps_down",
     "session_best",
+    "stop_laps",
     "track_regime",
 ]

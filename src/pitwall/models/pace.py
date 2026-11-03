@@ -179,6 +179,11 @@ class TrendPrior:
         laps the engine already speaks on          28 of 63    44%
         laps that speak only if the trend is held   7 of 69    10%
 
+    Both are high. They counted a stop on the in-lap and again on the out-lap,
+    which on a comparable corpus lifts "followed" from 28% to 36%; the ledgers
+    behind these two rows were not kept, so they cannot be recounted, and the
+    comparison stands because both rows carry the same error.
+
     and finishing-position forecasts from those laps scored -60% against "the
     order holds" in the first quarter of a race. Two reasons show in the data.
     Early track evolution is steeper than the end-of-race trend this prior is

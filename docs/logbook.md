@@ -4,6 +4,43 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-11-03 — The front page was three months out of date, and every stop counted twice
+
+**The README's scorecard was hand-typed from the Hungarian GP** - 28 backtest calls, +8.5% top-3
+skill - and had sat there since August while Zandvoort, Baku, Austin and Mexico City were recorded
+live. It undersold the project by most of its evidence, and a hand-typed table could as easily have
+left out the bad weekends. `scripts/scorecard.py` now builds it from every ledger in `predictions/`
+and `reports/results.json`, and `tests/test_scorecard.py` regenerates the block and fails if the
+README disagrees. Recordings stay local, so the results file - classification and stop laps per race
+- is the committed half; CI needs nothing else.
+
+What it says, live races only: **1,254 field forecasts across three races, top-3 skill +41.7%,
+points +29.7%, win -4.2%**, and a mean position error worse than the hold-position baseline in every
+race (1.69 against 1.46 pooled). The probabilities beat standing still; the point estimates do not.
+Latency: 106 live decisions, p99 1.43 s, none over the 2 s budget.
+
+**And one thing it says that nobody had looked at: every one of the 106 live calls was for the car
+in P1.** All 39 decisive ones were "stay out". So no live race has yet produced a "stop soon" call
+to grade, and the pit-call side has only ever been graded on backtests. That is a gap in the
+evidence, now printed on the front page rather than discovered by a reader.
+
+**Building it found a counting error in `stop_calls.py`.** It read stops from `entered_pit`, which
+is set on the in-lap *and* the out-lap, so every stop counted twice and a call made the lap after a
+car had stopped scored as followed. Stops are now the lap before the stint changes
+(`pitwall.laps.stop_laps`), which also keeps Mexico City's lap-43 stops apart from the lap-44
+red-flag tyre change. On the twelve collinearity ledgers - 1,243 decisive calls - "followed" drops
+from 36% to 28% and the base rate from 8.9% to 6.4%. The 5 October figures (44% against 10%) used
+the old count and their ledgers were not kept, so they cannot be recounted. They are corrected in
+place in the README, `pace.py` and `stop_calls.py`: both rows are high, by the same mechanism, and
+the gap between them is what kept the prior off.
+
+**Austin's recording ends on lap 56 of 56 and still has most of the race missing.** It woke for the
+flag. "Complete" now means every lap from 2 to N - 1 closed into a record (the last never does), so
+Austin's forecasts are graded against F1's published result, which its recorded order matches car
+for car, and its two calls go ungraded against stops.
+
+---
+
 ## 2026-11-02 — Austin slept, Mexico City did not, and the job nearly stood itself down
 
 **Austin was armed on time and recorded almost nothing.** The job fired at 17:06, waited, passed its

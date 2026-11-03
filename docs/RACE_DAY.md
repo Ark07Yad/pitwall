@@ -750,5 +750,19 @@ Use `--out`, not a shell redirect: stdout carries only the summary, and the repo
 to the file (defaulting to `reports/race.md`). Redirecting gets you the summary under the report's
 name and the real report somewhere you did not look.
 
+Then the season scorecard, which the README carries and CI checks:
+
+```bash
+uv run python scripts/scorecard.py --results
+uv run python scripts/scorecard.py
+```
+
+The first reads the new race's classification and stops out of its recording into
+`reports/results.json`; the second regenerates `reports/scorecard.md` and the README block. Commit
+the three together. A race from the calendar needs nothing else; one rebuilt from the archive
+instead needs its line in `RACES` at the top of the script, naming the backtest ledger. Until this
+runs, the new ledger is listed as "not scored yet" and the README is unchanged, so CI stays green
+during the race.
+
 Then the honest part: `git log predictions/` is the evidence. Read the calls it got wrong first,
 and write the logbook entry the same evening while it is still uncomfortable.

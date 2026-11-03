@@ -208,6 +208,22 @@ def finishing_positions(state: Any) -> dict[str, int]:
     return {car.number: car.position for car in state.running_order() if car.position is not None}
 
 
+def stop_agreement(entry: dict[str, Any], stops: list[int], window: int = 3) -> tuple[bool, bool]:
+    """Whether the call said "stop soon", and whether the car then stopped.
+
+    Only the imminent call is held to account. The engine names a stop at most
+    ten laps ahead and decides again every lap, so "lap +10" means "not yet"
+    rather than a forecast of the stop lap; scoring the named lap against the
+    real one would mark it wrong for every stop beyond its horizon. "Soon" is
+    `window` laps either way: said is a stop called within it, did is a pit
+    entry on this lap or the next `window`.
+    """
+    lap = int(entry.get("lap", 0))
+    said = bool(entry.get("stop")) and int(entry.get("pit_lap") or 0) - lap <= window
+    did = any(lap <= stop <= lap + window for stop in stops)
+    return said, did
+
+
 # -- field forecasts ----------------------------------------------------
 
 

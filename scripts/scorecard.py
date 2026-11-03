@@ -46,8 +46,14 @@ from typing import Any
 from pitwall.feed.replay import read_events
 from pitwall.laps import LapCollector, stop_laps
 from pitwall.latency import DEFAULT_BUDGET_P99, report_from
-from pitwall.ledger import finishing_positions, score_forecasts, stop_agreement
+from pitwall.ledger import (
+    decisive_on_timing,
+    finishing_positions,
+    score_forecasts,
+    stop_agreement,
+)
 from pitwall.ledger.log import _slug
+from pitwall.sim.decision import DECISIVE_MARGIN
 
 PREDICTIONS = Path("predictions")
 RAW = Path("data/raw")
@@ -266,13 +272,13 @@ def pooled_forecasts(races: list[Race]) -> Any:
 
 
 def stop_tally(race: Race, window: int = WINDOW) -> tuple[int, int, int, int] | None:
-    """Decisive calls: (rows, said stop soon, team then did, team stopped soon at all)."""
+    """Calls clear about timing: (rows, said stop soon, team then did, team stopped soon at all)."""
     pits = race.result.get("pits")
     if pits is None:
         return None
     rows = said = followed = stopped = 0
     for row in race.calls:
-        if not row.get("decisive"):
+        if not decisive_on_timing(row):
             continue
         rows += 1
         s, d = stop_agreement(row, pits.get(str(row["driver"]), []), window)
@@ -360,14 +366,17 @@ def render(races: list[Race], unscored: list[str]) -> tuple[str, str]:
     block += [
         "",
         para(
-            f'**Pit calls against what the teams did.** A decisive "stop within {WINDOW} laps" '
-            "- one with a clear margin over the alternatives - set against whether that car then "
-            f"stopped within {WINDOW} laps. A team's stop is not ground truth; it is the best "
-            "evidence there is of when stopping was reasonable. *Base rate* is how often the car "
-            "stopped that soon whatever the engine said, which is the number to beat."
+            f'**Pit calls against what the teams did.** A clear "stop within {WINDOW} laps" - '
+            f"the best stop that soon beating every later option and staying out by at least "
+            f"{DECISIVE_MARGIN} places - set against whether that car then stopped within "
+            f"{WINDOW} laps. Rows from before 3 November are judged on their gap to the next "
+            "option instead, which is what they recorded. A team's stop is not ground truth; "
+            "it is the best evidence there is of when stopping was reasonable. *Base rate* is "
+            "how often the car stopped that soon whatever the engine said, which is the number "
+            "to beat."
         ),
         "",
-        "| round | race | made | calls on laps | calls | decisive | said stop soon "
+        "| round | race | made | calls on laps | calls | clear on timing | said stop soon "
         "| team then did | base rate |",
         "|---|---|---|---|---|---|---|---|---|",
     ]
@@ -395,15 +404,22 @@ def render(races: list[Race], unscored: list[str]) -> tuple[str, str]:
         )
 
     live_rows, live_said = totals["live"][0], totals["live"][1]
+    live_calls = [row for race in races if race.made == "live" for row in race.calls]
+    leader_only = bool(live_calls) and all(int(r.get("position") or 0) == 1 for r in live_calls)
     if live_rows and not live_said:
+        why = (
+            " Every live call so far has been for the car in P1, the one least likely to be "
+            "told to stop. Since November the engine also advises every other running car "
+            "once that call is out, so the next live race is the first that can fill this."
+            if leader_only
+            else ""
+        )
         block += [
             "",
             para(
-                f'**No live race has produced a decisive "stop soon" call yet** - all '
-                f"{live_rows} decisive live calls were to stay out. The engine advises one car, "
-                "and every live call so far has been for the car in P1, the one least likely "
-                "to be told to stop. That is a gap in the evidence, not a result: the pit-call "
-                "side of this engine has so far been graded only on backtests."
+                f'**No live race has produced a clear "stop soon" call yet** - all {live_rows} '
+                f"clear live calls were to stay out.{why} Until then the pit-call side of this "
+                "engine has been graded only on backtests."
             ),
         ]
 

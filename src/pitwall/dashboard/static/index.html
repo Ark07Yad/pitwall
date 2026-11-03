@@ -191,6 +191,11 @@
     </section>
 
     <section>
+      <h2>Rest of the field <span class="tag" id="field-tag"></span></h2>
+      <div id="field" class="rows"></div>
+    </section>
+
+    <section>
       <h2>Race risk <span class="tag" id="risk-tag"></span></h2>
       <div id="risk" class="rows"></div>
     </section>
@@ -292,6 +297,7 @@ function render(s) {
   renderAdvice(s);
   renderRisk(s.risk);
   renderModel(s.model);
+  renderField(s.ledger);
 }
 
 function renderAdvice(s) {
@@ -358,6 +364,23 @@ function renderAdvice(s) {
              background:${t.probability > 0.4 ? "var(--bad)" : "var(--good)"}"></i></div></div>
         <span>${pct(t.probability)}</span></div>`).join("")
     : `<div class="empty">nobody within a stop of us</div>`;
+}
+
+/* Every other running car, advised the same way once the call above is out.
+   Only the clear "stop within three laps" calls are listed; the rest are in
+   the ledger. */
+function renderField(l) {
+  const f = l?.field_last;
+  if (!f) {
+    $("field-tag").textContent = "";
+    $("field").innerHTML = `<div class="empty">${l ? "after the first call" : "not logging"}</div>`;
+    return;
+  }
+  $("field-tag").textContent = `lap ${f.lap} · ${f.cars}/${f.of} cars · ${f.seconds}s`;
+  const cut = f.cut ? `<div class="empty">cut short: ${f.cut}</div>` : "";
+  $("field").innerHTML = (f.soon.length
+    ? f.soon.map(c => `<div class="row"><b>${c.tla}</b><span class="grow">${c.call}</span></div>`).join("")
+    : `<div class="empty">no clear call to stop within three laps</div>`) + cut;
 }
 
 function renderRisk(r) {

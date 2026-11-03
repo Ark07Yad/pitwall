@@ -23,7 +23,10 @@ the car then did.
 
 **Decisive calls are reported separately**, and they are the number to read. A
 row whose best option leads the next by two hundredths of a place is the engine
-saying it does not know, and the dashboard prints it as "no clear call".
+saying it does not know, and the dashboard prints it as "no clear call". Rows
+from 3 November 2026 are judged on `soon_margin` instead - stopping soon against
+not - because the gap to the next option almost never clears the bar for a stop
+call: the next option is the same stop on another compound.
 
 First used on 5 October 2026, to decide whether to let the engine speak while a
 field is still on its first stint by holding the race-lap trend with a prior.
@@ -48,7 +51,7 @@ from pathlib import Path
 
 from pitwall.feed.replay import read_events
 from pitwall.laps import LapCollector, stop_laps
-from pitwall.ledger import stop_agreement
+from pitwall.ledger import decisive_on_timing, stop_agreement
 
 BANDS = ("first quarter", "second quarter", "after half")
 
@@ -77,7 +80,7 @@ def tally(pairs: list[tuple[Path, Path]], window: int, decisive_only: bool) -> d
             if not line.strip():
                 continue
             row = json.loads(line)
-            if decisive_only and not row.get("decisive"):
+            if decisive_only and not decisive_on_timing(row):
                 continue
             said, did = stop_agreement(row, stops[str(row["driver"])], window)
             cell = 0 if said and did else 1 if said else 2 if did else 3

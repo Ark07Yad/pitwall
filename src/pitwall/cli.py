@@ -746,6 +746,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         latency=latency,
         horizon=args.horizon,
         rehearsal=args.rehearse,
+        field_calls=not args.focus_only,
     )
     print(f"pitwall dashboard - {source}")
     print(f"  http://{args.host}:{args.port}")
@@ -909,6 +910,12 @@ def main(argv: list[str] | None = None) -> int:
         help="minutes to fast-forward through before pacing begins",
     )
     dashboard.add_argument("--driver", default="", help="TLA to advise; blank = the leader")
+    dashboard.add_argument(
+        "--focus-only",
+        action="store_true",
+        help="advise only --driver (or the leader), as the engine did until November 2026; "
+        "by default every other running car is advised too once that call is out",
+    )
     dashboard.add_argument("--sims", type=int, default=1500)
     dashboard.add_argument("--host", default="127.0.0.1")
     dashboard.add_argument("--port", type=int, default=8000)

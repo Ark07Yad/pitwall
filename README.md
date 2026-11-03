@@ -264,6 +264,25 @@ undercut works. If those break the model is wrong whatever the unit tests say.
 The *timing* of a stop rests on how much one costs, and that is now measured per circuit rather
 than assumed — see below.
 
+**Clear about the lap, torn about the tyre.** The example above reads "no clear call", and that is
+the usual shape of a stop call: the next-best option is the same stop on another compound, so the
+gap to it is a few hundredths of a place. That margin answers "which option", and is right to be
+unsure. It does not answer the question a team's stop can grade — stop now or not yet — so every
+call also records `soon_margin`, the best stop within three laps against the best option that is
+not. Run across the field at Mexico City, laps 32–42, 52 calls said stop within three laps and not
+one cleared the bar on the old margin.
+
+**Every car, not just the leader.** From Zandvoort to Mexico City the live engine advised one car,
+and with no `--driver` that was the leader — the car least likely to be told to stop. Four races
+produced 106 live calls and not one clear "stop soon" to set against what a team did. Since
+November, once that call is out, every other running car is advised from the same fit and the
+same simulation settings, marked `focus: false`, and committed once per lap. It runs on a worker
+beside the feed: the first version awaited it in line and, replayed, left the event count standing
+still for the fifteen to twenty seconds a pass takes. It gives way the moment the next lap starts,
+and `--focus-only` turns it off. Replayed through Mexico City, it made 35 clear "stop within three
+laps" calls and the team stopped in 22 of them, against a base rate of 16% — a replay, so a check
+that the calls are gradable, not evidence they are good.
+
 ### Tyre degradation, and where the evidence stops
 
 Degradation is fitted as `α_c·age + γ_c·age²` — the quadratic being the cliff, the point where a
@@ -493,8 +512,9 @@ it measures F1's pipeline and the internet rather than this engine.
 
 ### Forecasting the whole field
 
-A recommendation log cannot be calibrated. The engine advises **one** car — a pit wall only has one
-to advise — so a race yields ~50 calls, nearly all on a leader who was never going to move. Every
+A recommendation log cannot be calibrated. Until November the engine advised **one** car — a pit
+wall only has one to advise — so a race yielded ~50 calls, nearly all on a leader who was never
+going to move. Every
 `p_points` sits at 0.98, the baseline scores a perfect 0.0000, and the reliability diagram has one
 populated bucket. Nothing there is measurable.
 
@@ -565,12 +585,14 @@ it beats the baseline; its expected positions and its pick of the winner do not.
 | 60%–80% | 54 | 69.7% | 66.7% |
 | 80%–100% | 110 | 93.2% | 98.2% |
 
-**Pit calls against what the teams did.** A decisive "stop within 3 laps" - one with a clear margin
-over the alternatives - set against whether that car then stopped within 3 laps. A team's stop is
-not ground truth; it is the best evidence there is of when stopping was reasonable. *Base rate* is
-how often the car stopped that soon whatever the engine said, which is the number to beat.
+**Pit calls against what the teams did.** A clear "stop within 3 laps" - the best stop that soon
+beating every later option and staying out by at least 0.15 places - set against whether that car
+then stopped within 3 laps. Rows from before 3 November are judged on their gap to the next option
+instead, which is what they recorded. A team's stop is not ground truth; it is the best evidence
+there is of when stopping was reasonable. *Base rate* is how often the car stopped that soon
+whatever the engine said, which is the number to beat.
 
-| round | race | made | calls on laps | calls | decisive | said stop soon | team then did | base rate |
+| round | race | made | calls on laps | calls | clear on timing | said stop soon | team then did | base rate |
 |---|---|---|---|---|---|---|---|---|
 | 11 | Hungarian GP | backtest | 24–48 of 70 | 28 | 4 | 0 | - | 1/4 (25%) |
 | 12 | Dutch GP | live | 21–72 of 72 | 49 | 1 | 0 | - | 0/1 (0%) |
@@ -584,10 +606,11 @@ how often the car stopped that soon whatever the engine said, which is the numbe
 | | **all live** | | | | 39 | 0 | - | 0/39 (0%) |
 | | **all backtest** | | | | 419 | 17 | 2/17 (12%) | 17/419 (4%) |
 
-**No live race has produced a decisive "stop soon" call yet** - all 39 decisive live calls were to
-stay out. The engine advises one car, and every live call so far has been for the car in P1, the one
-least likely to be told to stop. That is a gap in the evidence, not a result: the pit-call side of
-this engine has so far been graded only on backtests.
+**No live race has produced a clear "stop soon" call yet** - all 39 clear live calls were to stay
+out. Every live call so far has been for the car in P1, the one least likely to be told to stop.
+Since November the engine also advises every other running car once that call is out, so the next
+live race is the first that can fill this. Until then the pit-call side of this engine has been
+graded only on backtests.
 
 **Latency, live races.** Packet landing to recommendation existing, against a p99 budget of 2 s:
 

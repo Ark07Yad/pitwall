@@ -10,6 +10,8 @@ from pitwall.models.pace import PaceFit
 from pitwall.models.safety_car import BUCKETS, EventKind, HazardModel
 from pitwall.sim import (
     CarEntry,
+    Outcome,
+    Recommendation,
     SimConfig,
     entries_from_state,
     evaluate_actions,
@@ -855,3 +857,50 @@ def test_options_needing_unobserved_tyre_life_are_flagged():
     now = next(o for o in rec.outcomes if o.stop and o.delay == 0)
     assert not now.extrapolated
     assert now.caveat == ""
+
+
+def outcome(delay: int, mean: float, *, stop: bool = True, compound=Compound.HARD) -> Outcome:
+    return Outcome(
+        delay=delay,
+        compound=compound,
+        pit_lap=30 + delay,
+        mean_position=mean,
+        p_top3=0.0,
+        p_points=0.0,
+        p_gain=0.0,
+        stop=stop,
+    )
+
+
+def recommendation(*outcomes: Outcome) -> Recommendation:
+    ranked = tuple(sorted(outcomes, key=lambda o: o.mean_position))
+    return Recommendation(
+        driver="1", tla="AAA", lap=30, current_position=5, outcomes=ranked, n_sims=100
+    )
+
+
+def test_a_stop_call_torn_over_compounds_is_still_clear_about_timing():
+    """The case `margin` cannot see: "now on MED" and "now on HAR" a hair apart,
+    staying out two places worse. Not decisive about the option, decisive about
+    stopping - and stopping is what a team's stop can grade."""
+    rec = recommendation(
+        outcome(0, 5.00, compound=Compound.MEDIUM),
+        outcome(0, 5.02, compound=Compound.HARD),
+        outcome(10, 6.5),
+        outcome(40, 7.0, stop=False),
+    )
+
+    assert not rec.decisive
+    assert rec.soon_margin == pytest.approx(1.5)
+
+
+def test_soon_margin_is_negative_when_the_call_is_not_yet():
+    rec = recommendation(outcome(0, 6.0), outcome(3, 5.8), outcome(6, 5.0), outcome(40, 5.3))
+
+    assert rec.soon_margin == pytest.approx(-0.8)
+
+
+def test_soon_margin_needs_both_sides():
+    """Late in a race every delay clamps to the flag; with nothing to compare
+    against, the call is neither clear nor unclear about timing."""
+    assert recommendation(outcome(0, 5.0), outcome(3, 5.1)).soon_margin == 0.0

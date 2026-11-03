@@ -575,3 +575,77 @@ def test_one_model_across_the_file_is_not_flagged():
     ]
     report = race_report(rows, {"1": 2}, session="GP", circuit="Monza")
     assert "not all made by the same model" not in report
+
+
+# -- field calls and the timing margin -----------------------------------
+
+
+def field_prediction(driver: str, soon_margin: float | None = 0.4, **overrides) -> Prediction:
+    values = dict(
+        session="Field GP",
+        circuit="Zandvoort",
+        lap=30,
+        total_laps=72,
+        driver=driver,
+        tla=driver,
+        position=5,
+        pit_lap=31,
+        compound="HAR",
+        expected_position=5.2,
+        margin=0.02,
+        decisive=False,
+        p_top3=0.1,
+        p_points=0.8,
+        p_gain=0.3,
+        n_sims=1500,
+        horizon_lap=40,
+        focus=False,
+        soon_margin=soon_margin,
+    )
+    values.update(overrides)
+    return Prediction(**values)
+
+
+def test_a_lap_of_field_calls_is_written_together(tmp_path):
+    log = PredictionLog("Field GP", directory=tmp_path, commit=False)
+
+    written = log.record_lap([field_prediction("4"), field_prediction("16")])
+
+    assert written == 2
+    rows = log.entries()
+    assert [r["driver"] for r in rows] == ["4", "16"]
+    assert all(r["focus"] is False and r["source"] == "live" for r in rows)
+
+
+def test_an_empty_lap_writes_and_commits_nothing(tmp_path):
+    log = PredictionLog("Field GP", directory=tmp_path, commit=True, repo=tmp_path)
+    assert log.record_lap([]) == 0
+    assert not log.path.exists()
+
+
+def test_the_field_commit_names_the_clear_stop_calls(tmp_path, monkeypatch):
+    log = PredictionLog("Field GP", directory=tmp_path, commit=True, repo=tmp_path)
+    messages = []
+    monkeypatch.setattr(log, "_git_commit", messages.append)
+
+    log.record_lap([field_prediction("4", 0.6), field_prediction("16", 0.05)])
+
+    assert len(messages) == 1
+    assert "4 pit lap 31 on HAR" in messages[0]
+    assert "16" not in messages[0].split("\n")[2]
+
+
+@pytest.mark.parametrize(
+    ("row", "expected"),
+    [
+        ({"soon_margin": 0.6, "decisive": False}, True),  # clear about the lap, not the tyre
+        ({"soon_margin": -0.6, "decisive": True}, True),  # clearly not yet
+        ({"soon_margin": 0.05, "decisive": True}, False),  # torn about timing
+        ({"decisive": True}, True),  # written before soon_margin existed
+        ({"decisive": False}, False),
+    ],
+)
+def test_decisive_on_timing(row, expected):
+    from pitwall.ledger import decisive_on_timing
+
+    assert decisive_on_timing(row) is expected

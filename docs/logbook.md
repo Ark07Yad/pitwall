@@ -4,6 +4,43 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-11-03 (evening) — Advising the whole field, and two things that stood in the way
+
+**Every live call from Zandvoort to Mexico City was for the car in P1.** With no `--driver` the
+engine advises the leader, and the leader is the car least likely to be told to stop - so 106 live
+calls held not one clear "stop soon" to set against what a team did. Now, once the focus call is
+out, every other running car is advised from the same fit, written with `focus: false` and
+committed once a lap. Measured at 1,500 simulations on Mexico City: 15-20 s for a full field
+mid-race, under 1 s at the end, against laps of about 80 s.
+
+**First obstacle: a stop call is almost never "decisive".** Run across the field at Mexico City,
+laps 32-42: 52 calls said stop within three laps, and not one was decisive; every stay-out was, by
+one to three places. `margin` is the gap to the *next* option, and for a stop that is the same stop
+on another compound - "now on MED" against "now on HAR", hundredths apart. Right about the option,
+silent on the question a team's stop can settle. Every call now records `soon_margin`: best stop
+within three laps against best option that is not. Grading (`stop_calls.py`, the scorecard) uses it
+where present and falls back to `decisive` on older rows, which is what they recorded.
+
+**Second obstacle: the field pass stopped the feed.** The first version ran it inside
+`_maybe_advise`, and `run` awaits that before reading the next message. Replayed through the
+dashboard, the event count stood still for every pass and jumped by a thousand afterwards - live,
+that is F1's connection unread for twenty seconds a lap. The cut-off at a new lap could never fire
+either, because the lap number could not change. It now runs as a task beside the feed, from
+entries, fit and retired list taken while ingest is paused for the focus call, and git commits from
+the different threads share a lock. Re-checked in the replay: events flow throughout, and at 8x -
+laps of ten seconds - each pass covered 8-10 cars before giving way, as designed.
+
+The focus call itself still pauses ingest for its second. The code's own comment said it did not
+("ingest keeps flowing while this runs") and has been corrected. It is how every race so far ran,
+and it is what lets that call see a state nothing is changing underneath it.
+
+Replayed through Mexico City, the field made 35 clear "stop within three laps" calls and the team
+stopped in 22, against a base rate of 16%. Many of those stops are the lap-43/44 safety car and red
+flag, where everyone stopped, and it is a replay - a check that the calls are gradable, not evidence
+they are good. São Paulo is the first race that can say anything.
+
+---
+
 ## 2026-11-03 — The front page was three months out of date, and every stop counted twice
 
 **The README's scorecard was hand-typed from the Hungarian GP** - 28 backtest calls, +8.5% top-3

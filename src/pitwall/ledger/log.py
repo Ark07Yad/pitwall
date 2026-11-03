@@ -24,11 +24,20 @@ from __future__ import annotations
 
 import json
 import subprocess
+import threading
 import uuid
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from pitwall.sim.decision import DECISIVE_MARGIN
+
+# One git commit at a time, across every log in the process. The focus call, the
+# field forecast and the field calls are committed from different worker threads
+# and can overlap at a lap boundary; two `git commit`s at once fail on the index
+# lock, and a failed commit is a call with no timestamp witness.
+_GIT = threading.Lock()
 
 DEFAULT_DIR = Path("predictions")
 
@@ -94,6 +103,20 @@ class Prediction:
     # not, and the two are indistinguishable once written.
     source: str = "live"
     note: str = ""
+    # True for the car the dashboard is advising - the one on screen, timed
+    # against the latency budget. False for the rest of the field, evaluated the
+    # same way on the same lap once that call is out. Until November every live
+    # call was for the car in P1, the car least likely to be told to stop, so no
+    # live "stop soon" existed to grade; the field calls are what supply them.
+    # Rows written before the field existed were all focus calls.
+    focus: bool = True
+    # Best stop within three laps against the best option that is not, in
+    # places; positive means stop soon. See `Recommendation.soon_margin`. It is
+    # what a call is graded on when set against a team's stop: `decisive` says
+    # whether the exact option was clear, and a stop call is almost never clear
+    # about the compound even when it is clear about the lap. None on rows
+    # written before 3 November 2026.
+    soon_margin: float | None = None
 
     @property
     def call(self) -> str:
@@ -226,20 +249,21 @@ class ForecastLog:
             f"Settled at the flag, lap {forecasts[0].total_laps}."
         )
         try:
-            subprocess.run(
-                ["git", "add", "--", str(self.path)],
-                cwd=self.repo,
-                check=True,
-                capture_output=True,
-                timeout=20,
-            )
-            subprocess.run(
-                ["git", "commit", "-m", message, "--only", "--", str(self.path)],
-                cwd=self.repo,
-                check=True,
-                capture_output=True,
-                timeout=20,
-            )
+            with _GIT:
+                subprocess.run(
+                    ["git", "add", "--", str(self.path)],
+                    cwd=self.repo,
+                    check=True,
+                    capture_output=True,
+                    timeout=20,
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", message, "--only", "--", str(self.path)],
+                    cwd=self.repo,
+                    check=True,
+                    capture_output=True,
+                    timeout=20,
+                )
         except (subprocess.SubprocessError, OSError):
             self.commit_failures += 1
 
@@ -277,6 +301,32 @@ class PredictionLog:
             self._commit(stamped)
         return stamped
 
+    def record_lap(self, predictions: list[Prediction]) -> int:
+        """Append a lap's field calls and commit them together.
+
+        One commit for the lap rather than one per car: twenty-one commits a lap
+        is fifteen hundred a race, and each is a git subprocess on the machine
+        running the race. The commit still lands before the lap it covers.
+        """
+        if not predictions:
+            return 0
+        stamped = [replace(prediction, source=self.source) for prediction in predictions]
+        with self.path.open("a", encoding="utf-8") as handle:
+            for prediction in stamped:
+                handle.write(prediction.to_json() + "\n")
+        self.written += len(stamped)
+
+        if self.commit_enabled:
+            soon = [p for p in stamped if (p.soon_margin or 0.0) >= DECISIVE_MARGIN]
+            named = ", ".join(f"{p.tla} {p.call}" for p in soon[:4]) or "none"
+            message = (
+                f"predict: lap {stamped[0].lap} - {len(stamped)} more cars\n\n"
+                f"Clear call to stop within 3 laps: {named}.\n"
+                f"Checkable by lap {max(p.horizon_lap for p in stamped)}."
+            )
+            self._git_commit(message)
+        return len(stamped)
+
     def entries(self) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
@@ -297,24 +347,28 @@ class PredictionLog:
             f"({prediction.n_sims:,} sims, margin {prediction.margin:+.2f}).\n"
             f"Checkable by lap {prediction.horizon_lap}."
         )
+        self._git_commit(message)
+
+    def _git_commit(self, message: str) -> None:
         try:
             # Stage only the log. Sweeping up source changes in the same commit
             # would let a sceptic argue the model was tuned to fit, and the whole
             # point of this file is that they cannot.
-            subprocess.run(
-                ["git", "add", "--", str(self.path)],
-                cwd=self.repo,
-                check=True,
-                capture_output=True,
-                timeout=20,
-            )
-            subprocess.run(
-                ["git", "commit", "-m", message, "--only", "--", str(self.path)],
-                cwd=self.repo,
-                check=True,
-                capture_output=True,
-                timeout=20,
-            )
+            with _GIT:
+                subprocess.run(
+                    ["git", "add", "--", str(self.path)],
+                    cwd=self.repo,
+                    check=True,
+                    capture_output=True,
+                    timeout=20,
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", message, "--only", "--", str(self.path)],
+                    cwd=self.repo,
+                    check=True,
+                    capture_output=True,
+                    timeout=20,
+                )
         except (subprocess.SubprocessError, OSError):
             # A failed commit must never take the race engine down with it. The
             # prediction is already on disk; only the timestamp witness is lost.
@@ -339,6 +393,7 @@ def prediction_from(
     note: str = "",
     unfitted: str = "",
     models: str = "",
+    focus: bool = True,
 ) -> Prediction:
     """Build a log entry from a `Recommendation`.
 
@@ -369,4 +424,6 @@ def prediction_from(
         unfitted=unfitted,
         models=models,
         note=note,
+        focus=focus,
+        soon_margin=getattr(recommendation, "soon_margin", None),
     )

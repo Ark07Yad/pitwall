@@ -27,6 +27,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from pitwall.sim.decision import DECISIVE_MARGIN
+
 DEFAULT_BINS: tuple[float, ...] = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
 # Below this, per-race numbers bounce around too much to read anything into.
 MIN_FOR_CONFIDENCE = 10
@@ -206,6 +208,20 @@ def score_predictions(
 def finishing_positions(state: Any) -> dict[str, int]:
     """Final classification from folded race state."""
     return {car.number: car.position for car in state.running_order() if car.position is not None}
+
+
+def decisive_on_timing(entry: dict[str, Any]) -> bool:
+    """Whether a row is clear about stopping soon or not, as opposed to unsure.
+
+    Rows from 3 November 2026 carry `soon_margin`, the gap between the best
+    stop within three laps and the best option that is not. Earlier rows have
+    only `decisive`, the gap to the next option of any kind, which is what they
+    were graded on when written and still are.
+    """
+    margin = entry.get("soon_margin")
+    if margin is None:
+        return bool(entry.get("decisive"))
+    return abs(float(margin)) >= DECISIVE_MARGIN
 
 
 def stop_agreement(entry: dict[str, Any], stops: list[int], window: int = 3) -> tuple[bool, bool]:

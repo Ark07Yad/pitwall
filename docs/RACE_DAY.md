@@ -66,6 +66,12 @@ preparation in this file is still a person's job.
 19:00, FP3 Saturday 7 at 14:30, qualifying Saturday at 18:00. The recorder arms itself: the job
 fires at 14:00 and 16:30, and the recording runs from 16:30 for 330 minutes.
 
+**New this race: the engine advises the whole field.** The call on screen is for the leader as
+before; once it is out, every other running car gets a call too, committed once a lap as
+`predict: lap N - 19 more cars`. Expect about twenty seconds of CPU a lap and a "Rest of the field"
+panel listing clear stop calls. A pass that says "cut short" ran into the next lap, which is fine.
+Nothing about arming changes.
+
 **The one thing it needs is the lid open from before 14:00.** At Austin the lid was shut, the
 recorder started on time, and it saw 11 of 56 lap counts. Since 2 November a closed lid and a nap
 during the recording are both reported, and the last notification reads "recording has gaps"

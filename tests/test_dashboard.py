@@ -595,3 +595,209 @@ def test_a_malformed_ledger_row_does_not_stop_a_relaunch(tmp_path: Path):
     log.path.write_text('{"lap": 12}\n{"lap": "x"}\n{"no_lap": 1}\n{"lap": 1', encoding="utf-8")
 
     assert Engine(ReplayFeed("unused"), log=log)._logged_laps == {12}
+
+
+# -- advising the rest of the field ------------------------------------
+#
+# Every live call from Zandvoort to Mexico City was for the car in P1, so four
+# races produced not one live "stop soon" to set against what a team did. Once
+# the focus call is out the engine now advises every other running car.
+
+
+@dataclass
+class FakeEntry:
+    driver: str
+    tla: str
+
+
+FIELD = [
+    FakeEntry("1", "NOR"),
+    FakeEntry("4", "PIA"),
+    FakeEntry("16", "LEC"),
+    FakeEntry("44", "HAM"),
+]
+
+
+def field_engine(tmp_path, monkeypatch, *, evaluate=None, **kwargs) -> Engine:
+    """An engine on lap 24 of a race, with the simulator replaced by a stub."""
+    import pitwall.dashboard.engine as engine_module
+    from pitwall.state.models import CarState
+
+    def fake_evaluate(entries, *, our_driver, from_lap, **_):
+        tla = next(e.tla for e in entries if e.driver == our_driver)
+        return FakeRecommendation(lap=from_lap, driver=our_driver, tla=tla)
+
+    monkeypatch.setattr(engine_module, "evaluate_actions", evaluate or fake_evaluate)
+    engine = engine_with_log(tmp_path, **kwargs)
+    state = race_state(lap=24)
+    state.cars = {e.driver: CarState(number=e.driver, tla=e.tla) for e in FIELD}
+    engine.collector.reducer.state = state
+    return engine
+
+
+def advise_field(engine: Engine, out: frozenset[str] = frozenset()) -> None:
+    from pitwall.sim import SimConfig
+
+    engine._advise_field(24, FIELD, "1", 72, SimConfig(n_sims=10), None, out)
+
+
+def test_every_other_running_car_is_advised_and_marked_as_field(tmp_path, monkeypatch):
+    engine = field_engine(tmp_path, monkeypatch)
+
+    # The retired list is taken at the focus call, with ingest paused, and
+    # handed over; the pass itself never reads cars the feed is updating.
+    advise_field(engine, out=frozenset({"44"}))
+
+    rows = engine.log.entries()
+    # Not the focus car, which has its own call, and not a car that is out.
+    assert sorted(r["tla"] for r in rows) == ["LEC", "PIA"]
+    assert all(r["focus"] is False for r in rows)
+    assert engine.field_logged == 2
+    assert engine.logged == 0
+
+
+def test_the_field_is_committed_once_per_lap(tmp_path, monkeypatch):
+    """Twenty-one commits a lap would be fifteen hundred a race."""
+    engine = field_engine(tmp_path, monkeypatch)
+    commits = []
+    monkeypatch.setattr(engine.log, "commit_enabled", True)
+    monkeypatch.setattr(engine.log, "_git_commit", commits.append)
+
+    advise_field(engine)
+
+    assert len(commits) == 1
+    assert "lap 24 - 3 more cars" in commits[0]
+
+
+def test_the_field_gives_way_when_the_next_lap_starts(tmp_path, monkeypatch):
+    """The next lap's focus call must not queue behind the field."""
+    engine = None
+
+    def slow_evaluate(entries, *, our_driver, from_lap, **_):
+        engine.state.lap = 25  # the leader crosses the line mid-pass
+        return FakeRecommendation(lap=from_lap, driver=our_driver)
+
+    engine = field_engine(tmp_path, monkeypatch, evaluate=slow_evaluate)
+    advise_field(engine)
+
+    assert engine.field_logged == 1
+    assert engine.field_cut_short == 1
+    assert "lap 25 started" in engine.field_last["cut"]
+
+
+def test_the_field_stops_at_its_time_limit(tmp_path, monkeypatch):
+    import pitwall.dashboard.engine as engine_module
+
+    monkeypatch.setattr(engine_module, "FIELD_SECONDS", -1.0)
+    engine = field_engine(tmp_path, monkeypatch)
+    advise_field(engine)
+
+    assert engine.field_logged == 0
+    assert engine.field_cut_short == 1
+
+
+def test_the_order_rotates_so_a_cut_pass_leaves_out_different_cars(tmp_path, monkeypatch):
+    seen = []
+
+    def record(entries, *, our_driver, from_lap, **_):
+        seen.append(our_driver)
+        return FakeRecommendation(lap=from_lap, driver=our_driver)
+
+    engine = field_engine(tmp_path, monkeypatch, evaluate=record)
+    advise_field(engine)
+
+    # Three candidates, lap 24: 24 % 3 == 0, so lap 25 would start one along.
+    assert seen == ["4", "16", "44"]
+    from pitwall.sim import SimConfig
+
+    engine.state.lap = 25
+    seen.clear()
+    engine._advise_field(25, FIELD, "1", 72, SimConfig(n_sims=10), None)
+    assert seen == ["16", "44", "4"]
+
+
+def test_one_car_failing_does_not_lose_the_rest(tmp_path, monkeypatch):
+    def flaky(entries, *, our_driver, from_lap, **_):
+        if our_driver == "4":
+            raise ValueError("no pace for this car")
+        return FakeRecommendation(lap=from_lap, driver=our_driver)
+
+    engine = field_engine(tmp_path, monkeypatch, evaluate=flaky)
+    advise_field(engine)
+
+    assert engine.field_logged == 2
+    assert engine.log_failures == 1
+
+
+def test_field_calls_obey_the_race_only_guard(tmp_path, monkeypatch):
+    engine = field_engine(tmp_path, monkeypatch)
+    engine.state.total_laps = 0
+    engine.state.session_type = "Practice"
+
+    advise_field(engine)
+
+    assert engine.log.entries() == []
+
+
+def test_a_relaunch_does_not_repeat_field_calls_or_mistake_them_for_focus_calls(
+    tmp_path, monkeypatch
+):
+    """A lap whose field calls were written still needs its focus call, and a
+    relaunched engine must not write the field calls a second time."""
+    log = PredictionLog("2026 Dutch GP", directory=tmp_path, commit=False, repo=tmp_path)
+    log.path.write_text(
+        '{"lap": 23, "driver": "1"}\n{"lap": 24, "driver": "4", "focus": false}\n',
+        encoding="utf-8",
+    )
+    engine = field_engine(tmp_path, monkeypatch)
+
+    assert engine._logged_laps == {23}
+    assert engine._field_logged == {(24, "4")}
+
+    advise_field(engine)
+    written = [r for r in engine.log.entries() if r.get("focus") is False]
+    assert sorted(r["driver"] for r in written) == ["16", "4", "44"]
+
+
+async def test_the_field_runs_beside_the_feed_not_in_front_of_it(tmp_path, monkeypatch):
+    """`run` awaits the focus call before reading the next message. Awaiting the
+    field pass too would leave F1's connection unread for fifteen to twenty
+    seconds a lap - found by replaying Mexico City, where the event count stood
+    still for the whole of every pass."""
+    import time as clock
+
+    engine = field_engine(tmp_path, monkeypatch)
+    finished = []
+
+    def slow_pass(*_job):
+        clock.sleep(0.3)
+        finished.append(clock.perf_counter())
+
+    monkeypatch.setattr(engine, "_advise_field", slow_pass)
+
+    started = clock.perf_counter()
+    await engine._start_field((24,))
+    assert clock.perf_counter() - started < 0.1  # handed off, not awaited
+    assert not finished
+
+    # The next lap's pass waits for this one rather than running alongside it.
+    await engine._start_field((25,))
+    assert len(finished) == 1
+    await engine._field_task
+    assert len(finished) == 2
+
+
+def test_the_focus_only_flag_reaches_the_engine(tmp_path, monkeypatch):
+    import pitwall.cli as cli
+    import pitwall.dashboard as dashboard
+
+    built = []
+    monkeypatch.setattr(dashboard, "serve", lambda engine, **_: built.append(engine.field_calls))
+    monkeypatch.chdir(tmp_path)
+    recording = tmp_path / "race.txt"
+    recording.write_text("")
+
+    cli.main(["dashboard", "--replay", str(recording)])
+    cli.main(["dashboard", "--replay", str(recording), "--focus-only"])
+
+    assert built == [True, False]

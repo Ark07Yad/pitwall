@@ -203,14 +203,19 @@ def race_report(
             "",
         ]
 
-    if predictions:
+    # The focus car's calls are the pit wall's; the rest of the field is advised
+    # the same way once that call is out, twenty-odd rows a lap. They are in the
+    # scores above and counted here, but a table of a thousand rows is not read.
+    focus = [e for e in predictions if e.get("focus", True) is not False]
+    field_calls = len(predictions) - len(focus)
+    if focus:
         lines += [
             "## Every call",
             "",
             "| lap | driver | call | expected | actual | horizon |",
             "|---|---|---|---|---|---|",
         ]
-        for entry in sorted(predictions, key=lambda e: (e.get("lap", 0), e.get("tla", ""))):
+        for entry in sorted(focus, key=lambda e: (e.get("lap", 0), e.get("tla", ""))):
             driver = str(entry.get("driver", ""))
             tla = entry.get("tla") or names.get(driver, driver)
             actual = finishing.get(driver)
@@ -226,6 +231,13 @@ def race_report(
                 f"| lap {entry.get('horizon_lap', '?')} |"
             )
         lines.append("")
+        if field_calls:
+            lines += [
+                f"Plus {field_calls:,} calls for the rest of the field, made the same way on the "
+                "same laps once the focus call was out. They are in the scores above; "
+                "`scripts/stop_calls.py` sets them against the stops teams made.",
+                "",
+            ]
 
     if card.warnings:
         lines += ["## Caveats", ""]

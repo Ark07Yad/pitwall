@@ -38,12 +38,14 @@ it beats the baseline; its expected positions and its pick of the winner do not.
 | 60%–80% | 54 | 69.7% | 66.7% |
 | 80%–100% | 110 | 93.2% | 98.2% |
 
-**Pit calls against what the teams did.** A decisive "stop within 3 laps" - one with a clear margin
-over the alternatives - set against whether that car then stopped within 3 laps. A team's stop is
-not ground truth; it is the best evidence there is of when stopping was reasonable. *Base rate* is
-how often the car stopped that soon whatever the engine said, which is the number to beat.
+**Pit calls against what the teams did.** A clear "stop within 3 laps" - the best stop that soon
+beating every later option and staying out by at least 0.15 places - set against whether that car
+then stopped within 3 laps. Rows from before 3 November are judged on their gap to the next option
+instead, which is what they recorded. A team's stop is not ground truth; it is the best evidence
+there is of when stopping was reasonable. *Base rate* is how often the car stopped that soon
+whatever the engine said, which is the number to beat.
 
-| round | race | made | calls on laps | calls | decisive | said stop soon | team then did | base rate |
+| round | race | made | calls on laps | calls | clear on timing | said stop soon | team then did | base rate |
 |---|---|---|---|---|---|---|---|---|
 | 11 | Hungarian GP | backtest | 24–48 of 70 | 28 | 4 | 0 | - | 1/4 (25%) |
 | 12 | Dutch GP | live | 21–72 of 72 | 49 | 1 | 0 | - | 0/1 (0%) |
@@ -57,10 +59,11 @@ how often the car stopped that soon whatever the engine said, which is the numbe
 | | **all live** | | | | 39 | 0 | - | 0/39 (0%) |
 | | **all backtest** | | | | 419 | 17 | 2/17 (12%) | 17/419 (4%) |
 
-**No live race has produced a decisive "stop soon" call yet** - all 39 decisive live calls were to
-stay out. The engine advises one car, and every live call so far has been for the car in P1, the one
-least likely to be told to stop. That is a gap in the evidence, not a result: the pit-call side of
-this engine has so far been graded only on backtests.
+**No live race has produced a clear "stop soon" call yet** - all 39 clear live calls were to stay
+out. Every live call so far has been for the car in P1, the one least likely to be told to stop.
+Since November the engine also advises every other running car once that call is out, so the next
+live race is the first that can fill this. Until then the pit-call side of this engine has been
+graded only on backtests.
 
 **Latency, live races.** Packet landing to recommendation existing, against a p99 budget of 2 s:
 

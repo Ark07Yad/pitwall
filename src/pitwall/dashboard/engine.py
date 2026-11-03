@@ -1,7 +1,8 @@
 """The live engine behind the dashboard.
 
 Folds a feed into race state and, as the race moves on, recomputes a pit
-recommendation for the car being advised.
+recommendation for the car being advised - and then, once that call is out, for
+every other car still running.
 
 The one structural constraint: **the simulation must not run on the event
 loop.** A twelve-option decision is a second or two of solid numpy, and doing
@@ -48,6 +49,7 @@ from pitwall.sim import (
     simulate,
     undercut_threats,
 )
+from pitwall.sim.decision import DECISIVE_MARGIN
 from pitwall.state.models import RaceState
 
 log = logging.getLogger(__name__)
@@ -60,16 +62,37 @@ def _is_gap(value: object) -> bool:
 
 
 def _laps_in(ledger: PredictionLog | ForecastLog | None) -> set[int]:
-    """Laps a ledger file already holds a row for, so a relaunch does not repeat them."""
+    """Laps a ledger file already holds a row for, so a relaunch does not repeat them.
+
+    For the call log only the focus car's rows count: a lap whose field calls
+    were written but whose focus call was not still needs its focus call.
+    """
     if ledger is None:
         return set()
     laps: set[int] = set()
     for row in ledger.entries():
+        if row.get("focus", True) is False:
+            continue
         try:
             laps.add(int(row["lap"]))
         except (KeyError, TypeError, ValueError):
             continue
     return laps
+
+
+def _field_calls_in(ledger: PredictionLog | None) -> set[tuple[int, str]]:
+    """(lap, car) pairs already written as field calls, for the same reason."""
+    if ledger is None:
+        return set()
+    calls: set[tuple[int, str]] = set()
+    for row in ledger.entries():
+        if row.get("focus", True) is not False:
+            continue
+        try:
+            calls.add((int(row["lap"]), str(row["driver"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return calls
 
 
 # Recompute at most this often. A decision costs a second or two of CPU, and the
@@ -92,6 +115,11 @@ ADAPT_DAMPING = 0.5
 # *is* the p99. So start below the ceiling and let the loop earn its way up,
 # rather than spending the budget on the one lap that has no evidence behind it.
 WARMUP_SIMS = 600
+# The rest of the field is advised after the focus call, and gives way to the
+# next lap: it stops when a new lap starts or when this many seconds have gone,
+# whichever is first. A lap is 70-100 s and a car's call about one second, so a
+# full field normally fits with time to spare. What is cut short is said so.
+FIELD_SECONDS = 40.0
 
 
 @dataclass
@@ -129,6 +157,7 @@ class Engine:
         latency: LatencyLog | None = None,
         horizon: int = 10,
         rehearsal: bool = False,
+        field_calls: bool = True,
     ) -> None:
         self.feed = feed
         self.hazard = hazard
@@ -153,6 +182,9 @@ class Engine:
         # `source` of "rehearsal of ..." alongside it, so relaxing the guard
         # cannot put a practice call anywhere the real ledger is read from.
         self.rehearsal = rehearsal
+        # Advise every running car, not just the one on screen. Off reproduces
+        # the engine as it ran from Zandvoort to Mexico City.
+        self.field_calls = field_calls
 
         self.collector = LapCollector()
         self.advice: Advice | None = None
@@ -162,6 +194,14 @@ class Engine:
         self._last_advice_at = 0.0
         self._last_advised_lap = -1
         self._busy = False
+        # What the field pass needs, handed over by `_compute`: everything it
+        # reads, taken while ingest is paused for the focus call, so the pass
+        # never reads race state the feed is changing underneath it.
+        self._field_job: tuple | None = None
+        self._field_task: asyncio.Task | None = None
+        self.field_logged = 0
+        self.field_cut_short = 0
+        self.field_last: dict[str, Any] | None = None
 
         self.logged = 0
         self.forecast_rows = 0
@@ -181,6 +221,7 @@ class Engine:
         # count those calls twice.
         self._logged_laps: set[int] = _laps_in(log)
         self._forecast_laps: set[int] = _laps_in(forecasts)
+        self._field_logged: set[tuple[int, str]] = _field_calls_in(log)
 
         # Where each car started, so the screen can show positions gained
         # rather than only where everyone is now. Captured the first time a car
@@ -209,6 +250,8 @@ class Engine:
                 if car.position is not None and number not in self._grid:
                     self._grid[number] = car.position
             await self._maybe_advise(arrived=arrived, fold=fold, event=event)
+        if self._field_task is not None:
+            await self._field_task
 
     async def _maybe_advise(
         self,
@@ -219,9 +262,11 @@ class Engine:
     ) -> None:
         state = self.state
         now = time.monotonic()
-        if self._busy or state.lap <= 0 or not state.cars:
+        if state.lap <= 0 or not state.cars:
             return
         if state.lap == self._last_advised_lap:
+            return
+        if self._busy:
             return
         if now - self._last_advice_at < MIN_SECONDS_BETWEEN_ADVICE:
             return
@@ -229,10 +274,15 @@ class Engine:
         self._busy = True
         self._last_advice_at = now
         self._last_advised_lap = state.lap
+        self._field_job = None
         started = time.perf_counter()
         try:
-            # Off the event loop: ingest keeps flowing while this runs, so the
-            # screen stays live through the seconds a decision takes.
+            # Off the event loop, so the screen and its websocket stay live
+            # through the second a decision takes. Not off the *feed*: `run`
+            # awaits this before reading the next message, so ingest pauses for
+            # the focus call. That is a second a lap, it has been so in every
+            # race recorded, and it means the call sees a state nothing is
+            # changing underneath it.
             self.advice = await asyncio.to_thread(self._compute, state.lap)
         except Exception:
             log.exception("advice failed on lap %s", state.lap)
@@ -240,8 +290,31 @@ class Engine:
             self._record_latency(
                 state.lap, arrived=arrived, fold=fold, started=started, event=event
             )
+            # The focus call is published and timed. The field runs beside the
+            # feed rather than in front of it: inline, its fifteen to twenty
+            # seconds a lap would leave F1's connection unread for that long.
+            if self._field_job is not None:
+                await self._start_field(self._field_job)
         finally:
+            self._field_job = None
             self._busy = False
+
+    async def _start_field(self, job: tuple) -> None:
+        """Launch the field pass as a task, after the last one has finished.
+
+        The last one stops between cars as soon as a new lap starts, so waiting
+        for it costs at most the one car it was on.
+        """
+        previous = self._field_task
+        if previous is not None and not previous.done():
+            await previous
+        self._field_task = asyncio.create_task(self._run_field(job))
+
+    async def _run_field(self, job: tuple) -> None:
+        try:
+            await asyncio.to_thread(self._advise_field, *job)
+        except Exception:
+            log.exception("field calls failed on lap %s", job[0])
 
     def _record_latency(
         self,
@@ -426,6 +499,9 @@ class Engine:
 
         self._record(recommendation, state, total)
         self._forecast(entries, state, config, total)
+        if self.field_calls and self._ledger_open(state):
+            out = frozenset(n for n, car in state.cars.items() if car.retired or car.stopped)
+            self._field_job = (lap, entries, target.driver, total, config, pace, out)
 
         return Advice(
             lap=lap,
@@ -478,13 +554,8 @@ class Engine:
         race engine down with it; the screen keeps working and the failure is
         surfaced in the snapshot instead.
         """
-        if self.log is None:
+        if not self._ledger_open(state):
             return
-        if not self.rehearsal:
-            if state.total_laps <= 0:
-                return
-            if state.session_type and state.session_type.lower() != "race":
-                return
         if recommendation.lap in self._logged_laps:
             return
 
@@ -511,6 +582,134 @@ class Engine:
 
         self._logged_laps.add(recommendation.lap)
         self.logged += 1
+
+    def _ledger_open(self, state: RaceState) -> bool:
+        """The race-only guard `_record` describes, shared with the field calls."""
+        if self.log is None:
+            return False
+        if self.rehearsal:
+            return True
+        if state.total_laps <= 0:
+            return False
+        return not (state.session_type and state.session_type.lower() != "race")
+
+    def _advise_field(
+        self,
+        lap: int,
+        entries: list,
+        focus: str,
+        total_laps: int,
+        config: SimConfig,
+        pace: PaceFit,
+        out: frozenset[str] = frozenset(),
+    ) -> None:
+        """Advise every other running car, then commit the lap's calls together.
+
+        Every live call from Zandvoort to Mexico City was for the car in P1 - the
+        car least likely to be told to stop - so after four races there was not
+        one live "stop soon" to set against what a team did. The same decision,
+        made for the rest of the field on the same lap from the same fit, is
+        what supplies them. These are not the pit wall's call; they are marked
+        `focus: false` and graded as their own group.
+
+        Runs on a worker thread beside the feed, from the entries, fit and list
+        of retired cars taken at the focus call. Gives way to the next lap: it
+        checks between cars and stops when a new lap has started or
+        `FIELD_SECONDS` have gone, so the next focus call waits for at most the
+        one car already running. The order rotates with
+        the lap, so a pass cut short leaves out different cars each time rather
+        than always the back of the field.
+        """
+        state = self.state
+        if not self._ledger_open(state):
+            return
+        # A car that is out has no strategy to advise, and scoring "stay out" for
+        # it would pad the file with free correct answers.
+        candidates = [
+            entry
+            for entry in entries
+            if entry.driver != focus
+            and entry.driver not in out
+            and (lap, entry.driver) not in self._field_logged
+        ]
+        if not candidates:
+            return
+        shift = lap % len(candidates)
+        candidates = candidates[shift:] + candidates[:shift]
+
+        unfitted = self._unfitted(state.circuit)
+        fingerprint = self._fingerprint(state.circuit)
+        started = time.perf_counter()
+        rows = []
+        cut = ""
+        for entry in candidates:
+            if self.state.lap != lap:
+                cut = f"lap {self.state.lap} started"
+                break
+            if time.perf_counter() - started > FIELD_SECONDS:
+                cut = f"{FIELD_SECONDS:.0f} s spent"
+                break
+            try:
+                recommendation = evaluate_actions(
+                    entries,
+                    our_driver=entry.driver,
+                    from_lap=lap,
+                    total_laps=total_laps,
+                    circuit=state.circuit,
+                    pace=pace,
+                    hazard=self.hazard,
+                    attrition=self.attrition,
+                    pit_loss=self.pit_loss,
+                    config=config,
+                )
+                rows.append(
+                    prediction_from(
+                        recommendation,
+                        session=self.log.session,
+                        circuit=state.circuit,
+                        total_laps=total_laps,
+                        horizon=self.horizon,
+                        unfitted=unfitted,
+                        models=fingerprint,
+                        focus=False,
+                    )
+                )
+            except Exception:
+                self.log_failures += 1
+                log.exception("could not advise %s on lap %s", entry.tla, lap)
+
+        took = time.perf_counter() - started
+        if cut:
+            self.field_cut_short += 1
+            log.info(
+                "field calls on lap %s cut short (%s): %d of %d cars in %.1fs",
+                lap,
+                cut,
+                len(rows),
+                len(candidates),
+                took,
+            )
+        self.field_last = {
+            "lap": lap,
+            "cars": len(rows),
+            "of": len(candidates),
+            "seconds": round(took, 1),
+            "cut": cut,
+            "soon": [
+                {"tla": r.tla, "call": r.call}
+                for r in rows
+                if (r.soon_margin or 0.0) >= DECISIVE_MARGIN
+            ],
+        }
+        if not rows:
+            return
+        try:
+            self.field_logged += self.log.record_lap(rows)
+        except Exception:
+            self.log_failures += 1
+            log.exception("could not log field calls at lap %s", lap)
+            return
+        self._field_logged.update((lap, r.driver) for r in rows)
 
     def _fingerprint(self, circuit: str) -> str:
         """Which model is about to make this call.
@@ -732,6 +931,9 @@ class Engine:
         return {
             "path": str(self.log.path),
             "written": self.logged,
+            "field": self.field_logged,
+            "field_cut_short": self.field_cut_short,
+            "field_last": self.field_last,
             "forecasts": self.forecast_rows,
             "commits_failed": self.log.commit_failures,
             "write_failures": self.log_failures,

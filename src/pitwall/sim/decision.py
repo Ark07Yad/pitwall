@@ -45,6 +45,10 @@ DEFAULT_DELAYS: tuple[int, ...] = (0, 3, 6, 10)
 # Below this gap in expected position, two options are not meaningfully
 # different given the noise a few thousand simulations carry.
 DECISIVE_MARGIN = 0.15
+# What "stop soon" means when a call is graded against what a team then did:
+# the in-lap within this many laps of the call, which takes in the "now" and
+# "+3" options and nothing later.
+SOON_LAPS = 3
 
 
 @dataclass(frozen=True)
@@ -111,6 +115,24 @@ class Recommendation:
     @property
     def decisive(self) -> bool:
         return self.margin >= DECISIVE_MARGIN
+
+    @property
+    def soon_margin(self) -> float:
+        """How much better stopping within `SOON_LAPS` is than not, in places.
+
+        Positive says stop soon, negative says not yet. `margin` cannot answer
+        this: it is the gap to the *next* option, and when the best option is a
+        stop the next is usually the same stop on another compound - "now on
+        MED" against "now on HAR" - so a call that is unambiguous about timing
+        and torn over tyres reads as no clear call. Run across the field at
+        Mexico City, laps 32-42, 52 calls said stop within three laps and not one
+        was decisive by `margin`; every stay-out was, by one to three places.
+        """
+        soon = [o for o in self.outcomes if o.stop and o.pit_lap - self.lap <= SOON_LAPS]
+        later = [o for o in self.outcomes if not (o.stop and o.pit_lap - self.lap <= SOON_LAPS)]
+        if not soon or not later:
+            return 0.0
+        return min(o.mean_position for o in later) - min(o.mean_position for o in soon)
 
     def __str__(self) -> str:
         head = f"{self.tla} P{self.current_position}, lap {self.lap} ({self.n_sims:,} sims)"

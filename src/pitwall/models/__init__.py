@@ -19,6 +19,12 @@ from pitwall.models.fuel import (
     FuelModel,
 )
 from pitwall.models.long_run import LongRun, LongRunFit, fit_long_runs, long_runs
+from pitwall.models.neutralisation import (
+    NeutralisationModel,
+    fit_neutralisation,
+    load_stops,
+)
+from pitwall.models.overtaking import OvertakingModel, fit_overtaking, load_overtaking
 from pitwall.models.pace import (
     MAX_TREND_ERROR,
     RACE_TREND_PRIOR,
@@ -53,6 +59,8 @@ __all__ = [
     "HazardModel",
     "LongRun",
     "LongRunFit",
+    "NeutralisationModel",
+    "OvertakingModel",
     "PaceFit",
     "PitLossModel",
     "RACE_TREND_PRIOR",
@@ -63,12 +71,16 @@ __all__ = [
     "fit_degradation",
     "fit_hazard",
     "fit_long_runs",
+    "fit_neutralisation",
+    "fit_overtaking",
     "fit_pace",
     "fit_pit_loss",
     "load_degradation",
     "load_history",
+    "load_overtaking",
     "long_runs",
     "load_pit_loss",
+    "load_stops",
     "model_fingerprint",
     "model_terms",
     "neutralisation_index",

@@ -4,6 +4,54 @@ Running notes on what was built, what broke, and what the data taught me.
 
 ---
 
+## 2026-11-04 — Passing and safety cars, measured
+
+**Two hand-set numbers sat where pit decisions are closest**: a car held behind another passed with
+probability 0.18 a lap plus 0.35 per second of pace edge, at every circuit; and every
+neutralisation was a full safety car that bunched the field once and made a stop cost 55% of a green
+one. `scripts/fetch_race_dynamics.py` now measures both from the 107 cached races of 2022-26.
+
+**Passing**, on 17,123 green laps where a car started within a second of the one ahead, its edge
+taken from a clear-air pace fit of the race. Monaco 0.02 a lap, Marina Bay 0.06, Barcelona 0.33,
+Yas Island 0.33 - a seventeen-fold spread the old rule set to zero. Three decisions, each checked:
+
+- *Fit the simulation's rule, not the raw rate.* A pinned car only rolls on laps it closes back in,
+  Phi(edge / sqrt(2) x lap noise), about half of them for an even pair. A test builds data from a
+  known rule and shows the raw rate reads half the base.
+- *Level from the current era, track from all five.* 2022-25 fits 0.084 + 0.231/s; 2026 alone
+  0.169 + 0.122/s. Pooled, this season's races would be simulated with last season's cars.
+- *Shrinkage estimated, not borrowed.* Race-to-race scatter within a circuit is large (Baku: 0.02,
+  1.44, 0.02, 1.50 of its era's average). Within-circuit over between-circuit variance gives 1.7
+  races on a log scale; pit loss's flat 2 on an arithmetic scale had pulled Monaco from 0.03 to 0.42.
+
+**Neutralisation**, every stop against the field on its own two laps. The method reads green stops
+at 22.1 s against the pit-loss constant's 22.17 - the check that it measures what it should. SC
+stops cost 72% (121 stops, 23 races), VSC 77% (162, 30). A safety car lasts 5.3 laps, a VSC 3.5;
+44% of neutralisations are VSC only. The first cut counted a stop as SC only if both laps were
+entirely under it, which dropped nearly all of them: cars dive in on the deployment lap, which is
+part green.
+
+**72% is dearer than the old 55% only over the stop's two laps**, and that is what made the
+simulation change necessary. The queue keeps closing up behind a safety car, so a car that stops
+rejoins at the back having lost places, not time; the simulation bunched the field only on the
+deployment lap. It now bunches on every safety-car lap and never under a VSC. A test sets both
+against one race: the stopper finishes ahead 46% under a safety car, 4% under a VSC, 29% under the
+old once-only bunching.
+
+**Does it change calls?** On six 2026 races, the same 160 calls: a reseed alone changes 27 (17%),
+measured numbers 53 (33%), passing switched off 56 (35%). Across fourteen races, 80 of 333 changed -
+38 stop/stay (20 to stop, 18 to stay), 34 timing, 8 tyre only. Half is noise; the rest is about as
+large as removing passing, against 2% for the degradation refit. Without the reseed run the 24%
+headline would have been quoted as the effect, and half of it is not.
+
+**And the reseed is a finding by itself:** at 1,000 simulations, one call in six turns on the random
+draw. That is the "no clear call" population, and the reason grading uses `decisive` and
+`soon_margin` rather than the label.
+
+Not done: whether the changed calls are *better*. São Paulo is the first race on the new model.
+
+---
+
 ## 2026-11-03 (evening) — Advising the whole field, and two things that stood in the way
 
 **Every live call from Zandvoort to Mexico City was for the car in P1.** With no `--driver` the

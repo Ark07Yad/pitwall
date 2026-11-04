@@ -904,3 +904,130 @@ def test_soon_margin_needs_both_sides():
     """Late in a race every delay clamps to the flag; with nothing to compare
     against, the call is neither clear nor unclear about timing."""
     assert recommendation(outcome(0, 5.0), outcome(3, 5.1)).soon_margin == 0.0
+
+
+# -- safety car against VSC --------------------------------------------
+#
+# Until November 2026 every neutralisation was a full safety car that bunched
+# the field once, on the lap it came out. A VSC does not bunch at all, and a
+# safety car keeps the field queued for as long as it is out.
+
+
+class FirstLapOnly:
+    """One neutralisation, deployed on the first lap and never again."""
+
+    def hazard(self, circuit: str, lap: int, total_laps: int) -> float:
+        return 1.0 if lap == 1 else 0.0
+
+
+def neutralised(kind_share: float, **overrides) -> SimConfig:
+    values = dict(
+        n_sims=600,
+        seed=21,
+        vsc_share=kind_share,
+        sc_pit_discount=0.72,
+        vsc_pit_discount=0.72,
+        sc_end_chance=0.3,
+        vsc_end_chance=0.3,
+    )
+    values.update(overrides)
+    return SimConfig(**values)
+
+
+def test_a_vsc_leaves_the_gaps_where_they_were():
+    entries = [
+        CarEntry(driver="leader", tla="LDR", base_pace=90.0, tyre_age=10, elapsed=0.0),
+        CarEntry(driver="chaser", tla="CHS", base_pace=89.9, tyre_age=10, elapsed=25.0),
+    ]
+    sc = run(entries, total_laps=12, hazard=FirstLapOnly(), config=neutralised(0.0))
+    vsc = run(entries, total_laps=12, hazard=FirstLapOnly(), config=neutralised(1.0))
+    calm = run(entries, total_laps=12, hazard=None, config=neutralised(0.0))
+
+    assert sc.probability_ahead_of("leader", "chaser") < 0.9
+    assert vsc.probability_ahead_of("leader", "chaser") == pytest.approx(
+        calm.probability_ahead_of("leader", "chaser"), abs=0.02
+    )
+
+
+def test_a_stop_under_a_safety_car_costs_places_and_under_a_vsc_costs_time():
+    """The queue keeps closing up behind a safety car, so the car that stops
+    rejoins at the back of it and can race back on fresher tyres. Under a VSC the
+    time it lost stays lost. Same discount, same race; only the kind differs."""
+    entries = [
+        CarEntry(
+            driver="stopper",
+            tla="STP",
+            base_pace=90.0,
+            compound=Compound.HARD,
+            tyre_age=12,
+            elapsed=0.0,
+            planned_pit=2,
+            planned_compound=Compound.HARD,
+        ),
+        CarEntry(
+            driver="stayer",
+            tla="STY",
+            base_pace=90.0,
+            compound=Compound.HARD,
+            tyre_age=12,
+            elapsed=1.0,
+        ),
+    ]
+    sc = run(entries, total_laps=14, hazard=FirstLapOnly(), config=neutralised(0.0))
+    vsc = run(entries, total_laps=14, hazard=FirstLapOnly(), config=neutralised(1.0))
+
+    assert (
+        sc.probability_ahead_of("stopper", "stayer")
+        > vsc.probability_ahead_of("stopper", "stayer") + 0.2
+    )
+
+
+def test_a_vsc_is_drawn_only_when_vsc_share_is_set():
+    """Default configurations consume the random stream exactly as they did
+    before VSCs existed, so every result made without them is reproducible."""
+    entries = grid(6)
+    before = run(entries, hazard=hazard_model(0.1), config=SimConfig(n_sims=300, seed=3))
+    again = run(
+        entries, hazard=hazard_model(0.1), config=SimConfig(n_sims=300, seed=3, vsc_share=0.0)
+    )
+
+    assert (before.positions == again.positions).all()
+
+
+def test_tuned_puts_the_measured_numbers_in_place():
+    from pitwall.models.neutralisation import NeutralisationModel
+    from pitwall.models.overtaking import OvertakingModel
+    from pitwall.sim import tuned
+
+    overtaking = OvertakingModel(
+        base=0.2,
+        per_second=0.1,
+        circuit_factor={"Monaco": 0.1},
+        circuit_raw={"Monaco": 0.05},
+        circuit_races={"Monaco": 3},
+        n_races=3,
+        n_followers=100,
+        n_passes=1,
+    )
+    neutralisation = NeutralisationModel(
+        sc_discount=0.7,
+        vsc_discount=0.8,
+        sc_end_chance=0.2,
+        vsc_end_chance=0.3,
+        vsc_share=0.4,
+        circuit_vsc_share={"Monaco": 0.6},
+        circuit_races={"Monaco": 3},
+        sc_races=10,
+        vsc_races=10,
+        sc_stops=50,
+        vsc_stops=50,
+    )
+
+    # The feed says "Monte Carlo"; the history is keyed "Monaco".
+    config = tuned(SimConfig(), "Monte Carlo", overtaking=overtaking, neutralisation=neutralisation)
+
+    assert config.overtake_base == pytest.approx(0.02)
+    assert config.overtake_per_second == 0.1
+    assert (config.sc_pit_discount, config.vsc_pit_discount) == (0.7, 0.8)
+    assert config.vsc_share == 0.6
+    assert tuned(SimConfig(), "Monaco") == SimConfig()

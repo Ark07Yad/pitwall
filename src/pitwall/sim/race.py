@@ -18,11 +18,15 @@ catches the one ahead is held within `min_gap` unless it wins an overtake roll,
 so a fast car stuck behind a slow one stays stuck - which is the entire reason
 track position is worth anything, and the reason an undercut works.
 
-**Safety cars compress the field.** When one deploys, gaps collapse to a few
-seconds. That is what makes safety cars the dominant strategic risk: a
-twenty-second lead evaporates, and a stop taken under one costs a fraction of
-its usual price. Modelling the neutralisation without the bunching would miss
-the point of it entirely.
+**Safety cars compress the field; a VSC does not.** While a safety car is out
+the field queues behind it, so gaps collapse to a few seconds and stay there: a
+twenty-second lead evaporates, and a car that stops rejoins at the back of the
+queue having lost places rather than time. A VSC holds every car to a delta and
+leaves the gaps as they were, so a stop under one is cheaper than under green
+and still costs time. Which kind each neutralisation is, how long it lasts and
+what a stop under it costs are measured (`models/neutralisation.py`); until
+November 2026 every one was a full safety car bunching the field once, on the
+lap it came out.
 
 **Rivals are not static.** Their stops are sampled from a policy distribution,
 so the answer accounts for the possibility that they cover, or attack.
@@ -36,6 +40,8 @@ import numpy as np
 
 from pitwall.models.attrition import AttritionModel
 from pitwall.models.fuel import FuelModel
+from pitwall.models.neutralisation import NeutralisationModel
+from pitwall.models.overtaking import OvertakingModel
 from pitwall.models.pace import PaceFit
 from pitwall.models.pit_loss import PitLossModel
 from pitwall.models.safety_car import HazardModel
@@ -80,8 +86,13 @@ class SimConfig:
     # Circuit-specific and the most stable constant in the sport.
     pit_loss: float = 20.0
     pit_loss_sd: float = 1.2
-    # A stop under a safety car costs far less, because the field is crawling.
+    # A stop under a safety car costs less, because the field is crawling. Set
+    # per race from measured stops by `tuned`; these are the old hand-set values.
     sc_pit_discount: float = 0.55
+    vsc_pit_discount: float = 0.55
+    # Share of neutralisations that are a VSC rather than a safety car. Zero is
+    # the old behaviour: every one a safety car.
+    vsc_share: float = 0.0
 
     # Residual lap-time scatter, from the pace fit.
     lap_noise: float = 0.7
@@ -97,6 +108,7 @@ class SimConfig:
     sc_lap_penalty: float = 32.0
     # Once out, the chance it comes in at the end of any given lap.
     sc_end_chance: float = 0.28
+    vsc_end_chance: float = 0.28
     # Spacing the field is bunched to behind the safety car.
     sc_gap: float = 1.6
 
@@ -296,7 +308,9 @@ def simulate(
         jitter = rng.integers(-cfg.rival_pit_jitter, cfg.rival_pit_jitter + 1, size=n_sims)
         planned[:, i] = np.clip(entry.planned_pit + jitter, from_lap, total_laps)
 
+    # Neutralised at all, and of those, by a VSC rather than a safety car.
     sc_active = np.zeros(n_sims, dtype=bool)
+    vsc_active = np.zeros(n_sims, dtype=bool)
     sc_count = np.zeros(n_sims, dtype=int)
     # Cars that have retired. Without this every car reaches the flag, and the
     # simulation can never promote anyone - which understates the chances of a
@@ -311,6 +325,10 @@ def simulate(
             deployed = (~sc_active) & (rng.random(n_sims) < rate)
             sc_active |= deployed
             sc_count += deployed
+            # Drawn only when VSCs are in play, so the default configuration
+            # consumes the random stream exactly as it did before they were.
+            if cfg.vsc_share > 0 and deployed.any():
+                vsc_active |= deployed & (rng.random(n_sims) < cfg.vsc_share)
         else:
             deployed = np.zeros(n_sims, dtype=bool)
 
@@ -336,7 +354,8 @@ def simulate(
                 cost = pit_loss.sample(rng, circuit, (n_sims, n_cars))
             else:
                 cost = rng.normal(stop_cost, stop_cost_sd, size=(n_sims, n_cars))
-            cost = np.where(sc_active[:, None], cost * cfg.sc_pit_discount, cost)
+            discount = np.where(vsc_active, cfg.vsc_pit_discount, cfg.sc_pit_discount)
+            cost = np.where(sc_active[:, None], cost * discount[:, None], cost)
             lap_time = np.where(pitting, lap_time + cost, lap_time)
 
         # A retired car is parked: it stops accumulating time, so its lap time
@@ -370,15 +389,23 @@ def simulate(
         _apply_track_position(elapsed, order_before, -green_pace, pitting | retired, cfg, rng)
 
         # --- safety car bunching and restart ---
-        if deployed.any():
-            rows = np.flatnonzero(deployed)
-            order = np.argsort(elapsed[rows], axis=1)
+        # Every lap a safety car is out, not only the one it comes out on: the
+        # queue keeps closing up behind it, so a car that stops under it rejoins
+        # at the back having lost places, not time. A VSC never bunches. Retired
+        # cars are left where they stopped and take no place in the queue.
+        compress = sc_active & ~vsc_active
+        if compress.any():
+            rows = np.flatnonzero(compress)
+            running = np.where(retired[rows], np.inf, elapsed[rows])
+            order = np.argsort(running, axis=1)
             ranks = np.argsort(order, axis=1)
-            leader = elapsed[rows].min(axis=1, keepdims=True)
-            elapsed[rows] = leader + ranks * cfg.sc_gap
+            leader = running.min(axis=1, keepdims=True)
+            elapsed[rows] = np.where(retired[rows], elapsed[rows], leader + ranks * cfg.sc_gap)
         if sc_active.any():
-            ending = sc_active & (rng.random(n_sims) < cfg.sc_end_chance)
+            end_chance = np.where(vsc_active, cfg.vsc_end_chance, cfg.sc_end_chance)
+            ending = sc_active & (rng.random(n_sims) < end_chance)
             sc_active &= ~ending
+            vsc_active &= sc_active
 
     # Retired cars classify behind every finisher, ordered among themselves by
     # how far they got - which is how F1 actually classifies them.
@@ -394,6 +421,34 @@ def simulate(
         sc_deployed=sc_count,
         config=cfg,
     )
+
+
+def tuned(
+    config: SimConfig,
+    circuit: str,
+    *,
+    overtaking: OvertakingModel | None = None,
+    neutralisation: NeutralisationModel | None = None,
+) -> SimConfig:
+    """The configuration for one race, with the measured numbers in place.
+
+    Done once where a configuration is made rather than threaded through every
+    call that runs the simulation: the numbers are per circuit and fixed for the
+    race, which is what a configuration is for.
+    """
+    changes: dict[str, float] = {}
+    if overtaking is not None:
+        changes["overtake_base"] = overtaking.base_for(circuit)
+        changes["overtake_per_second"] = overtaking.per_second
+    if neutralisation is not None:
+        changes.update(
+            sc_pit_discount=neutralisation.sc_discount,
+            vsc_pit_discount=neutralisation.vsc_discount,
+            sc_end_chance=neutralisation.sc_end_chance,
+            vsc_end_chance=neutralisation.vsc_end_chance,
+            vsc_share=neutralisation.vsc_share_for(circuit),
+        )
+    return replace(config, **changes)
 
 
 def entries_from_pace(

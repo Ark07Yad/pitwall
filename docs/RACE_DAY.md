@@ -72,6 +72,14 @@ before; once it is out, every other running car gets a call too, committed once 
 panel listing clear stop calls. A pass that says "cut short" ran into the next lap, which is fine.
 Nothing about arming changes.
 
+**Also new: passing and safety cars are measured, not hand-set.** São Paulo reads 1.52x the
+season's passing rate (0.26 a lap for an evenly matched follower, against 0.18 everywhere before),
+so track position is worth less here than the old model thought and an undercut buys less. Its
+neutralisations have nearly all been full safety cars - 15% are expected to be VSCs, against 44%
+across the calendar - and a safety car now lasts 5.3 laps on average and bunches the field every
+lap it is out, so a stop under one costs places rather than time. Rows are stamped with a new
+fingerprint; scores from this race are of the new model, not comparable as-is with Mexico City's.
+
 **The one thing it needs is the lid open from before 14:00.** At Austin the lid was shut, the
 recorder started on time, and it saw 11 of 56 lap counts. Since 2 November a closed lid and a nap
 during the recording are both reported, and the last notification reads "recording has gaps"

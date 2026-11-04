@@ -1,0 +1,674 @@
+[
+ {
+  "recording": "2026-r5-archive.txt",
+  "circuit": "Montreal",
+  "lap": 27,
+  "total": 68,
+  "skipped": "fit not usable"
+ },
+ {
+  "recording": "2026-r5-archive.txt",
+  "circuit": "Montreal",
+  "lap": 37,
+  "total": 68,
+  "n": 8,
+  "changed": [
+   "PER"
+  ],
+  "calls": {
+   "hand-set": {
+    "ANT": "stay/MED",
+    "HAD": "stay/MED",
+    "LAW": "stay/SOF",
+    "SAI": "stay/MED",
+    "HUL": "pit+0/SOF",
+    "PER": "stay/SOF",
+    "RUS": "pit+0/MED",
+    "LIN": "pit+0/HAR"
+   },
+   "measured": {
+    "ANT": "stay/MED",
+    "HAD": "stay/MED",
+    "LAW": "stay/SOF",
+    "SAI": "stay/MED",
+    "HUL": "pit+0/SOF",
+    "PER": "pit+0/SOF",
+    "RUS": "pit+0/MED",
+    "LIN": "pit+0/HAR"
+   }
+  }
+ },
+ {
+  "recording": "2026-r5-archive.txt",
+  "circuit": "Montreal",
+  "lap": 47,
+  "total": 68,
+  "n": 8,
+  "changed": [
+   "LAW",
+   "LIN"
+  ],
+  "calls": {
+   "hand-set": {
+    "ANT": "stay/MED",
+    "LEC": "stay/MED",
+    "LAW": "pit+0/MED",
+    "BEA": "stay/MED",
+    "BOR": "stay/MED",
+    "BOT": "stay/SOF",
+    "RUS": "pit+0/SOF",
+    "LIN": "pit+10/HAR"
+   },
+   "measured": {
+    "ANT": "stay/MED",
+    "LEC": "stay/MED",
+    "LAW": "stay/SOF",
+    "BEA": "stay/MED",
+    "BOR": "stay/MED",
+    "BOT": "stay/SOF",
+    "RUS": "pit+0/SOF",
+    "LIN": "pit+6/HAR"
+   }
+  }
+ },
+ {
+  "recording": "2026-r5-archive.txt",
+  "circuit": "Montreal",
+  "lap": 57,
+  "total": 68,
+  "n": 8,
+  "changed": [
+   "LIN"
+  ],
+  "calls": {
+   "hand-set": {
+    "ANT": "stay/MED",
+    "LEC": "stay/MED",
+    "LAW": "stay/SOF",
+    "BEA": "stay/MED",
+    "PIA": "stay/SOF",
+    "BOT": "stay/MED",
+    "RUS": "pit+0/SOF",
+    "LIN": "pit+0/MED"
+   },
+   "measured": {
+    "ANT": "stay/MED",
+    "LEC": "stay/MED",
+    "LAW": "stay/SOF",
+    "BEA": "stay/MED",
+    "PIA": "stay/SOF",
+    "BOT": "stay/MED",
+    "RUS": "pit+0/SOF",
+    "LIN": "pit+3/MED"
+   }
+  }
+ },
+ {
+  "recording": "2026-r6-archive.txt",
+  "circuit": "Monte Carlo",
+  "lap": 31,
+  "total": 78,
+  "skipped": "fit not usable"
+ },
+ {
+  "recording": "2026-r6-archive.txt",
+  "circuit": "Monte Carlo",
+  "lap": 42,
+  "total": 78,
+  "skipped": "fit not usable"
+ },
+ {
+  "recording": "2026-r6-archive.txt",
+  "circuit": "Monte Carlo",
+  "lap": 54,
+  "total": 78,
+  "n": 8,
+  "changed": [
+   "ANT",
+   "VER"
+  ],
+  "calls": {
+   "hand-set": {
+    "ANT": "pit+0/HAR",
+    "RUS": "pit+0/HAR",
+    "GAS": "stay/HAR",
+    "LIN": "pit+0/SOF",
+    "OCO": "stay/HAR",
+    "STR": "pit+0/SOF",
+    "NOR": "stay/MED",
+    "VER": "pit+10/HAR"
+   },
+   "measured": {
+    "ANT": "stay/HAR",
+    "RUS": "pit+0/HAR",
+    "GAS": "stay/HAR",
+    "LIN": "pit+0/SOF",
+    "OCO": "stay/HAR",
+    "STR": "pit+0/SOF",
+    "NOR": "stay/MED",
+    "VER": "pit+3/MED"
+   }
+  }
+ },
+ {
+  "recording": "2026-r6-archive.txt",
+  "circuit": "Monte Carlo",
+  "lap": 66,
+  "total": 78,
+  "n": 8,
+  "changed": [
+   "VER"
+  ],
+  "calls": {
+   "hand-set": {
+    "ANT": "stay/SOF",
+    "RUS": "stay/SOF",
+    "LAW": "stay/SOF",
+    "ALB": "pit+0/HAR",
+    "HUL": "stay/HAR",
+    "PER": "stay/SOF",
+    "NOR": "stay/MED",
+    "VER": "pit+10/SOF"
+   },
+   "measured": {
+    "ANT": "stay/SOF",
+    "RUS": "stay/SOF",
+    "LAW": "stay/SOF",
+    "ALB": "pit+0/HAR",
+    "HUL": "stay/HAR",
+    "PER": "stay/SOF",
+    "NOR": "stay/MED",
+    "VER": "stay/MED"
+   }
+  }
+ },
+ {
+  "recording": "2026-r7-archive.txt",
+  "circuit": "Catalunya",
+  "lap": 26,
+  "total": 66,
+  "n": 8,
+  "changed": [
+   "NOR",
+   "STR"
+  ],
+  "calls": {
+   "hand-set": {
+    "RUS": "stay/HAR",
+    "NOR": "pit+0/SOF",
+    "PIA": "pit+0/SOF",
+    "HUL": "stay/HAR",
+    "SAI": "pit+0/SOF",
+    "LIN": "stay/HAR",
+    "PER": "pit+6/SOF",
+    "STR": "pit+0/MED"
+   },
+   "measured": {
+    "RUS": "stay/HAR",
+    "NOR": "stay/HAR",
+    "PIA": "pit+0/SOF",
+    "HUL": "stay/HAR",
+    "SAI": "pit+0/SOF",
+    "LIN": "stay/HAR",
+    "PER": "pit+6/SOF",
+    "STR": "stay/HAR"
+   }
+  }
+ },
+ {
+  "recording": "2026-r7-archive.txt",
+  "circuit": "Catalunya",
+  "lap": 36,
+  "total": 66,
+  "n": 8,
+  "changed": [
+   "ANT",
+   "LEC",
+   "LAW",
+   "OCO",
+   "STR"
+  ],
+  "calls": {
+   "hand-set": {
+    "ANT": "pit+0/SOF",
+    "LEC": "pit+0/HAR",
+    "VER": "stay/HAR",
+    "LAW": "pit+0/MED",
+    "BEA": "stay/HAR",
+    "OCO": "stay/MED",
+    "ALB": "stay/HAR",
+    "STR": "stay/HAR"
+   },
+   "measured": {
+    "ANT": "stay/HAR",
+    "LEC": "stay/HAR",
+    "VER": "stay/HAR",
+    "LAW": "pit+0/SOF",
+    "BEA": "stay/HAR",
+    "OCO": "pit+0/HAR",
+    "ALB": "stay/HAR",
+    "STR": "pit+0/SOF"
+   }
+  }
+ },
+ {
+  "recording": "2026-r7-archive.txt",
+  "circuit": "Catalunya",
+  "lap": 46,
+  "total": 66,
+  "n": 8,
+  "changed": [],
+  "calls": {
+   "hand-set": {
+    "HAM": "stay/HAR",
+    "NOR": "stay/HAR",
+    "PIA": "pit+0/SOF",
+    "COL": "pit+0/SOF",
+    "SAI": "pit+0/SOF",
+    "OCO": "stay/MED",
+    "ALB": "stay/SOF",
+    "STR": "pit+0/SOF"
+   },
+   "measured": {
+    "HAM": "stay/HAR",
+    "NOR": "stay/HAR",
+    "PIA": "pit+0/SOF",
+    "COL": "pit+0/SOF",
+    "SAI": "pit+0/SOF",
+    "OCO": "stay/MED",
+    "ALB": "stay/SOF",
+    "STR": "pit+0/SOF"
+   }
+  }
+ },
+ {
+  "recording": "2026-r7-archive.txt",
+  "circuit": "Catalunya",
+  "lap": 56,
+  "total": 66,
+  "n": 8,
+  "changed": [
+   "SAI",
+   "STR"
+  ],
+  "calls": {
+   "hand-set": {
+    "HAM": "stay/HAR",
+    "NOR": "stay/HAR",
+    "PIA": "stay/HAR",
+    "COL": "stay/HAR",
+    "SAI": "stay/HAR",
+    "BOR": "stay/SOF",
+    "ALO": "stay/HAR",
+    "STR": "pit+6/SOF"
+   },
+   "measured": {
+    "HAM": "stay/HAR",
+    "NOR": "stay/HAR",
+    "PIA": "stay/HAR",
+    "COL": "stay/HAR",
+    "SAI": "pit+0/HAR",
+    "BOR": "stay/SOF",
+    "ALO": "stay/HAR",
+    "STR": "pit+0/SOF"
+   }
+  }
+ },
+ {
+  "recording": "2026-r12-archive.txt",
+  "circuit": "Zandvoort",
+  "lap": 28,
+  "total": 72,
+  "n": 8,
+  "changed": [
+   "VER"
+  ],
+  "calls": {
+   "hand-set": {
+    "ANT": "stay/HAR",
+    "PIA": "stay/HAR",
+    "LAW": "stay/MED",
+    "HUL": "stay/SOF",
+    "TSU": "stay/HAR",
+    "OCO": "stay/HAR",
+    "PER": "pit+0/MED",
+    "VER": "pit+0/SOF"
+   },
+   "measured": {
+    "ANT": "stay/HAR",
+    "PIA": "stay/HAR",
+    "LAW": "stay/MED",
+    "HUL": "stay/SOF",
+    "TSU": "stay/HAR",
+    "OCO": "stay/HAR",
+    "PER": "pit+0/MED",
+    "VER": "pit+3/HAR"
+   }
+  }
+ },
+ {
+  "recording": "2026-r12-archive.txt",
+  "circuit": "Zandvoort",
+  "lap": 39,
+  "total": 72,
+  "n": 8,
+  "changed": [
+   "VER"
+  ],
+  "calls": {
+   "hand-set": {
+    "ANT": "stay/HAR",
+    "LEC": "stay/MED",
+    "LAW": "pit+0/HAR",
+    "GAS": "pit+0/HAR",
+    "BOR": "stay/HAR",
+    "LIN": "stay/HAR",
+    "PER": "pit+0/HAR",
+    "VER": "pit+0/SOF"
+   },
+   "measured": {
+    "ANT": "stay/HAR",
+    "LEC": "stay/MED",
+    "LAW": "pit+0/HAR",
+    "GAS": "pit+0/HAR",
+    "BOR": "stay/HAR",
+    "LIN": "stay/HAR",
+    "PER": "pit+0/HAR",
+    "VER": "pit+6/SOF"
+   }
+  }
+ },
+ {
+  "recording": "2026-r12-archive.txt",
+  "circuit": "Zandvoort",
+  "lap": 50,
+  "total": 72,
+  "n": 8,
+  "changed": [
+   "VER"
+  ],
+  "calls": {
+   "hand-set": {
+    "HAM": "stay/HAR",
+    "RUS": "stay/HAR",
+    "LAW": "stay/MED",
+    "TSU": "pit+0/MED",
+    "ALB": "pit+0/MED",
+    "SAI": "pit+0/SOF",
+    "BOT": "pit+0/MED",
+    "VER": "pit+3/SOF"
+   },
+   "measured": {
+    "HAM": "stay/HAR",
+    "RUS": "stay/HAR",
+    "LAW": "stay/MED",
+    "TSU": "pit+0/MED",
+    "ALB": "pit+0/MED",
+    "SAI": "pit+0/SOF",
+    "BOT": "pit+0/MED",
+    "VER": "pit+6/SOF"
+   }
+  }
+ },
+ {
+  "recording": "2026-r12-archive.txt",
+  "circuit": "Zandvoort",
+  "lap": 61,
+  "total": 72,
+  "n": 8,
+  "changed": [
+   "LAW",
+   "GAS"
+  ],
+  "calls": {
+   "hand-set": {
+    "NOR": "stay/HAR",
+    "HAM": "stay/SOF",
+    "LAW": "stay/MED",
+    "GAS": "pit+0/MED",
+    "BOR": "stay/SOF",
+    "COL": "stay/SOF",
+    "OCO": "stay/HAR",
+    "VER": "pit+0/HAR"
+   },
+   "measured": {
+    "NOR": "stay/HAR",
+    "HAM": "stay/SOF",
+    "LAW": "pit+0/MED",
+    "GAS": "stay/MED",
+    "BOR": "stay/SOF",
+    "COL": "stay/SOF",
+    "OCO": "stay/HAR",
+    "VER": "pit+0/HAR"
+   }
+  }
+ },
+ {
+  "recording": "2026-r14-archive.txt",
+  "circuit": "Madring",
+  "lap": 22,
+  "total": 57,
+  "n": 8,
+  "changed": [
+   "PIA"
+  ],
+  "calls": {
+   "hand-set": {
+    "LEC": "pit+0/SOF",
+    "RUS": "stay/MED",
+    "PIA": "pit+0/SOF",
+    "COL": "stay/HAR",
+    "OCO": "stay/HAR",
+    "BEA": "pit+3/MED",
+    "BOT": "pit+10/SOF",
+    "HAM": "stay/SOF"
+   },
+   "measured": {
+    "LEC": "pit+0/SOF",
+    "RUS": "stay/MED",
+    "PIA": "pit+6/SOF",
+    "COL": "stay/HAR",
+    "OCO": "stay/HAR",
+    "BEA": "pit+3/MED",
+    "BOT": "pit+10/SOF",
+    "HAM": "stay/SOF"
+   }
+  }
+ },
+ {
+  "recording": "2026-r14-archive.txt",
+  "circuit": "Madring",
+  "lap": 31,
+  "total": 57,
+  "n": 8,
+  "changed": [],
+  "calls": {
+   "hand-set": {
+    "LEC": "pit+0/SOF",
+    "NOR": "stay/HAR",
+    "PIA": "pit+3/SOF",
+    "COL": "stay/HAR",
+    "OCO": "stay/HAR",
+    "ALB": "pit+0/SOF",
+    "SAI": "pit+0/SOF",
+    "HAM": "stay/SOF"
+   },
+   "measured": {
+    "LEC": "pit+0/SOF",
+    "NOR": "stay/HAR",
+    "PIA": "pit+3/SOF",
+    "COL": "stay/HAR",
+    "OCO": "stay/HAR",
+    "ALB": "pit+0/SOF",
+    "SAI": "pit+0/SOF",
+    "HAM": "stay/SOF"
+   }
+  }
+ },
+ {
+  "recording": "2026-r14-archive.txt",
+  "circuit": "Madring",
+  "lap": 39,
+  "total": 57,
+  "n": 8,
+  "changed": [
+   "LEC"
+  ],
+  "calls": {
+   "hand-set": {
+    "LEC": "pit+0/SOF",
+    "NOR": "stay/HAR",
+    "PIA": "pit+6/SOF",
+    "COL": "stay/HAR",
+    "OCO": "stay/HAR",
+    "BEA": "stay/MED",
+    "SAI": "stay/HAR",
+    "HAM": "stay/SOF"
+   },
+   "measured": {
+    "LEC": "pit+0/HAR",
+    "NOR": "stay/HAR",
+    "PIA": "pit+6/SOF",
+    "COL": "stay/HAR",
+    "OCO": "stay/HAR",
+    "BEA": "stay/MED",
+    "SAI": "stay/HAR",
+    "HAM": "stay/SOF"
+   }
+  }
+ },
+ {
+  "recording": "2026-r14-archive.txt",
+  "circuit": "Madring",
+  "lap": 48,
+  "total": 57,
+  "n": 8,
+  "changed": [],
+  "calls": {
+   "hand-set": {
+    "ANT": "stay/HAR",
+    "NOR": "stay/HAR",
+    "LAW": "stay/MED",
+    "LIN": "stay/HAR",
+    "BOR": "stay/HAR",
+    "BEA": "stay/HAR",
+    "SAI": "stay/HAR",
+    "HAM": "stay/SOF"
+   },
+   "measured": {
+    "ANT": "stay/HAR",
+    "NOR": "stay/HAR",
+    "LAW": "stay/MED",
+    "LIN": "stay/HAR",
+    "BOR": "stay/HAR",
+    "BEA": "stay/HAR",
+    "SAI": "stay/HAR",
+    "HAM": "stay/SOF"
+   }
+  }
+ },
+ {
+  "recording": "2026-mexico-city-race.txt",
+  "circuit": "Mexico City",
+  "lap": 28,
+  "total": 71,
+  "skipped": "fit not usable"
+ },
+ {
+  "recording": "2026-mexico-city-race.txt",
+  "circuit": "Mexico City",
+  "lap": 39,
+  "total": 71,
+  "n": 8,
+  "changed": [
+   "ALB",
+   "ALO"
+  ],
+  "calls": {
+   "hand-set": {
+    "ANT": "pit+0/MED",
+    "LEC": "stay/MED",
+    "PIA": "stay/MED",
+    "HAD": "stay/MED",
+    "HUL": "stay/SOF",
+    "ALB": "pit+0/HAR",
+    "PER": "pit+0/MED",
+    "ALO": "pit+0/SOF"
+   },
+   "measured": {
+    "ANT": "pit+0/MED",
+    "LEC": "stay/MED",
+    "PIA": "stay/MED",
+    "HAD": "stay/MED",
+    "HUL": "stay/SOF",
+    "ALB": "pit+0/SOF",
+    "PER": "pit+0/MED",
+    "ALO": "pit+10/MED"
+   }
+  }
+ },
+ {
+  "recording": "2026-mexico-city-race.txt",
+  "circuit": "Mexico City",
+  "lap": 49,
+  "total": 71,
+  "n": 8,
+  "changed": [
+   "ALO"
+  ],
+  "calls": {
+   "hand-set": {
+    "VER": "stay/SOF",
+    "LEC": "stay/SOF",
+    "LIN": "stay/SOF",
+    "GAS": "stay/SOF",
+    "ALB": "stay/SOF",
+    "HAD": "stay/SOF",
+    "BEA": "stay/SOF",
+    "ALO": "pit+0/SOF"
+   },
+   "measured": {
+    "VER": "stay/SOF",
+    "LEC": "stay/SOF",
+    "LIN": "stay/SOF",
+    "GAS": "stay/SOF",
+    "ALB": "stay/SOF",
+    "HAD": "stay/SOF",
+    "BEA": "stay/SOF",
+    "ALO": "pit+10/SOF"
+   }
+  }
+ },
+ {
+  "recording": "2026-mexico-city-race.txt",
+  "circuit": "Mexico City",
+  "lap": 60,
+  "total": 71,
+  "n": 8,
+  "changed": [
+   "ALO"
+  ],
+  "calls": {
+   "hand-set": {
+    "VER": "stay/SOF",
+    "LEC": "stay/SOF",
+    "PIA": "stay/SOF",
+    "LAW": "stay/SOF",
+    "HAD": "stay/SOF",
+    "HUL": "stay/SOF",
+    "BEA": "stay/SOF",
+    "ALO": "pit+0/SOF"
+   },
+   "measured": {
+    "VER": "stay/SOF",
+    "LEC": "stay/SOF",
+    "PIA": "stay/SOF",
+    "LAW": "stay/SOF",
+    "HAD": "stay/SOF",
+    "HUL": "stay/SOF",
+    "BEA": "stay/SOF",
+    "ALO": "pit+10/SOF"
+   }
+  }
+ }
+]

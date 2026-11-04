@@ -34,6 +34,8 @@ from pitwall.models import (
     AttritionModel,
     DegradationPrior,
     HazardModel,
+    NeutralisationModel,
+    OvertakingModel,
     PaceFit,
     PitLossModel,
     code_version,
@@ -47,6 +49,7 @@ from pitwall.sim import (
     entries_from_state,
     evaluate_actions,
     simulate,
+    tuned,
     undercut_threats,
 )
 from pitwall.sim.decision import DECISIVE_MARGIN
@@ -150,6 +153,8 @@ class Engine:
         attrition: AttritionModel | None = None,
         pit_loss: PitLossModel | None = None,
         degradation: DegradationPrior | None = None,
+        overtaking: OvertakingModel | None = None,
+        neutralisation: NeutralisationModel | None = None,
         driver: str = "",
         sims: int = 1500,
         log: PredictionLog | None = None,
@@ -164,6 +169,8 @@ class Engine:
         self.attrition = attrition
         self.pit_loss = pit_loss
         self.degradation = degradation
+        self.overtaking = overtaking
+        self.neutralisation = neutralisation
         self.requested_driver = driver.upper()
         # The ceiling. The controller ramps toward it and never past it.
         self.max_sims = sims
@@ -470,7 +477,12 @@ class Engine:
             return None
 
         total = state.total_laps or lap + 20
-        config = SimConfig(n_sims=self.sims)
+        config = tuned(
+            SimConfig(n_sims=self.sims),
+            state.circuit,
+            overtaking=self.overtaking,
+            neutralisation=self.neutralisation,
+        )
         recommendation = evaluate_actions(
             entries,
             our_driver=target.driver,
@@ -723,6 +735,8 @@ class Engine:
             attrition=self.attrition,
             pit_loss=self.pit_loss,
             degradation=self.degradation,
+            overtaking=self.overtaking,
+            neutralisation=self.neutralisation,
             code=self._code_version,
         )
 
@@ -740,6 +754,7 @@ class Engine:
             attrition=self.attrition,
             pit_loss=self.pit_loss,
             degradation=self.degradation,
+            overtaking=self.overtaking,
         )
 
     def _forecast(

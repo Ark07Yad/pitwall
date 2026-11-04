@@ -98,6 +98,8 @@ def model_terms(
     attrition: Any = None,
     pit_loss: Any = None,
     degradation: Any = None,
+    overtaking: Any = None,
+    neutralisation: Any = None,
 ) -> list[str]:
     """The model parameters that reach a decision, as readable `key=value` terms.
 
@@ -142,6 +144,19 @@ def model_terms(
         terms.append(
             f"dg={_round(degradation.circuit_factor.get(key, 1.0))}/{degradation.n_races}/{shape}"
         )
+    # Added in November 2026, and only when present, so a call made without
+    # them keeps the fingerprint it always had.
+    if overtaking is not None:
+        terms.append(
+            f"ot={_round(overtaking.base_for(circuit))}/{_round(overtaking.per_second)}"
+            f"/{overtaking.n_races}"
+        )
+    if neutralisation is not None:
+        terms.append(
+            f"nt={_round(neutralisation.sc_discount)}/{_round(neutralisation.vsc_discount)}"
+            f"/{_round(neutralisation.sc_end_chance)}/{_round(neutralisation.vsc_end_chance)}"
+            f"/{_round(neutralisation.vsc_share_for(circuit))}"
+        )
     return terms
 
 
@@ -152,6 +167,7 @@ def unfitted_models(
     attrition: Any = None,
     pit_loss: Any = None,
     degradation: Any = None,
+    overtaking: Any = None,
 ) -> str:
     """Which per-circuit models have no history here, as a sorted string.
 
@@ -168,6 +184,7 @@ def unfitted_models(
         "attrition": attrition,
         "pit_loss": pit_loss,
         "degradation": degradation,
+        "overtaking": overtaking,
     }
     return ",".join(
         sorted(
@@ -185,6 +202,8 @@ def model_fingerprint(
     attrition: Any = None,
     pit_loss: Any = None,
     degradation: Any = None,
+    overtaking: Any = None,
+    neutralisation: Any = None,
     code: str | None = None,
 ) -> str:
     """A short, stable id for the model that made a call: `<commit>/<params>`.
@@ -199,6 +218,8 @@ def model_fingerprint(
         attrition=attrition,
         pit_loss=pit_loss,
         degradation=degradation,
+        overtaking=overtaking,
+        neutralisation=neutralisation,
     )
     digest = hashlib.sha256("|".join(terms).encode("utf-8")).hexdigest()[:8]
     return f"{code if code is not None else code_version()}/{digest}"

@@ -33,22 +33,34 @@ from pitwall.models import (
     DegradationPrior,
     EventKind,
     FuelModel,
+    NeutralisationModel,
+    OvertakingModel,
     PitLossModel,
     code_version,
     fit_attrition,
     fit_degradation,
     fit_hazard,
+    fit_neutralisation,
+    fit_overtaking,
     fit_pace,
     fit_pit_loss,
     load_degradation,
     load_history,
+    load_overtaking,
     load_pit_loss,
+    load_stops,
     model_fingerprint,
     neutralisation_index,
     unfitted_models,
 )
 from pitwall.models.pit_loss import DEFAULT_SHRINKAGE as PIT_LOSS_SHRINKAGE
-from pitwall.sim import SimConfig, entries_from_state, evaluate_actions, undercut_threats
+from pitwall.sim import (
+    SimConfig,
+    entries_from_state,
+    evaluate_actions,
+    tuned,
+    undercut_threats,
+)
 from pitwall.state.models import RaceState
 from pitwall.state.reducer import RaceStateReducer
 
@@ -334,6 +346,7 @@ def _strategy(args: argparse.Namespace) -> int:
         hazard = fit_hazard(history, kind=EventKind.ANY)
         attrition = fit_attrition(history)
     pit_loss = _load_pit_loss(args.pit_loss_history)
+    overtaking, neutralisation = _load_dynamics(args)
 
     entries = entries_from_state(state, pace)
     target = next(
@@ -345,7 +358,12 @@ def _strategy(args: argparse.Namespace) -> int:
         return 1
 
     total = state.total_laps or args.lap + 20
-    cfg = SimConfig(n_sims=args.sims)
+    cfg = tuned(
+        SimConfig(n_sims=args.sims),
+        state.circuit,
+        overtaking=overtaking,
+        neutralisation=neutralisation,
+    )
     print(f"{state.session_name} @ {state.circuit}  lap {args.lap}/{total}")
     if hazard is None:
         print("  (no safety-car history loaded - risk is not modelled)")
@@ -444,6 +462,7 @@ def _backtest(args: argparse.Namespace) -> int:
         attrition = fit_attrition(history)
     pit_loss = _load_pit_loss(args.pit_loss_history)
     prior = _load_degradation(args.degradation_history, args.history)
+    overtaking, neutralisation = _load_dynamics(args)
 
     code = code_version()
     laps = [int(x) for x in args.laps.split(",") if x.strip()]
@@ -497,6 +516,7 @@ def _backtest(args: argparse.Namespace) -> int:
             )
 
         entries = entries_from_state(state, pace)
+        race_cfg = tuned(cfg, state.circuit, overtaking=overtaking, neutralisation=neutralisation)
         for entry in entries:
             if wanted and entry.tla.upper() not in wanted:
                 continue
@@ -510,7 +530,7 @@ def _backtest(args: argparse.Namespace) -> int:
                 hazard=hazard,
                 attrition=attrition,
                 pit_loss=pit_loss,
-                config=cfg,
+                config=race_cfg,
             )
             log.record(
                 prediction_from(
@@ -529,6 +549,7 @@ def _backtest(args: argparse.Namespace) -> int:
                         attrition=attrition,
                         pit_loss=pit_loss,
                         degradation=prior,
+                        overtaking=overtaking,
                     ),
                     models=model_fingerprint(
                         circuit=state.circuit,
@@ -536,6 +557,8 @@ def _backtest(args: argparse.Namespace) -> int:
                         attrition=attrition,
                         pit_loss=pit_loss,
                         degradation=prior,
+                        overtaking=overtaking,
+                        neutralisation=neutralisation,
                         code=code,
                     ),
                     note=pace.trend_note,
@@ -667,6 +690,51 @@ def _load_pit_loss(path: Path) -> PitLossModel | None:
     return fit_pit_loss(load_pit_loss(path))
 
 
+def _load_dynamics(
+    args: argparse.Namespace,
+) -> tuple[OvertakingModel | None, NeutralisationModel | None]:
+    """Measured passing and neutralisation, or None for each not yet built.
+
+    `--hand-set-dynamics` returns neither, which runs the simulation on the
+    numbers it used until November 2026 - the comparison every claim about the
+    measured ones is made against.
+    """
+    if args.hand_set_dynamics:
+        return None, None
+    overtaking = (
+        fit_overtaking(load_overtaking(args.overtaking_history))
+        if args.overtaking_history.exists()
+        else None
+    )
+    neutralisation = (
+        fit_neutralisation(load_stops(args.stops_history), load_history(args.history))
+        if args.stops_history.exists() and args.history.exists()
+        else None
+    )
+    return overtaking, neutralisation
+
+
+def _dynamics_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--overtaking-history",
+        type=Path,
+        default=Path("data/history/overtaking.json"),
+        help="measured following laps, for how hard it is to pass at each circuit",
+    )
+    parser.add_argument(
+        "--stops-history",
+        type=Path,
+        default=Path("data/history/neutralised_stops.json"),
+        help="measured stops under green, safety car and VSC",
+    )
+    parser.add_argument(
+        "--hand-set-dynamics",
+        action="store_true",
+        help="use the hand-set passing and safety-car numbers the engine ran on until "
+        "November 2026, for comparison",
+    )
+
+
 def _dashboard(args: argparse.Namespace) -> int:
     """Serve the live dashboard, from the live feed or a recording."""
     from pitwall.dashboard import Engine, serve
@@ -694,6 +762,7 @@ def _dashboard(args: argparse.Namespace) -> int:
         attrition = fit_attrition(history)
     pit_loss = _load_pit_loss(args.pit_loss_history)
     prior = _load_degradation(args.degradation_history, args.history)
+    overtaking, neutralisation = _load_dynamics(args)
 
     log = forecasts = latency = None
     if args.log_predictions:
@@ -739,6 +808,8 @@ def _dashboard(args: argparse.Namespace) -> int:
         attrition=attrition,
         pit_loss=pit_loss,
         degradation=prior,
+        overtaking=overtaking,
+        neutralisation=neutralisation,
         driver=args.driver,
         sims=args.sims,
         log=log,
@@ -853,6 +924,7 @@ def main(argv: list[str] | None = None) -> int:
         default=Path("data/history/pit_loss.json"),
         help="per-circuit pit loss; falls back to a flat constant if absent",
     )
+    _dynamics_arguments(strategy)
 
     live = sub.add_parser("live", help="connect to F1 live timing and fold it in real time")
     live.add_argument(
@@ -894,6 +966,7 @@ def main(argv: list[str] | None = None) -> int:
         default=Path("data/history/pit_loss.json"),
         help="per-circuit pit loss; falls back to a flat constant if absent",
     )
+    _dynamics_arguments(backtest)
 
     report = sub.add_parser("report", help="score a prediction log and write a race report")
     report.add_argument("file", type=Path, help="the recording, for final classification")
@@ -933,6 +1006,7 @@ def main(argv: list[str] | None = None) -> int:
         default=Path("data/history/pit_loss.json"),
         help="per-circuit pit loss; falls back to a flat constant if absent",
     )
+    _dynamics_arguments(dashboard)
     dashboard.add_argument(
         "--log-predictions",
         action="store_true",

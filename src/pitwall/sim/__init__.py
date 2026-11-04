@@ -14,6 +14,7 @@ from pitwall.sim.race import (
     entries_from_pace,
     entries_from_state,
     simulate,
+    tuned,
     with_pit_plan,
 )
 
@@ -28,6 +29,7 @@ __all__ = [
     "entries_from_state",
     "evaluate_actions",
     "simulate",
+    "tuned",
     "undercut_threats",
     "with_pit_plan",
 ]

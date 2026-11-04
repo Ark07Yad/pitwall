@@ -252,10 +252,12 @@ LEC P3, lap 34 (3,000 sims)
 ```
 
 Three things carry the realism. **Track position is enforced** — cars cannot pass through each
-other, so a quick car stuck in a train stays stuck, which is what makes an undercut work.
-**Safety cars compress the field**, collapsing a twenty-second lead and discounting a stop taken
-under one. **Rivals are not static** — their stops are sampled from a policy distribution, so the
-answer accounts for them covering or attacking.
+other, so a quick car stuck in a train stays stuck, which is what makes an undercut work, and how
+hard it is to get past is measured per circuit. **Safety cars compress the field**, collapsing a
+twenty-second lead and turning a stop under one into lost places rather than lost time; a VSC
+does neither. **Rivals are not static** — their stops are sampled from a policy distribution, so
+the answer accounts for them covering or attacking. The passing and safety-car numbers are
+described under [Passing, and what a safety car does to a stop](#passing-and-what-a-safety-car-does-to-a-stop).
 
 The suite asserts textbook dynamics rather than just unit behaviour: starting ahead is worth
 something, a faster car is held up behind a slower one, safety cars erase a large lead, and the
@@ -792,6 +794,79 @@ and P(stop >2 s slow) to within 0.2 points.
 
 Above +15 s the model deliberately stops: that is a front wing change, a repair, or an uncaught
 penalty — a different event, not a routine stop, and not one this model claims to describe.
+
+### Passing, and what a safety car does to a stop
+
+Two numbers decided more pit calls than the degradation model and were set by hand until November
+2026: how hard it is to pass, and how cheap a stop is under a neutralisation. Both sit where pit
+decisions are closest — whether a car that stops can get back past the cars it drops behind, and
+whether "pit now, it's cheap" is true. `scripts/fetch_race_dynamics.py` measures both from every
+cached race since 2022.
+
+**Passing** was one rule for every circuit: a car held behind another passes with probability
+0.18 a lap, plus 0.35 per second of pace edge. Measured on 17,123 green laps where a car started
+within a second of the one ahead, with its edge taken from a clear-air pace fit of the race:
+
+```
+  earlier (<2026)  base 0.084/lap, +0.231 per s/lap  (80 races)
+  current (2026+)  base 0.169/lap, +0.122 per s/lap  (15 races)
+
+  circuit         vs era   used        circuit        vs era   used
+  Monaco            0.03   0.019       Monza            0.76   0.139
+  Marina Bay        0.21   0.056       Spielberg        1.25   0.200
+  Baku              0.35   0.081       São Paulo        1.93   0.258
+  Zandvoort         0.37   0.085       Austin           2.33   0.307
+  Budapest          0.55   0.109       Barcelona        2.43   0.329
+```
+
+Three things in how that is fitted matter. **The simulation's own rule is fitted, not a summary
+of it**: a car the simulation fails to pass with is pinned behind and rolls again only on laps it
+closes back in — about half of them for an even pair — so fitting the raw pass rate would have it
+pass half as often as the races it was fitted on. **The level belongs to the cars and the ratio to
+the track**: 2026's rules made passing easier and less a matter of pace, so the level and slope
+come from 2026 and five seasons say how hard each track is against its own era. **Shrinkage is
+estimated, not borrowed**: one race says little — Baku reads 0.02 of average in two seasons and 1.5
+in the other two — and the ratio of race-to-race to circuit-to-circuit variance puts the weight at
+1.7 races, on a log scale because ratios multiply.
+
+**A safety car and a VSC are now different events.** Every neutralisation used to be a full
+safety car that bunched the field once, on the lap it came out, with a stop under it costing 55%
+of a green one. Measured against what the field did on the same two laps — a method that reads
+green stops at 22.1 s against the pit-loss constant's 22.17, which is the check that it works:
+
+| | hand-set | measured |
+|---|---|---|
+| stop under a safety car | 55% | **72%** (121 stops, 23 races) |
+| stop under a VSC | 55% | **77%** (162 stops, 30 races) |
+| safety car lasts | 3.6 laps | **5.3** |
+| VSC lasts | 3.6 laps | **3.5** |
+| neutralisations that are VSC only | 0% | **44%** |
+
+A safety car is dearer than assumed only over the two laps of the stop. The queue keeps closing up
+behind it, so a car that stops rejoins at the back having lost places rather than time — and the
+simulation now bunches the field on every lap a safety car is out, not just the first. A VSC
+holds every car to a delta and never bunches, so the 77% stays lost.
+
+**Does it change the calls?** `scripts/dynamics_corpus.py` folds each race once per decision lap
+and makes every call twice from the same state, hand-set and measured, for every third car down
+the order. It needs two reference points to be read at all, and has both:
+
+| on the same 160 calls, six 2026 races | calls changed |
+|---|---|
+| a different random seed, nothing else (`--noise`) | 27 — 17% |
+| **measured numbers instead of hand-set** | **53 — 33%** |
+| passing switched off entirely (`--control`) | 56 — 35% |
+
+Across all fourteen races the measured numbers changed 80 of 333 calls: 38 between stopping and
+staying out, in both directions (20 to stop, 18 to stay), 34 in when to stop, 8 in tyre only.
+Barcelona moved most (22 of 32), where passing went from 0.18 a lap to 0.33. Half the raw count is
+the simulation's own noise; the rest, about sixteen points over it, is nearly as much as removing
+passing altogether. That is a large effect for the degradation refit's comparison point — 2% of
+calls — and it is the reason these two numbers were worth measuring first.
+
+The noise floor is a finding of its own: at 1,000 simulations about one call in six turns on the
+random draw. Those are the calls the engine already marks "no clear call", and it is why the
+decisive flag and `soon_margin`, not the bare label, are what gets graded.
 
 ### A note on circuit names
 
